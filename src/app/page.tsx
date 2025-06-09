@@ -1,9 +1,11 @@
+
+import Wholesaler from './wholesaler/page';
+
 export default function Home() {
+
   return (
     <main>
-      <div className="">
-        <p>test</p>
-      </div>
+      <Wholesaler/>
       {/* <Footer /> */}
     </main>
   );
