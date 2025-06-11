@@ -14,8 +14,20 @@ export type Registration = {
 
 export type Agency = Registration & {
   suspended: boolean;
-  profileName: string;
-  percentage: number;
+  // Removed profileName, percentage here; parent handles via profileForm
+};
+
+type PlanType = {
+  _id: string;
+  name: string;
+  service: string;
+  markups: Array<{
+    provider?: string;
+    type: string;
+    value: number;
+    _id: string;
+  }>;
+  // other fields...
 };
 
 type AgencyModalProps = {
@@ -23,13 +35,15 @@ type AgencyModalProps = {
   agency: Agency | null;
   formState: Partial<Registration>;
   setFormState: (s: Partial<Registration>) => void;
-  profileForm: { profileName: string; percentage: number };
-  setProfileForm: (s: { profileName: string; percentage: number }) => void;
+  // UPDATED: include markupPlanId
+  profileForm: { markupPlanId: string; markupPlanName: string; markupPercentage: number };
+  setProfileForm: (s: { markupPlanId: string; markupPlanName: string; markupPercentage: number }) => void;
   close: () => void;
   onSave: () => void;
   onSaveProfile: () => void;
   onToggleSuspend: (a: Agency) => void;
   onDelete: (a: Agency) => void;
+  plans: PlanType[];  // added plans prop
 };
 
 export function AgencyModal({
@@ -44,8 +58,34 @@ export function AgencyModal({
   onSaveProfile,
   onToggleSuspend,
   onDelete,
+  plans,
 }: AgencyModalProps) {
   if (!mode || !agency) return null;
+
+  // Helper: when a plan is selected, set planId, name and percentage
+  const handlePlanSelect = (planId: string) => {
+    const plan = plans.find(p => p._id === planId);
+    if (plan) {
+      const firstMarkup = Array.isArray(plan.markups) && plan.markups.length > 0
+        ? plan.markups[0]
+        : null;
+      const pct = firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
+        ? firstMarkup.value
+        : 0;
+      setProfileForm({
+        markupPlanId: plan._id,
+        markupPlanName: plan.name,
+        markupPercentage: pct,
+      });
+    } else {
+      // If no plan found, clear
+      setProfileForm({
+        markupPlanId: '',
+        markupPlanName: '',
+        markupPercentage: 0,
+      });
+    }
+  };
 
   return (
     <Transition appear show as={Fragment}>
@@ -96,8 +136,8 @@ export function AgencyModal({
                     <span className="font-medium">Status:</span>{' '}
                     {agency.suspended ? 'Suspended' : 'Active'}
                   </p>
-                  <p><span className="font-medium">Plan:</span> {agency.profileName}</p>
-                  <p><span className="font-medium">Percentage:</span> {agency.percentage}%</p>
+                  <p><span className="font-medium">Plan:</span> {profileForm.markupPlanName || '—'}</p>
+                  <p><span className="font-medium">Percentage:</span> {profileForm.markupPercentage}%</p>
                   <div className="pt-4 flex justify-end space-x-2">
                     <button
                       onClick={() => onToggleSuspend(agency)}
@@ -152,8 +192,8 @@ export function AgencyModal({
                       <label className="block text-sm font-medium text-gray-700">Plan Name</label>
                       <input
                         type="text"
-                        value={profileForm.profileName}
-                        onChange={e => setProfileForm({ ...profileForm, profileName: e.target.value })}
+                        value={profileForm.markupPlanName}
+                        onChange={e => setProfileForm({ ...profileForm, markupPlanName: e.target.value })}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
                       />
                     </div>
@@ -161,8 +201,8 @@ export function AgencyModal({
                       <label className="block text-sm font-medium text-gray-700">Percentage</label>
                       <input
                         type="number"
-                        value={profileForm.percentage}
-                        onChange={e => setProfileForm({ ...profileForm, percentage: +e.target.value })}
+                        value={profileForm.markupPercentage}
+                        onChange={e => setProfileForm({ ...profileForm, markupPercentage: +e.target.value })}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
                       />
                     </div>
@@ -190,20 +230,44 @@ export function AgencyModal({
               {mode === 'markup' && (
                 <form className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Plan Name</label>
+                    <label className="block text-sm font-medium text-gray-700">Select Plan</label>
+                    <select
+                      value={profileForm.markupPlanId}
+                      onChange={e => handlePlanSelect(e.target.value)}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
+                    >
+                      <option value="">-- Select a plan --</option>
+                      {plans.map(plan => {
+                        // Determine percentage from first markup
+                        const firstMarkup = Array.isArray(plan.markups) && plan.markups.length > 0
+                          ? plan.markups[0]
+                          : null;
+                        const pct = firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
+                          ? firstMarkup.value
+                          : 0;
+                        return (
+                          <option key={plan._id} value={plan._id}>
+                            {plan.name} - {plan.service} ({pct}%)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Selected Plan Name</label>
                     <input
                       type="text"
-                      value={profileForm.profileName}
-                      onChange={e => setProfileForm({ ...profileForm, profileName: e.target.value })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
+                      value={profileForm.markupPlanName}
+                      readOnly
+                      className="mt-1 block w-full border-gray-300 bg-gray-100 rounded-md shadow-sm p-2"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Percentage</label>
                     <input
                       type="number"
-                      value={profileForm.percentage}
-                      onChange={e => setProfileForm({ ...profileForm, percentage: +e.target.value })}
+                      value={profileForm.markupPercentage}
+                      onChange={e => setProfileForm({ ...profileForm, markupPercentage: +e.target.value })}
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2"
                     />
                   </div>

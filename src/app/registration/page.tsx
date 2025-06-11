@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
 import InputAdornment from '@mui/material/InputAdornment'
@@ -8,9 +9,15 @@ import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DownloadIcon from '@mui/icons-material/Download'
-import toast, { Toaster } from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
+import Snackbar from '@mui/material/Snackbar'
+import Alert from '@mui/material/Alert'
 
-const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/register`
+const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}wholesaler/register`
 
 const generateCaptcha = (length = 6) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -22,6 +29,8 @@ const generateCaptcha = (length = 6) => {
 }
 
 export default function RegistrationForm() {
+  const router = useRouter()
+
   const [agency, setAgency] = useState({
     agencyName: '',
     country: '',
@@ -48,15 +57,16 @@ export default function RegistrationForm() {
   const [licenseName, setLicenseName] = useState<string>('')
   const [captchaCode, setCaptchaCode] = useState<string>('')
   const [captchaInput, setCaptchaInput] = useState<string>('')
-  const [wholesalerId, setWholesalerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // generate captcha and load wholesalerId on mount
+  // Snackbar (toast) state
+  const [toastOpen, setToastOpen] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+  const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success')
+
   useEffect(() => {
     setCaptchaCode(generateCaptcha())
-    const stored = localStorage.getItem('wholesalerId')
-    setWholesalerId(stored)
   }, [])
 
   const handleAgencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,33 +140,14 @@ export default function RegistrationForm() {
     setError(null)
   }
 
-  const resetAll = () => {
-    setAgency({
-      agencyName: '',
-      country: '',
-      city: '',
-      postCode: '',
-      address: '',
-      website: '',
-      phoneNumber: '',
-      email: '',
-      businessCurrency: '',
-      vat: '',
-    })
-    setUser({
-      title: '',
-      firstName: '',
-      lastName: '',
-      emailId: '',
-      designation: '',
-      mobileNumber: '',
-      userName: '',
-      password: '',
-    })
-    setLicenseBase64('')
-    setLicenseName('')
-    refreshCaptcha()
-    setError(null)
+  const handleToastClose = (
+    event?: React.SyntheticEvent | Event,
+    reason?: string
+  ) => {
+    if (reason === 'clickaway') {
+      return
+    }
+    setToastOpen(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,27 +155,38 @@ export default function RegistrationForm() {
     setLoading(true)
     setError(null)
 
-    if (!wholesalerId) {
-      toast.error('No wholesaler ID found in local storage.')
-      setLoading(false)
-      return
-    }
     if (!licenseBase64) {
-      toast.error('Please attach a license image or PDF.')
+      setError('Please attach a license image or PDF')
       setLoading(false)
       return
     }
     if (captchaInput.trim() !== captchaCode) {
-      toast.error('Captcha does not match.')
+      setError('Captcha does not match')
       setLoading(false)
       return
     }
 
+    // Map fields appropriately: agencyName -> wholesalerName
     const payload = {
-      ...agency,
+      wholesalerName: agency.agencyName,
+      country: agency.country,
+      city: agency.city,
+      postCode: agency.postCode,
+      address: agency.address,
+      website: agency.website,
+      phoneNumber: agency.phoneNumber,
+      email: agency.email,
+      businessCurrency: agency.businessCurrency,
+      vat: agency.vat,
       licenseUrl: licenseBase64,
-      ...user,
-      wholesaler: wholesalerId,
+      title: user.title,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      emailId: user.emailId,
+      designation: user.designation,
+      mobileNumber: user.mobileNumber,
+      userName: user.userName,
+      password: user.password,
     }
 
     try {
@@ -194,14 +196,54 @@ export default function RegistrationForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.message || `Server ${res.status}: ${res.statusText}`)
+        const errJson = await res.json().catch(() => null)
+        throw new Error(errJson?.message || `Server ${res.status}: ${res.statusText}`)
       }
-      toast.success('Registration successful!')
-      resetAll()
+      const responseData = await res.json()
+
+      if (responseData.token) {
+        localStorage.setItem('authToken', responseData.token)
+      }
+
+      // Show success toast
+      setToastMessage('Registration successful')
+      setToastSeverity('success')
+      setToastOpen(true)
+
+      // Optionally: clear form after success
+      setAgency({
+        agencyName: '',
+        country: '',
+        city: '',
+        postCode: '',
+        address: '',
+        website: '',
+        phoneNumber: '',
+        email: '',
+        businessCurrency: '',
+        vat: '',
+      })
+      setUser({
+        title: '',
+        firstName: '',
+        lastName: '',
+        emailId: '',
+        designation: '',
+        mobileNumber: '',
+        userName: '',
+        password: '',
+      })
+      setLicenseBase64('')
+      setLicenseName('')
+      refreshCaptcha()
     } catch (err: any) {
-      toast.error(`Registration failed: ${err.message || 'Network error'}`)
+      const message = err.message || 'Network error'
+      setError(message)
+      // Show error toast
+      setToastMessage(`Registration failed: ${message}`)
+      setToastSeverity('error')
+      setToastOpen(true)
     } finally {
       setLoading(false)
     }
@@ -257,18 +299,16 @@ export default function RegistrationForm() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
-      {/* hot-toast container */}
-      <Toaster position="top-right" reverseOrder={false} />
-
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
-          <div className="absolute left-0">
-            <img src="/images/logo.jpg" alt="Logo" className="h-12 w-auto object-contain" />
-          </div>
-          <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
-            Registration Form
-          </h2>
-        </div>
+  
+
+  {/* Centered heading */}
+  <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
+    Registration Form
+  </h2>
+</div>
+
 
         {error && <div className="mt-4 text-red-600">{error}</div>}
 
@@ -294,7 +334,8 @@ export default function RegistrationForm() {
                   f.type === 'select'
                     ? {
                         displayEmpty: true,
-                        renderValue: selected => (selected as string) || placeholderMap[f.name],
+                        renderValue: selected =>
+                          (selected as string) || placeholderMap[f.name],
                       }
                     : undefined
                 }
@@ -352,8 +393,7 @@ export default function RegistrationForm() {
 
             <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded">
               <span className="text-sm text-red-500">
-                To complete the discharge process, you must download the agency contract, sign it,
-                and send it back.
+                To complete the discharge process, you must download the agency contract, sign it, and send it back.
               </span>
               <a
                 href="/images/dummy.pdf"
@@ -387,7 +427,8 @@ export default function RegistrationForm() {
                   f.type === 'select'
                     ? {
                         displayEmpty: true,
-                        renderValue: selected => (selected as string) || placeholderMap[f.name],
+                        renderValue: selected =>
+                          (selected as string) || placeholderMap[f.name],
                       }
                     : undefined
                 }
@@ -437,7 +478,34 @@ export default function RegistrationForm() {
             <button
               type="reset"
               disabled={loading}
-              onClick={resetAll}
+              onClick={() => {
+                setAgency({
+                  agencyName: '',
+                  country: '',
+                  city: '',
+                  postCode: '',
+                  address: '',
+                  website: '',
+                  phoneNumber: '',
+                  email: '',
+                  businessCurrency: '',
+                  vat: '',
+                })
+                setUser({
+                  title: '',
+                  firstName: '',
+                  lastName: '',
+                  emailId: '',
+                  designation: '',
+                  mobileNumber: '',
+                  userName: '',
+                  password: '',
+                })
+                setLicenseBase64('')
+                setLicenseName('')
+                refreshCaptcha()
+                setError(null)
+              }}
               className="px-6 py-2 border rounded disabled:opacity-50"
             >
               Reset
@@ -451,6 +519,18 @@ export default function RegistrationForm() {
             </button>
           </div>
         </form>
+
+        {/* Snackbar for toast messages */}
+        <Snackbar
+          open={toastOpen}
+          autoHideDuration={6000}
+          onClose={handleToastClose}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <Alert onClose={handleToastClose} severity={toastSeverity} sx={{ width: '100%' }}>
+            {toastMessage}
+          </Alert>
+        </Snackbar>
       </div>
     </div>
   )

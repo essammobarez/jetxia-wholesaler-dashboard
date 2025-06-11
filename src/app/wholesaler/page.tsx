@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   ChevronDown,
   Search,
@@ -11,26 +12,31 @@ import {
   Menu,
 } from 'lucide-react';
 
-// Page imports
+// Page imports (add the new submenu components here)
 import DashboardPage from './DashboardPage';
 import OverviewTab from './OverviewTab';
 import HistoryTab from './HistoryTab';
 import CompanyDetailsTab from './CompanyDetailsTab';
 import ManualReservationsTab from './ManualReservationsTab';
-import ManageAgentPage from './registration';    
-import CreateAgent from './agency-panel';                // ← existing import
-import Markup from '../(markup)/markup/page';                    // ← existing import for Markup
-import Payment from './Payment';                        // ← existing import for Payment
+import ManageAgentPage from './registration';
+import CreateAgent from './agency-panel';
+import ManageRequestPage from './admin-approve';
 import Metrics from './Metrics';
-import ManageRequestPage from './admin-approve';     // ← new import for Manage Request
+import Payment from './Payment';
+
+// New imports for Markup submenu
+import CreateMarkup from './CreateMarkup';
+import AssignMarkup from './AssignMarkup';
+import MarkupAgencyList from './MarkupAgencyList';
+import PlanList from './PlanList';
 
 const menuItems = [
   'Dashboard',
   'Booking',
   'Customers',
   'Markup',
-  'Metrics',           
-  'Payment',          
+  'Metrics',
+  'Payment',
   'Messages',
   'Masters',
   'Tools',
@@ -39,20 +45,64 @@ const menuItems = [
 ];
 
 export default function MainPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const [userName, setUserName] = useState<string>('Guest');
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<string>('Dashboard');
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
+  // Decode JWT from URL to extract name & wholesalerId, store token
+  useEffect(() => {
+    const token = searchParams.get('token');
+    if (token) {
+      try {
+        const payloadBase64 = token.split('.')[1];
+        const payloadJson = atob(payloadBase64);
+        const payload = JSON.parse(payloadJson);
+
+        console.log('Decoded JWT payload:', payload);
+
+        if (payload.name) {
+          setUserName(payload.name);
+        }
+        if (payload.wholesalerId) {
+          localStorage.setItem('wholesalerId', payload.wholesalerId);
+        }
+        // Store the token itself for API calls
+        localStorage.setItem('authToken', token);
+      } catch (e) {
+        console.error('Failed to decode token:', e);
+      }
+    }
+  }, [searchParams]);
+
+  // Sync dark mode class on <html>
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
   const handleMenuClick = (item: string) => {
-    setActivePage(item);
-    setExpandedMenu(item === expandedMenu ? null : item);
-    setActiveTab(null);
+    if (activePage === item) {
+      // If clicking the same main menu, collapse submenu
+      setExpandedMenu(prev => (prev === item ? null : item));
+      // Reset activeTab when toggling submenu
+      setActiveTab(null);
+    } else {
+      setActivePage(item);
+      setExpandedMenu(item);
+      setActiveTab(null);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('wholesalerId');
+    router.push('/');
   };
 
   return (
@@ -74,25 +124,52 @@ export default function MainPage() {
           sm:translate-x-0 sm:static sm:block
         `}
       >
-        <div className="p-4 flex items-center space-x-3">
-          <img src="/images/profile.png" className="w-8 h-8 rounded-full" alt="Profile" />
-          <span className="font-medium text-gray-700 dark:text-gray-200">Dominique Ch.</span>
+        {/* Profile Header */}
+        <div
+          className="relative p-4 flex items-center space-x-3 cursor-pointer"
+          onClick={() => setShowProfileMenu(p => !p)}
+        >
+          <img
+            src="/images/profile.png"
+            className="w-8 h-8 rounded-full"
+            alt="Profile"
+          />
+          <span className="font-medium text-gray-700 dark:text-gray-200">
+            {userName}
+          </span>
           <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+          {showProfileMenu && (
+            <div className="absolute top-full left-4 mt-2 w-40 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg">
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-100"
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Navigation */}
         <nav className="px-2 space-y-1">
           {menuItems.map(item => (
             <div key={item}>
               <button
                 onClick={() => handleMenuClick(item)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg
+                className={`
+                  w-full flex items-center justify-between px-3 py-2 rounded-lg
                   hover:bg-gray-100 dark:hover:bg-gray-700
-                  ${activePage === item ? 'bg-gray-200 dark:bg-gray-700' : 'text-gray-600 dark:text-gray-300'}`}
+                  ${activePage === item
+                    ? 'bg-gray-200 dark:bg-gray-700'
+                    : 'text-gray-600 dark:text-gray-300'
+                  }
+                `}
               >
                 <div className="flex items-center space-x-2">
                   <LayoutGrid className="w-5 h-5" />
                   <span>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Agent'].includes(item) && (
+                {['Booking', 'Customers', 'Markup'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-transform ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -107,7 +184,10 @@ export default function MainPage() {
                   {['Overview', 'History', 'Company', 'ManualReservations'].map(tab => (
                     <button
                       key={tab}
-                      onClick={() => setActiveTab(tab)}
+                      onClick={() => {
+                        setActivePage('Booking');
+                        setActiveTab(tab);
+                      }}
                       className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                     >
                       <LayoutGrid className="w-4 h-4" />
@@ -128,7 +208,10 @@ export default function MainPage() {
                   {['CreateAgent', 'ManageAgent', 'ManageRequest'].map(tab => (
                     <button
                       key={tab}
-                      onClick={() => setActiveTab(tab)}
+                      onClick={() => {
+                        setActivePage('Customers');
+                        setActiveTab(tab);
+                      }}
                       className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                     >
                       <LayoutGrid className="w-4 h-4" />
@@ -136,6 +219,30 @@ export default function MainPage() {
                         {tab === 'CreateAgent' && 'Create Agency'}
                         {tab === 'ManageAgent' && 'Manage Agency'}
                         {tab === 'ManageRequest' && 'Manage Request'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Markup sub-menu */}
+              {expandedMenu === 'Markup' && item === 'Markup' && (
+                <div className="pl-8 space-y-1">
+                  {['CreateMarkup', 'AssignMarkup', 'MarkupAgencyList', 'PlanList'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Markup');
+                        setActiveTab(tab);
+                      }}
+                      className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                      <span>
+                        {tab === 'CreateMarkup' && 'Create Markup'}
+                        {tab === 'AssignMarkup' && 'Assign Markup'}
+                        {tab === 'MarkupAgencyList' && 'Markup Agency List'}
+                        {tab === 'PlanList' && 'Plan List'}
                       </span>
                     </button>
                   ))}
@@ -202,6 +309,9 @@ export default function MainPage() {
               {activeTab === 'History' && <HistoryTab />}
               {activeTab === 'Company' && <CompanyDetailsTab />}
               {activeTab === 'ManualReservations' && <ManualReservationsTab />}
+              {!activeTab && (
+                <p className="text-gray-500 dark:text-gray-400">Select a Booking submenu above.</p>
+              )}
             </>
           )}
 
@@ -210,14 +320,28 @@ export default function MainPage() {
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
               {activeTab === 'ManageRequest' && <ManageRequestPage />}
+              {!activeTab && (
+                <p className="text-gray-500 dark:text-gray-400">Select a Customers submenu above.</p>
+              )}
             </>
           )}
 
-          {activePage === 'Markup' && <Markup />}
+          {activePage === 'Markup' && (
+            <>
+              {activeTab === 'CreateMarkup' && <CreateMarkup />}
+              {activeTab === 'AssignMarkup' && <AssignMarkup />}
+              {activeTab === 'MarkupAgencyList' && <MarkupAgencyList />}
+              {activeTab === 'PlanList' && <PlanList />}
+              {!activeTab && (
+                <p className="text-gray-500 dark:text-gray-400">Select a Markup submenu above.</p>
+              )}
+            </>
+          )}
+
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
 
-          {['Messages', 'Accounts', 'Reports', 'Contracts', 'Masters', 'Tools', 'Visa', 'Settings'].includes(activePage) && (
+          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings'].includes(activePage) && (
             <p className="text-gray-500 dark:text-gray-400">{activePage} page coming soon…</p>
           )}
         </main>

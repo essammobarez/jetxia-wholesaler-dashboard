@@ -1,7 +1,7 @@
-// page.tsx
+// AgencyAdminPanel.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
 import { Eye, Edit2, Trash2, Tag, List } from 'lucide-react';
 import {
@@ -14,8 +14,11 @@ type Supplier = { id: string; name: string; enabled: boolean };
 
 type AgencyWithState = BaseAgency & {
   status: 'pending' | 'approved' | 'suspended';
-  profileName: string;   // comma-separated plan names
-  percentage: number;
+  contactName: string;
+  submittedAt: string;
+  // Markup plan fields:
+  markupPlanName: string;      // e.g. "Standard 15% Plan" or '—'
+  markupPercentage: number;    // e.g. 15 or 0
   suspended: boolean;
 };
 
@@ -25,69 +28,126 @@ export default function AgencyAdminPanel() {
   const [modalMode, setModalMode] = useState<'view' | 'edit' | 'markup' | null>(null);
   const [selected, setSelected] = useState<AgencyWithState | null>(null);
   const [formState, setFormState] = useState<Partial<Registration>>({});
-  const [profileForm, setProfileForm] = useState({ profileName: '', percentage: 0 });
-
+  // profileForm will represent markup plan editing fields:
+  // include markupPlanId to track selected plan
+  const [profileForm, setProfileForm] = useState<{
+    markupPlanId: string;
+    markupPlanName: string;
+    markupPercentage: number;
+  }>({
+    markupPlanId: '',
+    markupPlanName: '',
+    markupPercentage: 0,
+  });
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // New state: plans for wholesaler
+  const [plans, setPlans] = useState<any[]>([]);
 
+  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
+
+  // Read wholesalerId from localStorage
   useEffect(() => {
+    const stored = localStorage.getItem('wholesalerId');
+    if (stored) setWholesalerId(stored);
+    else {
+      // If not in localStorage, and want static, set static id:
+      setWholesalerId('68456a9acc455a60d8aaf71a');
+    }
+  }, []);
+
+  // Fetch agencies once API_URL and wholesalerId are available
+  useEffect(() => {
+    if (!API_URL || !wholesalerId) return;
+
     const fetchAgencies = async () => {
       try {
-const res = await fetch(`${process.env.API_URL}agency/agency`);
+        const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`);
         const json = await res.json();
-        if (!json.success || !Array.isArray(json.data)) return;
+        if (!json.success || !Array.isArray(json.data)) {
+          return;
+        }
 
-        const enriched = await Promise.all(
-          json.data.map(async (item: any) => {
-            let planNames = '—';
-            try {
-const planRes = await fetch(
-  `${process.env.API_URL}markup/agency/${item._id}`
-);
-              const planJson = await planRes.json();
-              if (planJson.success && planJson.data.length) {
-                planNames = planJson.data.map((p: any) => p.name).join(', ');
+        const enriched: AgencyWithState[] = json.data.map((item: any) => {
+          // Build contactName
+          const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${item.lastName ?? ''}`.trim();
+          // Parse status
+          const status = (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
+          const suspended = status !== 'approved';
+
+          // Handle markupPlan nested in item
+          let markupPlanName = '—';
+          let markupPercentage = 0;
+          if (item.markupPlan) {
+            // If your API returns markupPlan.markups array:
+            markupPlanName = item.markupPlan.name || '—';
+            if (Array.isArray(item.markupPlan.markups) && item.markupPlan.markups.length > 0) {
+              // Example: pick first markup entry value for percentage
+              const firstMarkup = item.markupPlan.markups[0];
+              if (firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number') {
+                markupPercentage = firstMarkup.value;
               }
-            } catch {}
+            }
+          }
 
-            const status = item.status as 'pending' | 'approved' | 'suspended';
-            return {
-              id: item._id,
-              agencyName: item.agencyName,
-              contactName: `${item.title} ${item.firstName} ${item.lastName}`,
-              email: item.email,
-              address: item.address,
-              phone: item.phoneNumber,
-              submittedAt: item.createdAt,
-              status,
-              profileName: planNames,
-              percentage: 0,
-              suspended: status !== 'approved',
-            } as AgencyWithState;
-          })
-        );
+          return {
+            id: item._id,
+            agencyName: item.agencyName,
+            contactName,
+            email: item.email,
+            address: item.address,
+            phone: item.phoneNumber,
+            submittedAt: item.createdAt,
+            status,
+            markupPlanName,
+            markupPercentage,
+            suspended,
+          };
+        });
 
         setAgencies(enriched);
-      } catch {
+      } catch (err) {
+        console.error('Error fetching agencies:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchAgencies();
-  }, []);
 
+    fetchAgencies();
+  }, [API_URL, wholesalerId]);
+
+  // Fetch plans for wholesaler
+  const fetchPlans = async (wid: string) => {
+    try {
+      const res = await fetch(`${API_URL}markup/plans/wholesaler/${wid}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setPlans(json.data);
+        return json.data;
+      } else {
+        setPlans([]);
+        return [];
+      }
+    } catch (err) {
+      console.error('Error fetching plans:', err);
+      setPlans([]);
+      return [];
+    }
+  };
+
+  // Toggle approve/suspend
   async function toggleStatus(agency: AgencyWithState) {
     const newStatus = agency.suspended ? 'approved' : 'suspended';
     try {
       const res = await fetch(
-  `${process.env.API_URL}agency/admin/agencies/${agency.id}`,
-  {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: newStatus }),
-  }
-);
-
+        `${API_URL}agency/admin/agencies/${agency.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
       const json = await res.json();
       if (!json.success) return;
       setAgencies(prev =>
@@ -97,15 +157,17 @@ const planRes = await fetch(
             : a
         )
       );
-    } catch {
-      // handle error if needed
+    } catch (err) {
+      console.error('Error toggling status:', err);
     }
   }
 
   function openModal(mode: 'view' | 'edit' | 'markup', agency: AgencyWithState) {
     setSelected(agency);
     setModalMode(mode);
+
     if (mode === 'edit') {
+      // Pre-fill formState for editing basic agency fields
       setFormState({
         agencyName: agency.agencyName,
         contactName: agency.contactName,
@@ -115,17 +177,41 @@ const planRes = await fetch(
       });
     }
     if (mode === 'markup') {
-      setProfileForm({ profileName: agency.profileName, percentage: agency.percentage });
+      // Pre-fill profileForm for markup editing: name, percentage, planId if matching
+      setProfileForm({
+        markupPlanId: '',
+        markupPlanName: agency.markupPlanName,
+        markupPercentage: agency.markupPercentage,
+      });
+      // Fetch plans for dropdown
+      if (wholesalerId) {
+        fetchPlans(wholesalerId).then(fetched => {
+          // After fetching plans, if agency.markupPlanName matches one, set markupPlanId
+          const match = fetched.find((p: any) => p.name === agency.markupPlanName);
+          if (match) {
+            setProfileForm({
+              markupPlanId: match._id,
+              markupPlanName: match.name,
+              markupPercentage: (() => {
+                const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
+                  ? match.markups[0]
+                  : null;
+                const pct = firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
+                  ? firstMarkup.value
+                  : agency.markupPercentage;
+                return pct;
+              })(),
+            });
+          }
+        });
+      }
     }
   }
 
+  // Open supplier list: unchanged
   const openSupplierModal = async (agency: AgencyWithState) => {
     try {
-// Using your existing API_URL env var:
-const res = await fetch(
-  `${process.env.API_URL}markup/agency/${agency.id}`
-);
-
+      const res = await fetch(`${API_URL}markup/agency/${agency.id}`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         const all = json.data.flatMap((plan: any) =>
@@ -149,43 +235,79 @@ const res = await fetch(
   const saveEdit = async () => {
     if (!selected) return;
     try {
+      const payload: any = {
+        agencyName: formState.agencyName,
+        // You can add other editable fields here if supported by your API
+      };
       const res = await fetch(
-  `${process.env.API_URL}agency/admin/agencies/${selected.id}`,
-  {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ agencyName: formState.agencyName }),
-  }
-);
-
+        `${API_URL}agency/admin/agencies/${selected.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
       const json = await res.json();
       if (!json.success) return;
-    } catch {
-      return;
+      // Update local state
+      setAgencies(prev =>
+        prev.map(a =>
+          a.id === selected.id
+            ? {
+                ...a,
+                agencyName: formState.agencyName || a.agencyName,
+                // other fields if changed...
+              }
+            : a
+        )
+      );
+      closeModal();
+    } catch (err) {
+      console.error('Error saving edit:', err);
     }
-
-    setAgencies(prev =>
-      prev.map(a =>
-        a.id === selected.id ? { ...a, ...formState, submittedAt: a.submittedAt } : a
-      )
-    );
-    closeModal();
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (!selected) return;
-    setAgencies(prev =>
-      prev.map(a =>
-        a.id === selected.id
-          ? { ...a, profileName: profileForm.profileName, percentage: profileForm.percentage }
-          : a
-      )
-    );
+    const planId = profileForm.markupPlanId;
+    const agencyId = selected.id;
+    if (!planId) {
+      console.warn('No plan selected to assign');
+      closeModal();
+      return;
+    }
+    // Call assign API using PUT method
+    try {
+      const res = await fetch(`${API_URL}markup/${planId}/assign/${agencyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (!json.success) {
+        console.warn('Failed to assign plan:', json);
+      } else {
+        // reflect locally: update agencies state
+        setAgencies(prev =>
+          prev.map(a =>
+            a.id === selected.id
+              ? {
+                  ...a,
+                  markupPlanName: profileForm.markupPlanName,
+                  markupPercentage: profileForm.markupPercentage,
+                }
+              : a
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Error assigning plan to agency:', err);
+    }
     closeModal();
   };
 
   const deleteAgency = (agency: BaseAgency) => {
     if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
+      // Optionally: call backend DELETE before removing locally
       setAgencies(prev => prev.filter(a => a.id !== agency.id));
     }
     closeModal();
@@ -210,7 +332,7 @@ const res = await fetch(
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-100">
             <tr>
-              {['Agency','Contact','Submitted','Profile','Status','Actions'].map(h => (
+              {['Agency','Contact','Submitted','Markup Plan','Status','Actions'].map(h => (
                 <th
                   key={h}
                   className="px-6 py-4 text-left text-sm font-semibold text-blue-700 uppercase tracking-wider"
@@ -226,38 +348,33 @@ const res = await fetch(
                 <td className="px-6 py-4">{a.agencyName}</td>
                 <td className="px-6 py-4">{a.contactName}</td>
                 <td className="px-6 py-4">
-                  {new Date(a.submittedAt).toLocaleDateString(undefined,{
-                    year:'numeric', month:'short', day:'numeric',
+                  {new Date(a.submittedAt).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
                   })}
                 </td>
                 <td className="px-6 py-4">
-                  <div
-                    className="grid grid-cols-3 gap-1 max-w-sm text-sm font-medium text-gray-800"
-                    title={a.profileName}
-                  >
-                    {a.profileName !== '—'
-                      ? a.profileName.split(',').map((plan, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded"
-                          >
-                            {plan.trim()}
-                          </span>
-                        ))
-                      : <span className="text-gray-500">—</span>}
-                  </div>
+                  {a.markupPlanName !== '—' ? (
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        {a.markupPlanName}
+                      </span>
+                      <span className="text-sm text-gray-600">({a.markupPercentage}%)</span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
-                  {/* Status badge colors */}
                   <span
-                    className={
-                      `px-3 py-1 text-xs font-medium rounded-full ` +
-                      (a.status === 'pending'
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${
+                      a.status === 'pending'
                         ? 'bg-yellow-100 text-yellow-800'
                         : a.status === 'approved'
                         ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800')
-                    }
+                        : 'bg-red-100 text-red-800'
+                    }`}
                   >
                     {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
                   </span>
@@ -284,8 +401,6 @@ const res = await fetch(
                   >
                     <Tag size={18} className="text-yellow-700" />
                   </button>
-
-                  {/* Status Toggle */}
                   <Switch
                     checked={!a.suspended}
                     onChange={() => toggleStatus(a)}
@@ -300,7 +415,6 @@ const res = await fetch(
                       }`}
                     />
                   </Switch>
-
                   <button
                     title="Delete"
                     onClick={() => deleteAgency(a)}
@@ -328,12 +442,19 @@ const res = await fetch(
         formState={formState}
         setFormState={setFormState}
         profileForm={profileForm}
-        setProfileForm={setProfileForm}
+        setProfileForm={(vals) =>
+          setProfileForm({
+            markupPlanId: vals.markupPlanId,
+            markupPlanName: vals.markupPlanName,
+            markupPercentage: vals.markupPercentage,
+          })
+        }
         close={closeModal}
         onSave={saveEdit}
         onSaveProfile={saveProfile}
         onToggleSuspend={() => {}}
         onDelete={deleteAgency}
+        plans={plans}  // pass plans into modal
       />
 
       {showSupplierModal && (

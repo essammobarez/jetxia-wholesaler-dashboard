@@ -1,11 +1,11 @@
 
-import Wholesaler from './wholesaler/page';
+import Btoblogin from './btoblogin/page';
 
 export default function Home() {
 
   return (
     <main>
-      <Wholesaler/>
+      <Btoblogin/>
       {/* <Footer /> */}
     </main>
   );

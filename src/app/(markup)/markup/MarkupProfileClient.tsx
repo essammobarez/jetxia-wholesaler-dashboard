@@ -1,4 +1,3 @@
-// app/markup/MarkupProfileClient.tsx
 'use client';
 
 import React, { FC, useState, useEffect } from 'react';
@@ -75,7 +74,13 @@ export interface ProfileSummary {
   raw: Profile;
 }
 
-const MARKUP_API_URL = `${process.env.API_URL}markup/agency`;
+// Use NEXT_PUBLIC_BACKEND_URL for client-side env
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+// Fetch existing plans
+const GET_PLANS_URL = `${BASE_URL}/markup/agency`;
+// Create new plan
+const CREATE_PLAN_URL = `${BASE_URL}/markup/create-plan`;
+
 const AGENCY_ID = '680e35505e268207d5076965';
 
 const MarkupProfilePage: FC = () => {
@@ -98,7 +103,7 @@ const MarkupProfilePage: FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${MARKUP_API_URL}/${AGENCY_ID}`);
+        const res = await fetch(`${GET_PLANS_URL}/${AGENCY_ID}`);
         if (!res.ok) throw new Error(`Server responded ${res.status}`);
         const json = (await res.json()) as { data: Profile[] };
         const mapped = json.data.map(plan => {
@@ -137,71 +142,51 @@ const MarkupProfilePage: FC = () => {
     fetchProfiles();
   }, [defaultModifierParam]);
 
-  const handleAddProfile = (input: any) => {
-    const dm = input.defaultModifier;
-    const id = `${Date.now()}`;
-    const now = new Date().toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleAddProfile = async (input: any) => {
+    try {
+      const payload = {
+        agencyId: AGENCY_ID,
+        name: input.name,
+        type: input.type,
+        defaultModifier: parseFloat(input.defaultModifier),
+        action: input.action,
+      };
+      const res = await fetch(CREATE_PLAN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      const { data: created } = (await res.json()) as { data: Profile };
 
-    const newRaw: Profile = {
-      _id: id,
-      agency: {
-        _id: '',
-        agencyName: input.market,
-        country: '',
-        city: '',
-        postCode: '',
-        address: '',
-        website: '',
-        phoneNumber: '',
-        email: '',
-        businessCurrency: '',
-        vat: '',
-        licenseUrl: '',
-        title: '',
-        firstName: input.name,
-        lastName: '',
-        emailId: '',
-        designation: '',
-        mobileNumber: '',
-        userName: '',
-        createdAt: '',
-        updatedAt: '',
-      },
-      name: input.name,
-      type: input.type,
-      providers: [],
-      markups: [
-        {
-          _id: id,
-          provider: {} as Provider,
-          type: input.action,
-          value: parseFloat(dm),
-        },
-      ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      defaultModifier: dm,
-    };
-
-    const summary: ProfileSummary = {
-      id,
-      name: input.name,
-      type: input.type,
-      modifiers: [defaultModifierParam ? `${defaultModifierParam}%` : dm],
-      modifiedAt: now,
-      modifiedBy: input.name,
-      action: input.action || '—',
-      raw: newRaw,
-    };
-
-    setProfiles(prev => [...prev, summary]);
-    setAddModalOpen(false);
+      // map to summary
+      const dm = defaultModifierParam ||
+        (created.markups[0].type === 'percentage'
+          ? `${created.markups[0].value}%`
+          : `${created.markups[0].value}`);
+      const formattedDate = new Date(created.updatedAt).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const summary: ProfileSummary = {
+        id: created._id,
+        name: created.name,
+        type: created.type,
+        modifiers: [dm],
+        modifiedAt: formattedDate,
+        modifiedBy: created.agency.userName,
+        action: created.markups[0]?.type || '—',
+        raw: created,
+      };
+      setProfiles(prev => [...prev, summary]);
+      setAddModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to create profile');
+    }
   };
 
   const handleEditProfile = (updated: ProfileSummary) => {
@@ -263,21 +248,11 @@ const MarkupProfilePage: FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {[
-                    'NO',
-                    'Name',
-                    // 'Type',      // <-- commented out
-                    // 'Modifiers', // <-- commented out
-                    'Modified',
-                    'Actions'
-                  ].map((col, i) => (
-                    <th
-                      key={i}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
-                    >
+                  {['NO','Name','Modified','Actions'].map((col, i) => (
+                    <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       <div className="inline-flex items-center space-x-1">
                         <span>{col}</span>
-                        {i > 0 && i < 5 && <ChevronDown className="w-3 h-3 text-gray-400" />}
+                        {i > 0 && i < 3 && <ChevronDown className="w-3 h-3 text-gray-400" />}
                       </div>
                     </th>
                   ))}
@@ -288,17 +263,6 @@ const MarkupProfilePage: FC = () => {
                   <tr key={p.id} className="bg-gray-50">
                     <td className="px-4 py-4 text-sm text-gray-700">{idx + 1}</td>
                     <td className="px-4 py-4 text-sm text-gray-700">{p.name}</td>
-{/* Type and modifires */}
-                    
-                    {/* <td className="px-4 py-4 text-sm text-gray-700">{p.type}</td> */}
-                   
-
-                    
-                    {/* <td className="px-4 py-4 text-sm text-gray-700">
-                      {p.modifiers.map((m, i) => <div key={i}>{m}</div>)}
-                    </td> */}
-                   
-
                     <td className="px-4 py-4 text-sm text-gray-700">
                       <div>{p.modifiedAt}</div>
                       <div className="font-medium">{p.modifiedBy}</div>

@@ -29,11 +29,46 @@ const AdminApprove: NextPage = () => {
   const [approvedPage, setApprovedPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Fetch all agencies
+  // Helper to get token & wholesalerId
+  const getAuthToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("authToken") || "";
+    }
+    return "";
+  };
+  const getWholesalerId = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("wholesalerId") || "";
+    }
+    return "";
+  };
+
+  // Fetch agencies by wholesalerId
   useEffect(() => {
     const fetchAgencies = async () => {
+      const token = getAuthToken();
+      const wholesalerId = getWholesalerId();
+      if (!token) {
+        toast.error("Auth token missing. Please login again.");
+        setLoading(false);
+        return;
+      }
+      if (!wholesalerId) {
+        toast.error("Wholesaler ID missing.");
+        setLoading(false);
+        return;
+      }
+
       try {
-const res = await fetch(`${process.env.API_URL}agency/agency`);
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/wholesaler/${wholesalerId}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+          }
+        );
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
           const mapped: Registration[] = json.data.map((item: any) => ({
@@ -127,21 +162,40 @@ const res = await fetch(`${process.env.API_URL}agency/agency`);
   const doAction = async () => {
     if (!pendingAction) return;
     const { action, ids } = pendingAction;
+    const token = getAuthToken();
+    if (!token) {
+      toast.error("Auth token missing. Please login again.");
+      setPendingAction(null);
+      return;
+    }
     if (action === "approve") {
-      await Promise.all(ids.map(id =>
-        fetch(`https://api.jetixia.com/api/v1/agency/admin/agencies/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "approved" }),
-        })
-      ));
-      setRegistrations(prev =>
-        prev.map(r =>
-          ids.includes(r.id) ? { ...r, status: "approved" } : r
-        )
-      );
-      toast.success(`Approved ${ids.length} item(s)!`);
+      try {
+        await Promise.all(ids.map(id =>
+          fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/admin/agencies/${id}`,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+              },
+              body: JSON.stringify({ status: "approved" }),
+            }
+          )
+        ));
+        setRegistrations(prev =>
+          prev.map(r =>
+            ids.includes(r.id) ? { ...r, status: "approved" } : r
+          )
+        );
+        toast.success(`Approved ${ids.length} item(s)!`);
+      } catch (err) {
+        console.error(err);
+        toast.error("Error approving items");
+      }
     } else {
+      // Assuming deletion is client-side only or another endpoint is needed.
+      // If there's a DELETE API endpoint, replace below with actual DELETE call including Authorization.
       setRegistrations(prev => prev.filter(r => !ids.includes(r.id)));
       toast.success(`Deleted ${ids.length} item(s)!`);
     }
