@@ -1,4 +1,3 @@
-// AgencyAdminPanel.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
@@ -9,16 +8,16 @@ import {
   AgencyModal,
 } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
-import { TbCreditCardPay } from "react-icons/tb";
+import { TbCreditCardPay } from 'react-icons/tb';
 
 type Supplier = { id: string; name: string; enabled: boolean };
+
 type AgencyWithState = BaseAgency & {
   status: 'pending' | 'approved' | 'suspended';
   contactName: string;
   submittedAt: string;
-  // Markup plan fields:
-  markupPlanName: string;      // e.g. "Standard 15% Plan" or '—'
-  markupPercentage: number;    // e.g. 15 or 0
+  markupPlanName: string;
+  markupPercentage: number;
   suspended: boolean;
 };
 
@@ -28,9 +27,7 @@ export default function AgencyAdminPanel() {
   const [modalMode, setModalMode] = useState<'view' | 'edit' | 'markup' | null>(null);
   const [selected, setSelected] = useState<AgencyWithState | null>(null);
   const [formState, setFormState] = useState<Partial<Registration>>({});
-  // profileForm will represent markup plan editing fields:
-  // include markupPlanId to track selected plan
-  const [profileForm] = useState<{
+  const [profileForm, setProfileForm] = useState<{
     markupPlanId: string;
     markupPlanName: string;
     markupPercentage: number;
@@ -41,60 +38,45 @@ export default function AgencyAdminPanel() {
   });
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  // New state: plans for wholesaler
   const [plans, setPlans] = useState<any[]>([]);
-  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
-  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
 
-  const openCreditModal =  (id: string) => {
-    setAgencyId(id);
-    setShowCreditModal(true);
-  };
+  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
-  const closeCreditModal = () => {
-    setShowCreditModal(false);
-    setAgencyId(null);
-  };
-  
-  // Read wholesalerId from localStorage
+  // Load wholesalerId from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('wholesalerId');
     if (stored) setWholesalerId(stored);
-    // Removed else block that set a static wholesalerId
   }, []);
 
-  // Fetch agencies once API_URL and wholesalerId are available
+  // Fetch agencies
   useEffect(() => {
     if (!API_URL || !wholesalerId) return;
+
     const fetchAgencies = async () => {
       try {
         const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`);
         const json = await res.json();
-        if (!json.success || !Array.isArray(json.data)) {
-          return;
-        }
+        if (!json.success || !Array.isArray(json.data)) return;
+
         const enriched: AgencyWithState[] = json.data.map((item: any) => {
-          // Build contactName
           const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${item.lastName ?? ''}`.trim();
-          // Parse status
           const status = (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
           const suspended = status !== 'approved';
-          // Handle markupPlan nested in item
+
           let markupPlanName = '—';
           let markupPercentage = 0;
-          if (item.markupPlan) {
-            // If your API returns markupPlan.markups array:
+
+          if (item.markupPlan && Array.isArray(item.markupPlan.markups) && item.markupPlan.markups.length > 0) {
             markupPlanName = item.markupPlan.name || '—';
-            if (Array.isArray(item.markupPlan.markups) && item.markupPlan.markups.length > 0) {
-              // Example: pick first markup entry value for percentage
-              const firstMarkup = item.markupPlan.markups[0];
-              if (firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number') {
-                markupPercentage = firstMarkup.value;
-              }
+            const firstMarkup = item.markupPlan.markups[0];
+            if (firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number') {
+              markupPercentage = firstMarkup.value;
             }
           }
+
           return {
             id: item._id,
             agencyName: item.agencyName,
@@ -109,6 +91,7 @@ export default function AgencyAdminPanel() {
             suspended,
           };
         });
+
         setAgencies(enriched);
       } catch (err) {
         console.error('Error fetching agencies:', err);
@@ -116,11 +99,12 @@ export default function AgencyAdminPanel() {
         setLoading(false);
       }
     };
+
     fetchAgencies();
   }, [API_URL, wholesalerId]);
 
-  // Fetch plans for wholesaler
-  const fetchPlans = async (wid: string) => {
+  // Fetch markup plans
+  const fetchPlans = async (wid: string): Promise<any[]> => {
     try {
       const res = await fetch(`${API_URL}markup/plans/wholesaler/${wid}`);
       const json = await res.json();
@@ -138,20 +122,18 @@ export default function AgencyAdminPanel() {
     }
   };
 
-  // Toggle approve/suspend
-  async function toggleStatus(agency: AgencyWithState) {
+  // Toggle agency status
+  const toggleStatus = async (agency: AgencyWithState) => {
     const newStatus = agency.suspended ? 'approved' : 'suspended';
     try {
-      const res = await fetch(
-        `${API_URL}agency/admin/agencies/${agency.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
+      const res = await fetch(`${API_URL}agency/admin/agencies/${agency.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
       const json = await res.json();
       if (!json.success) return;
+
       setAgencies(prev =>
         prev.map(a =>
           a.id === agency.id
@@ -162,43 +144,43 @@ export default function AgencyAdminPanel() {
     } catch (err) {
       console.error('Error toggling status:', err);
     }
-  }
+  };
 
-  function openModal(mode: 'view' | 'edit' | 'markup', agency: AgencyWithState) {
+  // Open modals with appropriate setup
+  const openModal = (mode: 'view' | 'edit' | 'markup', agency: AgencyWithState) => {
     setSelected(agency);
     setModalMode(mode);
+
     const commonSetup = (fetchedPlans: any[]) => {
-        const match = fetchedPlans.find((p: any) => p.name === agency.markupPlanName);
-        if (match) {
-            setProfileForm({
-                markupPlanId: match._id,
-                markupPlanName: match.name,
-                markupPercentage: (() => {
-                    const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
-                        ? match.markups[0]
-                        : null;
-                    return (firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number')
-                        ? firstMarkup.value
-                        : agency.markupPercentage;
-                })(),
-            });
-        } else {
-             setProfileForm({
-                markupPlanId: '',
-                markupPlanName: agency.markupPlanName,
-                markupPercentage: agency.markupPercentage,
-            });
-        }
+      const match = fetchedPlans.find((p: any) => p.name === agency.markupPlanName);
+      if (match) {
+        setProfileForm({
+          markupPlanId: match._id,
+          markupPlanName: match.name,
+          markupPercentage: (() => {
+            const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
+              ? match.markups[0]
+              : null;
+            return firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
+              ? firstMarkup.value
+              : agency.markupPercentage;
+          })(),
+        });
+      } else {
+        setProfileForm({
+          markupPlanId: '',
+          markupPlanName: agency.markupPlanName,
+          markupPercentage: agency.markupPercentage,
+        });
+      }
     };
+
     if (mode === 'view') {
-        if(wholesalerId) {
-            fetchPlans(wholesalerId).then(commonSetup);
-        } else {
-            commonSetup([]);
-        }
+      if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
+      else commonSetup([]);
     }
+
     if (mode === 'edit') {
-      // Pre-fill formState for editing basic agency fields
       setFormState({
         agencyName: agency.agencyName,
         contactName: agency.contactName,
@@ -207,32 +189,99 @@ export default function AgencyAdminPanel() {
         phone: agency.phone,
       });
     }
-    if (mode === 'markup') {
-        setProfileForm({
-            markupPlanId: '',
-            markupPlanName: agency.markupPlanName,
-            markupPercentage: agency.markupPercentage,
-        });
-        // Fetch plans for dropdown
-        if (wholesalerId) {
-            fetchPlans(wholesalerId).then(commonSetup);
-        }
-    }
-  }
 
-  // Open supplier list: unchanged
+    if (mode === 'markup') {
+      setProfileForm({
+        markupPlanId: '',
+        markupPlanName: agency.markupPlanName,
+        markupPercentage: agency.markupPercentage,
+      });
+      if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
+    }
+  };
+
+  // Save basic agency edit
+  const saveEdit = async () => {
+    if (!selected) return;
+    try {
+      const payload = {
+        agencyName: formState.agencyName,
+      };
+      const res = await fetch(`${API_URL}agency/admin/agencies/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) return;
+
+      setAgencies(prev =>
+        prev.map(a =>
+          a.id === selected.id
+            ? { ...a, agencyName: formState.agencyName || a.agencyName }
+            : a
+        )
+      );
+
+      closeModal();
+    } catch (err) {
+      console.error('Error saving edit:', err);
+    }
+  };
+
+  // Assign markup plan
+  const saveProfile = async () => {
+    if (!selected || !profileForm.markupPlanId) return;
+    const { markupPlanId } = profileForm;
+    const agencyId = selected.id;
+
+    try {
+      const res = await fetch(`${API_URL}markup/${markupPlanId}/assign/${agencyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (!json.success) return;
+
+      setAgencies(prev =>
+        prev.map(a =>
+          a.id === selected.id
+            ? {
+                ...a,
+                markupPlanName: profileForm.markupPlanName,
+                markupPercentage: profileForm.markupPercentage,
+              }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error('Error assigning plan:', err);
+    }
+
+    closeModal();
+  };
+
+  // Delete agency
+  const deleteAgency = (agency: BaseAgency) => {
+    if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
+      setAgencies(prev => prev.filter(a => a.id !== agency.id));
+    }
+    closeModal();
+  };
+
+  const closeModal = () => setModalMode(null);
+
+  // Open supplier modal
   const openSupplierModal = async (agency: AgencyWithState) => {
     try {
       const res = await fetch(`${API_URL}markup/agency/${agency.id}`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        const all = json.data.flatMap((plan: any) =>
+        const allProviders = json.data.flatMap((plan: any) =>
           Array.isArray(plan.providers) ? plan.providers : []
         );
-        const unique = Array.from(
-          new Map(all.map((p: any) => [p._id, p])).values()
-        );
-        setSuppliers(unique.map((p: any) => ({ id: p._id, name: p.name, enabled: p.isActive })));
+        const uniqueProviders = Array.from(new Map(allProviders.map(p => [p._id, p])).values());
+        setSuppliers(uniqueProviders.map(p => ({ id: p._id, name: p.name, enabled: p.isActive })));
       } else {
         setSuppliers([]);
       }
@@ -242,87 +291,15 @@ export default function AgencyAdminPanel() {
     setShowSupplierModal(true);
   };
 
-  const closeModal = () => setModalMode(null);
-
-  const saveEdit = async () => {
-    if (!selected) return;
-    try {
-      const payload: any = {
-        agencyName: formState.agencyName,
-        // You can add other editable fields here if supported by your API
-      };
-      const res = await fetch(
-        `${API_URL}agency/admin/agencies/${selected.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }
-      );
-      const json = await res.json();
-      if (!json.success) return;
-      // Update local state
-      setAgencies(prev =>
-        prev.map(a =>
-          a.id === selected.id
-            ? {
-              ...a,
-              agencyName: formState.agencyName || a.agencyName,
-              // other fields if changed...
-            }
-            : a
-        )
-      );
-      closeModal();
-    } catch (err) {
-      console.error('Error saving edit:', err);
-    }
+  // Open add credit modal
+  const openCreditModal = (id: string) => {
+    setAgencyId(id);
+    setShowCreditModal(true);
   };
 
-  const saveProfile = async () => {
-    if (!selected) return;
-    const planId = profileForm.markupPlanId;
-    const agencyId = selected.id;
-    if (!planId) {
-      console.warn('No plan selected to assign');
-      closeModal();
-      return;
-    }
-    // Call assign API using PUT method
-    try {
-      const res = await fetch(`${API_URL}markup/${planId}/assign/${agencyId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const json = await res.json();
-      if (!json.success) {
-        console.warn('Failed to assign plan:', json);
-      } else {
-        // reflect locally: update agencies state
-        setAgencies(prev =>
-          prev.map(a =>
-            a.id === selected.id
-              ? {
-                ...a,
-                markupPlanName: profileForm.markupPlanName,
-                markupPercentage: profileForm.markupPercentage,
-              }
-              : a
-          )
-        );
-      }
-    } catch (err) {
-      console.error('Error assigning plan to agency:', err);
-    }
-    closeModal();
-  };
-
-  const deleteAgency = (agency: BaseAgency) => {
-    if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
-      // Optionally: call backend DELETE before removing locally
-      setAgencies(prev => prev.filter(a => a.id !== agency.id));
-    }
-    closeModal();
+  const closeCreditModal = () => {
+    setShowCreditModal(false);
+    setAgencyId(null);
   };
 
   if (loading) {
@@ -339,6 +316,7 @@ export default function AgencyAdminPanel() {
         <h1 className="text-4xl font-extrabold text-blue-800">Agency Management</h1>
         <p className="mt-2 text-blue-600">View, edit or manage agency registrations</p>
       </header>
+
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-100">
@@ -378,12 +356,13 @@ export default function AgencyAdminPanel() {
                 </td>
                 <td className="px-6 py-4">
                   <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${a.status === 'pending'
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${
+                      a.status === 'pending'
                         ? 'bg-yellow-100 text-yellow-800'
                         : a.status === 'approved'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
                   >
                     {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
                   </span>
@@ -392,8 +371,9 @@ export default function AgencyAdminPanel() {
                   <button
                     onClick={() => openCreditModal(a.id)}
                     className="p-2 bg-green-500 text-white rounded-full hover:bg-green-700"
+                    title="Add Credit"
                   >
-                    <TbCreditCardPay className='w-5 h-5 text-black' />
+                    <TbCreditCardPay className="w-5 h-5" />
                   </button>
                   <button
                     title="View"
@@ -419,13 +399,15 @@ export default function AgencyAdminPanel() {
                   <Switch
                     checked={!a.suspended}
                     onChange={() => toggleStatus(a)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!a.suspended ? 'bg-green-400' : 'bg-red-300'
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      !a.suspended ? 'bg-green-400' : 'bg-red-300'
+                    }`}
                   >
                     <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!a.suspended ? 'translate-x-6' : 'translate-x-1'
-                        }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        !a.suspended ? 'translate-x-6' : 'translate-x-1'
+                      }`}
                     />
                   </Switch>
                   <button
@@ -448,6 +430,7 @@ export default function AgencyAdminPanel() {
           </tbody>
         </table>
       </div>
+
       <AgencyModal
         mode={modalMode}
         agency={selected}
@@ -464,10 +447,15 @@ export default function AgencyAdminPanel() {
         close={closeModal}
         onSave={saveEdit}
         onSaveProfile={saveProfile}
-        onToggleSuspend={() => { }}
+        onToggleSuspend={toggleStatus}
         onDelete={deleteAgency}
-        plans={plans}  // pass plans into modal
+        plans={plans}
       />
+
+      {showCreditModal && agencyId && (
+        <AddCreditModal onClose={closeCreditModal} agencyId={agencyId} />
+      )}
+
       {showSupplierModal && (
         <div className="fixed inset-0 bg-black/10 bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
@@ -483,13 +471,15 @@ export default function AgencyAdminPanel() {
                         prev.map(x => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${s.enabled ? 'bg-green-500' : 'bg-red-300'
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      s.enabled ? 'bg-green-500' : 'bg-red-300'
+                    }`}
                   >
                     <span className="sr-only">Toggle Provider</span>
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${s.enabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        s.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
                     />
                   </Switch>
                 </li>
