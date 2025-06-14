@@ -8,6 +8,8 @@ import {
   Agency as BaseAgency,
   AgencyModal,
 } from './AgencyModal';
+import AddCreditModal from './AddCreditModal';
+import { TbCreditCardPay } from "react-icons/tb";
 
 type Supplier = { id: string; name: string; enabled: boolean };
 type AgencyWithState = BaseAgency & {
@@ -43,7 +45,19 @@ export default function AgencyAdminPanel() {
   const [plans, setPlans] = useState<any[]>([]);
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [agencyId, setAgencyId] = useState<string | null>(null);
 
+  const openCreditModal =  (id: string) => {
+    setAgencyId(id);
+    setShowCreditModal(true);
+  };
+
+  const closeCreditModal = () => {
+    setShowCreditModal(false);
+    setAgencyId(null);
+  };
+  
   // Read wholesalerId from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('wholesalerId');
@@ -252,10 +266,10 @@ export default function AgencyAdminPanel() {
         prev.map(a =>
           a.id === selected.id
             ? {
-                ...a,
-                agencyName: formState.agencyName || a.agencyName,
-                // other fields if changed...
-              }
+              ...a,
+              agencyName: formState.agencyName || a.agencyName,
+              // other fields if changed...
+            }
             : a
         )
       );
@@ -289,10 +303,10 @@ export default function AgencyAdminPanel() {
           prev.map(a =>
             a.id === selected.id
               ? {
-                  ...a,
-                  markupPlanName: profileForm.markupPlanName,
-                  markupPercentage: profileForm.markupPercentage,
-                }
+                ...a,
+                markupPlanName: profileForm.markupPlanName,
+                markupPercentage: profileForm.markupPercentage,
+              }
               : a
           )
         );
@@ -329,7 +343,7 @@ export default function AgencyAdminPanel() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-100">
             <tr>
-              {['Agency','Contact','Submitted','Markup Plan','Status','Actions'].map(h => (
+              {['Agency', 'Contact', 'Submitted', 'Markup Plan', 'Status', 'Actions'].map(h => (
                 <th
                   key={h}
                   className="px-6 py-4 text-left text-sm font-semibold text-blue-700 uppercase tracking-wider"
@@ -364,18 +378,23 @@ export default function AgencyAdminPanel() {
                 </td>
                 <td className="px-6 py-4">
                   <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      a.status === 'pending'
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${a.status === 'pending'
                         ? 'bg-yellow-100 text-yellow-800'
                         : a.status === 'approved'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
                   >
                     {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
                   </span>
                 </td>
                 <td className="px-6 py-4 flex items-center space-x-2">
+                  <button
+                    onClick={() => openCreditModal(a.id)}
+                    className="p-2 bg-green-500 text-white rounded-full hover:bg-green-700"
+                  >
+                    <TbCreditCardPay className='w-5 h-5 text-black' />
+                  </button>
                   <button
                     title="View"
                     onClick={() => openModal('view', a)}
@@ -400,15 +419,13 @@ export default function AgencyAdminPanel() {
                   <Switch
                     checked={!a.suspended}
                     onChange={() => toggleStatus(a)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      !a.suspended ? 'bg-green-400' : 'bg-red-300'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!a.suspended ? 'bg-green-400' : 'bg-red-300'
+                      }`}
                   >
                     <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        !a.suspended ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!a.suspended ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </Switch>
                   <button
@@ -447,7 +464,7 @@ export default function AgencyAdminPanel() {
         close={closeModal}
         onSave={saveEdit}
         onSaveProfile={saveProfile}
-        onToggleSuspend={() => {}}
+        onToggleSuspend={() => { }}
         onDelete={deleteAgency}
         plans={plans}  // pass plans into modal
       />
@@ -466,15 +483,13 @@ export default function AgencyAdminPanel() {
                         prev.map(x => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
                       )
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      s.enabled ? 'bg-green-500' : 'bg-red-300'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${s.enabled ? 'bg-green-500' : 'bg-red-300'
+                      }`}
                   >
                     <span className="sr-only">Toggle Provider</span>
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        s.enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${s.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                     />
                   </Switch>
                 </li>
