@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, FormEvent } from 'react';
-import Promotion from './promotion';
+
 import PlanList from './PlanList';
+import Promotion from './Promotion';
 
 export default function CreateMarkup() {
   // State for form fields
