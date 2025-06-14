@@ -228,7 +228,7 @@ export default function MainPage() {
               {/* Markup sub-menu */}
               {expandedMenu === 'Markup' && item === 'Markup' && (
                 <div className="pl-8 space-y-1">
-                  {['CreateMarkup', 'AssignMarkup', 'MarkupAgencyList', 'PlanList'].map(tab => (
+                  {['CreateMarkup', 'MarkupAgencyList', 'PlanList'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -240,7 +240,7 @@ export default function MainPage() {
                       <LayoutGrid className="w-4 h-4" />
                       <span>
                         {tab === 'CreateMarkup' && 'Create Markup'}
-                        {tab === 'AssignMarkup' && 'Assign Markup'}
+                        {/* {tab === 'AssignMarkup' && 'Assign Markup'} */}
                         {tab === 'MarkupAgencyList' && 'Markup Agency List'}
                         {tab === 'PlanList' && 'Plan List'}
                       </span>

@@ -1,6 +1,7 @@
 'use client'
-
 import React, { useState, useEffect } from 'react'
+import PhoneInput from 'react-phone-input-2'
+import 'react-phone-input-2/lib/material.css'
 import { useRouter } from 'next/navigation'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
@@ -18,7 +19,6 @@ import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 
 const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}wholesaler/register`
-
 const generateCaptcha = (length = 6) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
@@ -30,7 +30,6 @@ const generateCaptcha = (length = 6) => {
 
 export default function RegistrationForm() {
   const router = useRouter()
-
   const [agency, setAgency] = useState({
     agencyName: '',
     country: '',
@@ -72,9 +71,11 @@ export default function RegistrationForm() {
   const handleAgencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAgency(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
+
   const handleUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUser(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
+
   const handleCaptchaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCaptchaInput(e.target.value)
   }
@@ -84,7 +85,6 @@ export default function RegistrationForm() {
     if (!file) return
     setLicenseName(file.name)
     setError(null)
-
     if (file.type.startsWith('image/')) {
       const reader = new FileReader()
       reader.onload = ev => {
@@ -160,13 +160,13 @@ export default function RegistrationForm() {
       setLoading(false)
       return
     }
+
     if (captchaInput.trim() !== captchaCode) {
       setError('Captcha does not match')
       setLoading(false)
       return
     }
 
-    // Map fields appropriately: agencyName -> wholesalerName
     const payload = {
       wholesalerName: agency.agencyName,
       country: agency.country,
@@ -196,22 +196,21 @@ export default function RegistrationForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+
       if (!res.ok) {
         const errJson = await res.json().catch(() => null)
         throw new Error(errJson?.message || `Server ${res.status}: ${res.statusText}`)
       }
-      const responseData = await res.json()
 
+      const responseData = await res.json()
       if (responseData.token) {
         localStorage.setItem('authToken', responseData.token)
       }
 
-      // Show success toast
       setToastMessage('Registration successful')
       setToastSeverity('success')
       setToastOpen(true)
 
-      // Optionally: clear form after success
       setAgency({
         agencyName: '',
         country: '',
@@ -224,6 +223,7 @@ export default function RegistrationForm() {
         businessCurrency: '',
         vat: '',
       })
+
       setUser({
         title: '',
         firstName: '',
@@ -234,13 +234,13 @@ export default function RegistrationForm() {
         userName: '',
         password: '',
       })
+
       setLicenseBase64('')
       setLicenseName('')
       refreshCaptcha()
     } catch (err: any) {
       const message = err.message || 'Network error'
       setError(message)
-      // Show error toast
       setToastMessage(`Registration failed: ${message}`)
       setToastSeverity('error')
       setToastOpen(true)
@@ -268,7 +268,7 @@ export default function RegistrationForm() {
     { name: 'postCode', label: 'Post Code', type: 'text', required: true },
     { name: 'address', label: 'Address', type: 'text', required: true },
     { name: 'website', label: 'Website', type: 'text' },
-    { name: 'phoneNumber', label: 'Phone Number', type: 'text', required: true },
+    { name: 'phoneNumber', label: '', type: 'phone', required: true },
     { name: 'email', label: 'Email', type: 'email', required: true },
     {
       name: 'businessCurrency',
@@ -285,7 +285,7 @@ export default function RegistrationForm() {
     { name: 'lastName', label: 'Last Name', type: 'text', required: true },
     { name: 'emailId', label: 'Email ID', type: 'email', required: true },
     { name: 'designation', label: 'Designation', type: 'text', required: true },
-    { name: 'mobileNumber', label: 'Mobile Number', type: 'text', required: true },
+    { name: 'mobileNumber', label: '', type: 'phone', required: true },
     { name: 'userName', label: 'User Name', type: 'text', required: true },
     { name: 'password', label: 'Password', type: 'password', required: true },
   ]
@@ -301,52 +301,63 @@ export default function RegistrationForm() {
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
-  
-
-  {/* Centered heading */}
-  <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
-    Registration Form
-  </h2>
-</div>
-
-
+          <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
+            Registration Form
+          </h2>
+        </div>
         {error && <div className="mt-4 text-red-600">{error}</div>}
-
         <form onSubmit={handleSubmit}>
           {/* Agency Detail */}
           <h3 className="mt-8 text-xl font-semibold">Agency Detail</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {agencyFields.map(f => (
-              <TextField
-                key={f.name}
-                name={f.name}
-                label={f.label}
-                type={f.type === 'select' ? undefined : f.type}
-                select={f.type === 'select'}
-                required={!!f.required}
-                value={(agency as any)[f.name]}
-                onChange={handleAgencyChange}
-                fullWidth
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-                placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
-                SelectProps={
-                  f.type === 'select'
-                    ? {
-                        displayEmpty: true,
-                        renderValue: selected =>
-                          (selected as string) || placeholderMap[f.name],
-                      }
-                    : undefined
-                }
-              >
-                {f.options?.map(opt => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </TextField>
-            ))}
+            {agencyFields.map(f =>
+              f.type === 'phone' ? (
+                <div key={f.name} className="w-full">
+                  <label className="block text-sm font-medium mb-1">{f.label}</label>
+                  <PhoneInput
+                    country={'us'}
+                    value={agency.phoneNumber}
+                    onChange={phone => setAgency(prev => ({ ...prev, phoneNumber: phone }))}
+                    inputProps={{
+                      name: 'phoneNumber',
+                      required: true,
+                    }}
+                    containerClass="w-full"
+                    inputStyle={{ width: '100%' }}
+                  />
+                </div>
+              ) : (
+                <TextField
+                  key={f.name}
+                  name={f.name}
+                  label={f.label}
+                  type={f.type === 'select' ? undefined : f.type}
+                  select={f.type === 'select'}
+                  required={!!f.required}
+                  value={(agency as any)[f.name]}
+                  onChange={handleAgencyChange}
+                  fullWidth
+                  variant="outlined"
+                  InputLabelProps={{ shrink: true }}
+                  placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
+                  SelectProps={
+                    f.type === 'select'
+                      ? {
+                          displayEmpty: true,
+                          renderValue: selected =>
+                            (selected as string) || placeholderMap[f.name],
+                        }
+                      : undefined
+                  }
+                >
+                  {f.options?.map(opt => (
+                    <MenuItem key={opt} value={opt}>
+                      {opt}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )
+            )}
           </div>
 
           {/* License + Download */}
@@ -390,7 +401,6 @@ export default function RegistrationForm() {
                 onChange={handleFileChange}
               />
             )}
-
             <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded">
               <span className="text-sm text-red-500">
                 To complete the discharge process, you must download the agency contract, sign it, and send it back.
@@ -409,37 +419,54 @@ export default function RegistrationForm() {
           {/* Main User Detail */}
           <h3 className="mt-8 text-xl font-semibold">Main User Detail</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {userFields.map(f => (
-              <TextField
-                key={f.name}
-                name={f.name}
-                label={f.label}
-                type={f.type === 'select' ? undefined : f.type}
-                select={f.type === 'select'}
-                required={!!f.required}
-                value={(user as any)[f.name]}
-                onChange={handleUserChange}
-                fullWidth
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-                placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
-                SelectProps={
-                  f.type === 'select'
-                    ? {
-                        displayEmpty: true,
-                        renderValue: selected =>
-                          (selected as string) || placeholderMap[f.name],
-                      }
-                    : undefined
-                }
-              >
-                {f.options?.map(opt => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </TextField>
-            ))}
+            {userFields.map(f =>
+              f.type === 'phone' ? (
+                <div key={f.name} className="w-full">
+                  <label className="block text-sm font-medium mb-1">{f.label}</label>
+                  <PhoneInput
+                    country={'us'}
+                    value={user.mobileNumber}
+                    onChange={phone => setUser(prev => ({ ...prev, mobileNumber: phone }))}
+                    inputProps={{
+                      name: 'mobileNumber',
+                      required: true,
+                    }}
+                    containerClass="w-full"
+                    inputStyle={{ width: '100%' }}
+                  />
+                </div>
+              ) : (
+                <TextField
+                  key={f.name}
+                  name={f.name}
+                  label={f.label}
+                  type={f.type === 'select' ? undefined : f.type}
+                  select={f.type === 'select'}
+                  required={!!f.required}
+                  value={(user as any)[f.name]}
+                  onChange={handleUserChange}
+                  fullWidth
+                  variant="outlined"
+                  InputLabelProps={{ shrink: true }}
+                  placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
+                  SelectProps={
+                    f.type === 'select'
+                      ? {
+                          displayEmpty: true,
+                          renderValue: selected =>
+                            (selected as string) || placeholderMap[f.name],
+                        }
+                      : undefined
+                  }
+                >
+                  {f.options?.map(opt => (
+                    <MenuItem key={opt} value={opt}>
+                      {opt}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )
+            )}
           </div>
 
           {/* Captcha */}

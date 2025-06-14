@@ -9,18 +9,42 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import DetailModal, { Registration } from "./DetailModal";
+
+import DetailModal, { Registration as ImportedRegistration } from "./DetailModal";
 import ConfirmModal from "./ConfirmModal";
+import AssignMarkupModal from "./AssignMarkupModal";
+
+// Define the structure of a markup plan object for type consistency
+type MarkupPlanInfo = {
+  _id: string;
+  name: string;
+  value?: number; // Value is optional as it might not be present everywhere
+};
+
+// Extend the imported Registration type to include all necessary fields for the main page
+type Registration = ImportedRegistration & {
+  // All fields are now in the imported Registration type from DetailModal
+  // This ensures consistency.
+  markupPlan?: MarkupPlanInfo; // Specify the shape of the markup plan
+};
+
 
 const AdminApprove: NextPage = () => {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalItem, setModalItem] = useState<Registration | null>(null);
-  const [pendingAction, setPendingAction] = useState<{
-    action: "approve" | "delete";
+
+  // State for the delete confirmation modal
+  const [pendingDelete, setPendingDelete] = useState<{
     ids: string[];
     message: string;
   } | null>(null);
+
+  // State for the new assign markup modal
+  const [assignMarkupInfo, setAssignMarkupInfo] = useState<{
+    ids: string[];
+  } | null>(null);
+
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,68 +54,92 @@ const AdminApprove: NextPage = () => {
   const itemsPerPage = 10;
 
   // Helper to get token & wholesalerId
-  const getAuthToken = () => {
+  const getAuthToken = useCallback(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("authToken") || "";
     }
     return "";
-  };
-  const getWholesalerId = () => {
+  }, []);
+
+  const getWholesalerId = useCallback(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("wholesalerId") || "";
     }
     return "";
-  };
-
-  // Fetch agencies by wholesalerId
-  useEffect(() => {
-    const fetchAgencies = async () => {
-      const token = getAuthToken();
-      const wholesalerId = getWholesalerId();
-      if (!token) {
-        toast.error("Auth token missing. Please login again.");
-        setLoading(false);
-        return;
-      }
-      if (!wholesalerId) {
-        toast.error("Wholesaler ID missing.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/wholesaler/${wholesalerId}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-            },
-          }
-        );
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const mapped: Registration[] = json.data.map((item: any) => ({
-            id: item._id,
-            agencyName: item.agencyName,
-            contactName: `${item.firstName} ${item.lastName}`,
-            email: item.emailId || item.email,
-            submittedAt: item.createdAt,
-            status: item.status as "pending" | "approved" | "suspended",
-          }));
-          setRegistrations(mapped);
-        } else {
-          toast.error("Failed to load agencies");
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Error fetching agencies");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAgencies();
   }, []);
+
+  // Fetch agencies by wholesalerId, wrapped in useCallback to be stable
+  const fetchAgencies = useCallback(async () => {
+    setLoading(true);
+    const token = getAuthToken();
+    const wholesalerId = getWholesalerId();
+    if (!token) {
+      toast.error("Auth token missing. Please login again.");
+      setLoading(false);
+      return;
+    }
+    if (!wholesalerId) {
+      toast.error("Wholesaler ID missing.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/wholesaler/${wholesalerId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      );
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        // --- UPDATED MAPPING: Map all detailed fields from the API response ---
+        const mapped: Registration[] = json.data.map((item: any) => ({
+          id: item._id,
+          agencyName: item.agencyName,
+          contactName: `${item.firstName} ${item.lastName}`,
+          email: item.emailId || item.email, // Use primary contact email for the list view
+          submittedAt: item.createdAt,
+          status: item.status as "pending" | "approved" | "suspended",
+          
+          // All other fields for the detail modal
+          slug: item.slug,
+          country: item.country,
+          city: item.city,
+          postCode: item.postCode,
+          address: item.address,
+          website: item.website,
+          phoneNumber: item.phoneNumber,
+          agencyEmail: item.email, // a.k.a the general agency email
+          businessCurrency: item.businessCurrency,
+          vat: item.vat,
+          licenseUrl: item.licenseUrl,
+          title: item.title,
+          firstName: item.firstName,
+          lastName: item.lastName,
+          designation: item.designation,
+          mobileNumber: item.mobileNumber,
+          markupPlan: item.markupPlan,
+        }));
+        setRegistrations(mapped);
+      } else {
+        toast.error(json.message || "Failed to load agencies");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error fetching agencies");
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthToken, getWholesalerId]);
+
+  useEffect(() => {
+    fetchAgencies();
+  }, [fetchAgencies]);
+
 
   // Filter + sort
   const filtered = useMemo(() => {
@@ -152,56 +200,80 @@ const AdminApprove: NextPage = () => {
     });
   };
 
-  // Confirm dialog
-  const requestConfirm = (action: "approve" | "delete", ids: string[]) => {
-    const verb = action === "approve" ? "Approve" : "Delete";
-    setPendingAction({ action, ids, message: `${verb} ${ids.length} item(s)?` });
+  // Request handlers for modals
+  const requestAction = (action: "approve" | "delete", ids: string[]) => {
+    if (ids.length === 0) return;
+
+    if (action === "approve") {
+      setAssignMarkupInfo({ ids });
+    } else {
+      setPendingDelete({ ids, message: `Delete ${ids.length} item(s)?` });
+    }
   };
 
-  // Perform action
-  const doAction = async () => {
-    if (!pendingAction) return;
-    const { action, ids } = pendingAction;
-    const token = getAuthToken();
-    if (!token) {
-      toast.error("Auth token missing. Please login again.");
-      setPendingAction(null);
-      return;
-    }
-    if (action === "approve") {
-      try {
-        await Promise.all(ids.map(id =>
-          fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/admin/agencies/${id}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-              },
-              body: JSON.stringify({ status: "approved" }),
-            }
-          )
-        ));
-        setRegistrations(prev =>
-          prev.map(r =>
-            ids.includes(r.id) ? { ...r, status: "approved" } : r
-          )
-        );
-        toast.success(`Approved ${ids.length} item(s)!`);
-      } catch (err) {
-        console.error(err);
-        toast.error("Error approving items");
-      }
-    } else {
-      // Assuming deletion is client-side only or another endpoint is needed.
-      // If there's a DELETE API endpoint, replace below with actual DELETE call including Authorization.
-      setRegistrations(prev => prev.filter(r => !ids.includes(r.id)));
-      toast.success(`Deleted ${ids.length} item(s)!`);
-    }
+  // Perform deletion
+  const doDelete = async () => {
+    if (!pendingDelete) return;
+    const { ids } = pendingDelete;
+    // NOTE: This assumes client-side deletion.
+    // Replace with actual DELETE API call if available.
+    setRegistrations(prev => prev.filter(r => !ids.includes(r.id)));
+    toast.success(`Deleted ${ids.length} item(s)!`);
     setSelected(new Set());
-    setPendingAction(null);
+    setPendingDelete(null);
   };
+
+  // Perform markup assignment and approval
+  const handleAssignAndApprove = async (planId: string) => {
+    if (!assignMarkupInfo) return;
+    const { ids } = assignMarkupInfo;
+    const token = getAuthToken();
+
+    toast.info(`Assigning and approving ${ids.length} agencies...`);
+
+    try {
+      // Step 1: Assign markup plan to all selected agencies
+      const assignPromises = ids.map(agencyId =>
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}markup/${planId}/assign/${agencyId}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => {
+            if(!res.ok) throw new Error(`Failed to assign plan to agency ${agencyId}`);
+            return res.json();
+        })
+      );
+      await Promise.all(assignPromises);
+
+      // Step 2: Approve all selected agencies
+      const approvePromises = ids.map(agencyId =>
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}agency/admin/agencies/${agencyId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "approved" }),
+        }).then(res => {
+            if(!res.ok) throw new Error(`Failed to approve agency ${agencyId}`);
+            return res.json();
+        })
+      );
+      await Promise.all(approvePromises);
+
+      toast.success(`Successfully assigned and approved ${ids.length} item(s)!`);
+      
+      // Step 3: Refetch all data to get the latest state including new markup plans
+      await fetchAgencies();
+
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "An error occurred during the process.");
+    } finally {
+      setSelected(new Set());
+      setAssignMarkupInfo(null);
+    }
+  };
+
 
   // Export PDF
   const exportPDF = () => {
@@ -212,14 +284,15 @@ const AdminApprove: NextPage = () => {
     doc.setFontSize(16);
     doc.text("Registrations Report", 40, 50);
 
-    const headers = [["ID", "Agency", "Contact", "Email", "Submitted At", "Status"]];
+    const headers = [["ID", "Agency", "Contact", "Email", "Submitted At", "Status", "Markup"]];
     const data = rows.map(r => [
       r.id,
       r.agencyName,
       r.contactName,
       r.email,
-      format(new Date(r.submittedAt), "MMM dd, yyyy • hh:mm a"),
+      format(new Date(r.submittedAt), "MMM dd, hh:mm a"),
       r.status.toUpperCase(),
+      r.markupPlan?.name || "N/A"
     ]);
     autoTable(doc, {
       startY: 70,
@@ -267,8 +340,10 @@ const AdminApprove: NextPage = () => {
               <th className="px-6 py-3">Agency</th>
               <th className="px-6 py-3">Contact</th>
               <th className="px-6 py-3">Email</th>
-              <th className="px-6 py-3">Submitted</th>
+              {/* <th className="px-6 py-3">Submitted</th> */}
               <th className="px-6 py-3">Status</th>
+              {/* Conditionally add Markup column for Approved section */}
+              {title === "Approved Registrations" && <th className="px-6 py-3">Markup</th>}
               <th className="px-6 py-3">Actions</th>
             </tr>
           </thead>
@@ -285,9 +360,9 @@ const AdminApprove: NextPage = () => {
                 <td className="px-6 py-4 font-medium">{r.agencyName}</td>
                 <td className="px-6 py-4">{r.contactName}</td>
                 <td className="px-6 py-4">{r.email}</td>
-                <td className="px-6 py-4 text-gray-500 text-sm">
+                {/* <td className="px-6 py-4 text-gray-500 text-sm">
                   {format(new Date(r.submittedAt), "MMM dd, yyyy • hh:mm a")}
-                </td>
+                </td> */}
                 <td className="px-6 py-4">
                   <span
                     className={
@@ -300,6 +375,12 @@ const AdminApprove: NextPage = () => {
                     {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                   </span>
                 </td>
+                {/* Conditionally add markup data cell */}
+                {title === "Approved Registrations" && (
+                  <td className="px-6 py-4">
+                    {r.markupPlan?.name || 'N/A'}
+                  </td>
+                )}
                 <td className="px-6 py-4 flex space-x-3">
                   <button
                     onClick={() => setModalItem(r)}
@@ -310,7 +391,7 @@ const AdminApprove: NextPage = () => {
                   </button>
                   {r.status === "pending" && (
                     <button
-                      onClick={() => requestConfirm("approve", [r.id])}
+                      onClick={() => requestAction("approve", [r.id])}
                       title="Approve"
                       className="p-1 hover:bg-gray-100 rounded"
                     >
@@ -318,7 +399,7 @@ const AdminApprove: NextPage = () => {
                     </button>
                   )}
                   <button
-                    onClick={() => requestConfirm("delete", [r.id])}
+                    onClick={() => requestAction("delete", [r.id])}
                     title="Delete"
                     className="p-1 hover:bg-gray-100 rounded"
                   >
@@ -384,14 +465,14 @@ const AdminApprove: NextPage = () => {
       {/* Bulk Actions */}
       <div className="flex flex-wrap items-center gap-3 mb-6 justify-end">
         <button
-          onClick={() => requestConfirm("approve", Array.from(selected))}
+          onClick={() => requestAction("approve", Array.from(selected))}
           disabled={!selected.size}
           className="flex items-center px-4 py-2 bg-green-500 disabled:opacity-50 text-white rounded-lg"
         >
           <FiCheckCircle className="mr-2" /> Approve Selected
         </button>
         <button
-          onClick={() => requestConfirm("delete", Array.from(selected))}
+          onClick={() => requestAction("delete", Array.from(selected))}
           disabled={!selected.size}
           className="flex items-center px-4 py-2 bg-red-500 disabled:opacity-50 text-white rounded-lg"
         >
@@ -421,11 +502,20 @@ const AdminApprove: NextPage = () => {
       {modalItem && (
         <DetailModal item={modalItem} onClose={() => setModalItem(null)} />
       )}
-      {pendingAction && (
+      {pendingDelete && (
         <ConfirmModal
-          message={pendingAction.message}
-          onConfirm={doAction}
-          onCancel={() => setPendingAction(null)}
+          message={pendingDelete.message}
+          onConfirm={doDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
+      {assignMarkupInfo && (
+        <AssignMarkupModal
+          agencyCount={assignMarkupInfo.ids.length}
+          onConfirm={handleAssignAndApprove}
+          onCancel={() => setAssignMarkupInfo(null)}
+          wholesalerId={getWholesalerId()}
+          authToken={getAuthToken()}
         />
       )}
     </div>

@@ -1,6 +1,5 @@
 // AgencyAdminPanel.tsx
 'use client';
-
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
 import { Eye, Edit2, Trash2, Tag, List } from 'lucide-react';
@@ -11,7 +10,6 @@ import {
 } from './AgencyModal';
 
 type Supplier = { id: string; name: string; enabled: boolean };
-
 type AgencyWithState = BaseAgency & {
   status: 'pending' | 'approved' | 'suspended';
   contactName: string;
@@ -30,7 +28,7 @@ export default function AgencyAdminPanel() {
   const [formState, setFormState] = useState<Partial<Registration>>({});
   // profileForm will represent markup plan editing fields:
   // include markupPlanId to track selected plan
-  const [profileForm, setProfileForm] = useState<{
+  const [profileForm] = useState<{
     markupPlanId: string;
     markupPlanName: string;
     markupPercentage: number;
@@ -43,7 +41,6 @@ export default function AgencyAdminPanel() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   // New state: plans for wholesaler
   const [plans, setPlans] = useState<any[]>([]);
-
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
@@ -51,16 +48,12 @@ export default function AgencyAdminPanel() {
   useEffect(() => {
     const stored = localStorage.getItem('wholesalerId');
     if (stored) setWholesalerId(stored);
-    else {
-      // If not in localStorage, and want static, set static id:
-      setWholesalerId('68456a9acc455a60d8aaf71a');
-    }
+    // Removed else block that set a static wholesalerId
   }, []);
 
   // Fetch agencies once API_URL and wholesalerId are available
   useEffect(() => {
     if (!API_URL || !wholesalerId) return;
-
     const fetchAgencies = async () => {
       try {
         const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`);
@@ -68,14 +61,12 @@ export default function AgencyAdminPanel() {
         if (!json.success || !Array.isArray(json.data)) {
           return;
         }
-
         const enriched: AgencyWithState[] = json.data.map((item: any) => {
           // Build contactName
           const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${item.lastName ?? ''}`.trim();
           // Parse status
           const status = (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
           const suspended = status !== 'approved';
-
           // Handle markupPlan nested in item
           let markupPlanName = '—';
           let markupPercentage = 0;
@@ -90,7 +81,6 @@ export default function AgencyAdminPanel() {
               }
             }
           }
-
           return {
             id: item._id,
             agencyName: item.agencyName,
@@ -105,7 +95,6 @@ export default function AgencyAdminPanel() {
             suspended,
           };
         });
-
         setAgencies(enriched);
       } catch (err) {
         console.error('Error fetching agencies:', err);
@@ -113,7 +102,6 @@ export default function AgencyAdminPanel() {
         setLoading(false);
       }
     };
-
     fetchAgencies();
   }, [API_URL, wholesalerId]);
 
@@ -165,7 +153,36 @@ export default function AgencyAdminPanel() {
   function openModal(mode: 'view' | 'edit' | 'markup', agency: AgencyWithState) {
     setSelected(agency);
     setModalMode(mode);
-
+    const commonSetup = (fetchedPlans: any[]) => {
+        const match = fetchedPlans.find((p: any) => p.name === agency.markupPlanName);
+        if (match) {
+            setProfileForm({
+                markupPlanId: match._id,
+                markupPlanName: match.name,
+                markupPercentage: (() => {
+                    const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
+                        ? match.markups[0]
+                        : null;
+                    return (firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number')
+                        ? firstMarkup.value
+                        : agency.markupPercentage;
+                })(),
+            });
+        } else {
+             setProfileForm({
+                markupPlanId: '',
+                markupPlanName: agency.markupPlanName,
+                markupPercentage: agency.markupPercentage,
+            });
+        }
+    };
+    if (mode === 'view') {
+        if(wholesalerId) {
+            fetchPlans(wholesalerId).then(commonSetup);
+        } else {
+            commonSetup([]);
+        }
+    }
     if (mode === 'edit') {
       // Pre-fill formState for editing basic agency fields
       setFormState({
@@ -177,34 +194,15 @@ export default function AgencyAdminPanel() {
       });
     }
     if (mode === 'markup') {
-      // Pre-fill profileForm for markup editing: name, percentage, planId if matching
-      setProfileForm({
-        markupPlanId: '',
-        markupPlanName: agency.markupPlanName,
-        markupPercentage: agency.markupPercentage,
-      });
-      // Fetch plans for dropdown
-      if (wholesalerId) {
-        fetchPlans(wholesalerId).then(fetched => {
-          // After fetching plans, if agency.markupPlanName matches one, set markupPlanId
-          const match = fetched.find((p: any) => p.name === agency.markupPlanName);
-          if (match) {
-            setProfileForm({
-              markupPlanId: match._id,
-              markupPlanName: match.name,
-              markupPercentage: (() => {
-                const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
-                  ? match.markups[0]
-                  : null;
-                const pct = firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
-                  ? firstMarkup.value
-                  : agency.markupPercentage;
-                return pct;
-              })(),
-            });
-          }
+        setProfileForm({
+            markupPlanId: '',
+            markupPlanName: agency.markupPlanName,
+            markupPercentage: agency.markupPercentage,
         });
-      }
+        // Fetch plans for dropdown
+        if (wholesalerId) {
+            fetchPlans(wholesalerId).then(commonSetup);
+        }
     }
   }
 
@@ -327,7 +325,6 @@ export default function AgencyAdminPanel() {
         <h1 className="text-4xl font-extrabold text-blue-800">Agency Management</h1>
         <p className="mt-2 text-blue-600">View, edit or manage agency registrations</p>
       </header>
-
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-100">
@@ -360,7 +357,6 @@ export default function AgencyAdminPanel() {
                       <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
                         {a.markupPlanName}
                       </span>
-                      <span className="text-sm text-gray-600">({a.markupPercentage}%)</span>
                     </div>
                   ) : (
                     <span className="text-gray-500">—</span>
@@ -435,7 +431,6 @@ export default function AgencyAdminPanel() {
           </tbody>
         </table>
       </div>
-
       <AgencyModal
         mode={modalMode}
         agency={selected}
@@ -456,7 +451,6 @@ export default function AgencyAdminPanel() {
         onDelete={deleteAgency}
         plans={plans}  // pass plans into modal
       />
-
       {showSupplierModal && (
         <div className="fixed inset-0 bg-black/10 bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
