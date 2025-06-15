@@ -370,8 +370,7 @@ export default function AgencyAdminPanel() {
                 <td className="px-6 py-4 flex items-center space-x-2">
                   <button
                     onClick={() => openCreditModal(a.id)}
-                    className="p-2 bg-green-500 text-white rounded-full hover:bg-green-700"
-                    title="Add Credit"
+                    className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700"
                   >
                     <TbCreditCardPay className="w-5 h-5" />
                   </button>
