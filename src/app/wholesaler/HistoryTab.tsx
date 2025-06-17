@@ -1,9 +1,9 @@
-"use client";
 import { NextPage } from 'next';
 import Head from 'next/head';
 import { Search, UserPlus, List } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
+// Types and other constants remain unchanged
 interface HistoryRow {
   User: string;
   LoginDate: string;
@@ -53,9 +53,9 @@ const HistoryPage: NextPage = () => {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [hoveredData, setHoveredData] = useState<HistoryRow | null>(null);
   const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
+  const [loading, setLoading] = useState<boolean>(true); // <-- Loading state added
 
   useEffect(() => {
-    // fetch history
     const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}HistoryPage/history-page`;
     fetch(apiUrl)
       .then(res => res.json())
@@ -64,7 +64,10 @@ const HistoryPage: NextPage = () => {
           setHistory(json.data.history);
         }
       })
-      .catch(err => console.error('Failed to load history:', err));
+      .catch(err => console.error('Failed to load history:', err))
+      .finally(() => {
+        setLoading(false); // <-- Stop loader after fetch completes
+      });
   }, []);
 
   const formatDate = (iso?: string) => {
@@ -75,7 +78,7 @@ const HistoryPage: NextPage = () => {
       day: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
-      hour12: true
+      hour12: true,
     });
   };
 
@@ -94,10 +97,9 @@ const HistoryPage: NextPage = () => {
     <>
       <Head><title>History</title></Head>
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-        <aside className=" bg-gray-200 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-700" />
+        <aside className="bg-gray-200 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-700" />
         <main className="flex-1 py-10">
           <div className="max-w-7xl mx-auto px-6">
-
             {/* Header & Stats */}
             <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="flex items-center gap-4">
@@ -136,96 +138,102 @@ const HistoryPage: NextPage = () => {
               </div>
             </div>
 
-            {/* Data Table */}
-            <div className="mt-8 bg-white dark:bg-gray-800 shadow-sm dark:shadow-none rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    {['User', 'Login Date', 'Search', 'Hotel', 'Room', 'Stage'].map(h => (
-                      <th
-                        key={h}
-                        className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {history.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {row.User}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(row.LoginDate)}
-                      </td>
-                      <td
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer relative"
-                        onMouseEnter={e => handleMouseEnter(e, row)}
-                        onMouseLeave={() => setHoveredData(null)}
-                      >
-                        {row.Search || 'N/A'}
-                        {hoveredData === row && (
-                          <div
-                            className={
-                              `absolute w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-gray-800 dark:text-gray-100 z-10 ` +
-                              (placement === 'bottom'
-                                ? 'top-full left-0 mt-1'
-                                : 'bottom-full left-0 mb-1')
-                            }
-                          >
-                            <h4 className="text-sm font-medium mb-2">Destination</h4>
-                            <p className="font-semibold mb-3">{row.Destination || '-'}</p>
-                            <div className="flex justify-between mb-3">
-                              <div>
-                                <h5 className="text-xs">Check in</h5>
-                                <p className="font-semibold text-sm">{formatDate(row.CheckInDate)}</p>
-                              </div>
-                              <div>
-                                <h5 className="text-xs">Check out</h5>
-                                <p className="font-semibold text-sm">{formatDate(row.CheckOutDate)}</p>
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <h5 className="text-xs">Room & guest</h5>
-                              <div className="font-semibold text-sm">
-                                {row.RoomsInfo?.split('|').map((r, i) => (
-                                  <p key={i}>{r.trim()}</p>
-                                )) || <p>-</p>}
-                              </div>
-                            </div>
-                            <div>
-                              <h5 className="text-xs">Guest citizenship</h5>
-                              <p className="font-semibold text-sm">{row.Citizenship || '-'}</p>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {row.Hotel}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                        {row.Room?.length ? row.Room.join(', ') : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap flex space-x-2">
-                        {stageLabels.map(({ key, label }) => (
-                          <StatusRing
-                            key={key}
-                            label={label}
-                            active={row.BookingStages.includes(key)}
-                          />
-                        ))}
-                      </td>
+            {/* Data Table or Loader */}
+            {loading ? (
+              <div className="mt-10 flex justify-center items-center py-10">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+                <span className="ml-3 text-gray-700 dark:text-gray-300">Loading history...</span>
+              </div>
+            ) : (
+              <div className="mt-8 bg-white dark:bg-gray-800 shadow-sm dark:shadow-none rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      {['User', 'Login Date', 'Search', 'Hotel', 'Room', 'Stage'].map(h => (
+                        <th
+                          key={h}
+                          className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {history.map((row, idx) => (
+                      <tr
+                        key={idx}
+                        className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {row.User}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {formatDate(row.LoginDate)}
+                        </td>
+                        <td
+                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer relative"
+                          onMouseEnter={e => handleMouseEnter(e, row)}
+                          onMouseLeave={() => setHoveredData(null)}
+                        >
+                          {row.Search || 'N/A'}
+                          {hoveredData === row && (
+                            <div
+                              className={
+                                `absolute w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-gray-800 dark:text-gray-100 z-10 ` +
+                                (placement === 'bottom'
+                                  ? 'top-full left-0 mt-1'
+                                  : 'bottom-full left-0 mb-1')
+                              }
+                            >
+                              <h4 className="text-sm font-medium mb-2">Destination</h4>
+                              <p className="font-semibold mb-3">{row.Destination || '-'}</p>
+                              <div className="flex justify-between mb-3">
+                                <div>
+                                  <h5 className="text-xs">Check in</h5>
+                                  <p className="font-semibold text-sm">{formatDate(row.CheckInDate)}</p>
+                                </div>
+                                <div>
+                                  <h5 className="text-xs">Check out</h5>
+                                  <p className="font-semibold text-sm">{formatDate(row.CheckOutDate)}</p>
+                                </div>
+                              </div>
+                              <div className="mb-3">
+                                <h5 className="text-xs">Room & guest</h5>
+                                <div className="font-semibold text-sm">
+                                  {row.RoomsInfo?.split('|').map((r, i) => (
+                                    <p key={i}>{r.trim()}</p>
+                                  )) || <p>-</p>}
+                                </div>
+                              </div>
+                              <div>
+                                <h5 className="text-xs">Guest citizenship</h5>
+                                <p className="font-semibold text-sm">{row.Citizenship || '-'}</p>
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {row.Hotel}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                          {row.Room?.length ? row.Room.join(', ') : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap flex space-x-2">
+                          {stageLabels.map(({ key, label }) => (
+                            <StatusRing
+                              key={key}
+                              label={label}
+                              active={row.BookingStages.includes(key)}
+                            />
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </main>
       </div>
