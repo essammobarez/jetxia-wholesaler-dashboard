@@ -228,7 +228,7 @@ export default function MainPage() {
               {/* Markup sub-menu */}
               {expandedMenu === 'Markup' && item === 'Markup' && (
                 <div className="pl-8 space-y-1">
-                  {['CreateMarkup', 'MarkupAgencyList', 'PlanList'].map(tab => (
+                  {['CreateMarkup', 'PlanList'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => {

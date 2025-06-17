@@ -1,11 +1,13 @@
 'use client';
-
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { ChevronDown, ChevronUp, RefreshCw, Search as SearchIcon } from 'lucide-react';
 
 interface Markup {
-  provider: string;
+  provider: {
+    _id: string;
+    name: string;
+  };
   type: 'percentage' | 'fixed'; // adjust if other types exist
   value: number;
   _id: string;
@@ -70,7 +72,6 @@ export default function PlanListAdvanced() {
     }
     setPlanLoading(true);
     setPlanError(null);
-
     try {
       const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       if (!baseUrl) {
@@ -86,10 +87,12 @@ export default function PlanListAdvanced() {
           // 'Authorization': `Bearer ${token}`,
         },
       });
+
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`HTTP ${response.status}: ${text}`);
       }
+
       const json = await response.json();
       if (json.success && Array.isArray(json.data)) {
         setPlans(json.data);
@@ -149,7 +152,6 @@ export default function PlanListAdvanced() {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
     });
-
     return filtered;
   }, [plans, searchTerm, statusFilter, sortOption]);
 
@@ -157,14 +159,17 @@ export default function PlanListAdvanced() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
+
   const handleStatusFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value as 'all' | 'active' | 'inactive');
   };
+
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOption(e.target.value as SortOption);
   };
 
   // Render logic
+
   // 1. If still loading wholesalerId
   if (wholesalerLoading) {
     return (
@@ -173,14 +178,12 @@ export default function PlanListAdvanced() {
       </div>
     );
   }
+
   // 2. If error loading wholesalerId
   if (wholesalerError) {
     return (
       <div className="w-full mx-auto p-6">
-        <p className="text-red-600 dark:text-red-400">
-          Error: {wholesalerError}
-        </p>
-        {/* Optionally, allow user to retry or enter ID manually */}
+        <p className="text-red-600 dark:text-red-400">Error: {wholesalerError}</p>
         <button
           onClick={() => {
             setWholesalerLoading(true);
@@ -215,6 +218,7 @@ export default function PlanListAdvanced() {
       </div>
     );
   }
+
   // 4. If error fetching plans
   if (planError) {
     return (
@@ -233,11 +237,7 @@ export default function PlanListAdvanced() {
   // 5. Main UI once wholesalerId is loaded and plans fetched
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8">
-      <div
-        className="mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow
-                   // max-w-6xl
-                   "
-      >
+      <div className="mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow max-w-6xl">
         {/* Header & controls */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 space-y-4 lg:space-y-0">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
@@ -298,18 +298,14 @@ export default function PlanListAdvanced() {
               // Prepare markup details
               const markupDetails = plan.markups.map(m => {
                 if (m.type === 'percentage') {
-                  return `${m.value}% (provider: ${m.provider})`;
+                  return `${m.value}% (${m.provider.name})`;
                 }
                 // For fixed type, you might format as currency; adjust locale/currency as needed
-                return `${m.value} (provider: ${m.provider})`;
+                return `${m.value} (${m.provider.name})`;
               });
 
               return (
-                <Disclosure
-                  key={plan._id}
-                  as="div"
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg"
-                >
+                <Disclosure key={plan._id} as="div" className="border border-gray-200 dark:border-gray-700 rounded-lg">
                   {({ open }) => (
                     <>
                       <Disclosure.Button className="w-full flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-t-lg focus:outline-none">
@@ -340,7 +336,6 @@ export default function PlanListAdvanced() {
                           )}
                         </span>
                       </Disclosure.Button>
-
                       <Disclosure.Panel className="px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
                         {/* Created/Updated */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-3">

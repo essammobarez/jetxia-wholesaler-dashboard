@@ -1,4 +1,5 @@
 'use client'
+
 import React, { useState, useEffect, useRef } from 'react'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
@@ -10,8 +11,13 @@ import DownloadIcon from '@mui/icons-material/Download'
 import toast, { Toaster } from 'react-hot-toast'
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/material.css'
+import { Country, State, City } from 'country-state-city'
+import currencyCodes from 'currency-codes'
+import ReactCountryFlag from 'react-country-flag'
+import Autocomplete from '@mui/material/Autocomplete'
 
 const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/register`
+
 const generateCaptcha = (length = 6) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
@@ -52,7 +58,13 @@ export default function RegistrationForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Refs for auto-focus after country selection
+  const [countryList, setCountryList] = useState<{ name: string; isoCode: string }[]>([])
+  const [cityList, setCityList] = useState<string[]>([])
+  const [currencyList, setCurrencyList] = useState<string[]>([])
+
+  // For Autocomplete input display for country
+  const [countryInput, setCountryInput] = useState<string>('')
+
   const phoneInputRef = useRef<HTMLInputElement>(null)
   const userPhoneInputRef = useRef<HTMLInputElement>(null)
 
@@ -60,14 +72,58 @@ export default function RegistrationForm() {
     setCaptchaCode(generateCaptcha())
     const stored = localStorage.getItem('wholesalerId')
     setWholesalerId(stored)
+
+    const countries = Country.getAllCountries() || []
+    countries.sort((a, b) => a.name.localeCompare(b.name))
+    const mapped = countries.map(c => ({ name: c.name, isoCode: c.isoCode }))
+    setCountryList(mapped)
+
+    if (agency.country) {
+      const sel = mapped.find(c => c.isoCode === agency.country)
+      if (sel) {
+        setCountryInput(sel.name)
+      }
+    }
+
+    const popularCurrencies = ['AED', 'USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD', 'SGD', 'JPY', 'CHF']
+    const allCodes = currencyCodes.codes() || []
+    const uniqueCodes = Array.from(new Set(allCodes.map(c => c.toUpperCase())))
+    const rest = uniqueCodes
+      .filter(code => !popularCurrencies.includes(code))
+      .sort((a, b) => a.localeCompare(b))
+    setCurrencyList([...popularCurrencies, ...rest])
   }, [])
 
+  useEffect(() => {
+    const countryIso = agency.country
+    if (countryIso) {
+      const states = State.getStatesOfCountry(countryIso) || []
+      let citiesAccumulator: string[] = []
+      states.forEach(st => {
+        const cities = City.getCitiesOfState(countryIso, st.isoCode) || []
+        cities.forEach(cityObj => {
+          if (cityObj.name && !citiesAccumulator.includes(cityObj.name)) {
+            citiesAccumulator.push(cityObj.name)
+          }
+        })
+      })
+      citiesAccumulator.sort((a, b) => a.localeCompare(b))
+      setCityList(citiesAccumulator)
+      setAgency(prev => ({ ...prev, city: '' }))
+    } else {
+      setCityList([])
+      setAgency(prev => ({ ...prev, city: '' }))
+    }
+  }, [agency.country])
+
   const handleAgencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAgency(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setAgency(prev => ({ ...prev, [name]: value }))
   }
 
   const handleUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUser(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setUser(prev => ({ ...prev, [name]: value }))
   }
 
   const handleCaptchaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,6 +217,8 @@ export default function RegistrationForm() {
     setLicenseName('')
     refreshCaptcha()
     setError(null)
+    setCityList([])
+    setCountryInput('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -172,21 +230,20 @@ export default function RegistrationForm() {
       setLoading(false)
       return
     }
-    if (!licenseBase64) {
-      toast.error('Please attach a license image or PDF.')
-      setLoading(false)
-      return
-    }
+    // License is now optional: do not block submission if licenseBase64 is empty
     if (captchaInput.trim() !== captchaCode) {
       toast.error('Captcha does not match.')
       setLoading(false)
       return
     }
-    const payload = {
+    // Build payload; include licenseUrl only if provided
+    const payload: any = {
       ...agency,
-      licenseUrl: licenseBase64,
       ...user,
       wholesaler: wholesalerId,
+    }
+    if (licenseBase64) {
+      payload.licenseUrl = licenseBase64
     }
     try {
       const res = await fetch(REGISTER_URL, {
@@ -208,21 +265,24 @@ export default function RegistrationForm() {
     }
   }
 
+  const placeholderMap: Record<string, string> = {
+    country: 'Select Country',
+    city: 'Select City',
+    businessCurrency: 'Select Currency',
+    title: 'Select Title',
+  }
+
   const agencyFields = [
     { name: 'agencyName', label: 'Agency Name', type: 'text', required: true },
     {
       name: 'country',
       label: 'Country',
-      type: 'select',
-      options: ['United States', 'United Kingdom', 'India', 'Australia', 'Canada'],
+      type: 'autocomplete',
+      options: countryList,
       required: true,
     },
     {
-      name: 'city',
-      label: 'City',
-      type: 'select',
-      options: ['New York', 'London', 'Delhi', 'Sydney', 'Toronto'],
-      required: true,
+      name: 'city', label: 'City', type: 'select', options: cityList, required: true,
     },
     { name: 'postCode', label: 'Post Code', type: 'text', required: true },
     { name: 'address', label: 'Address', type: 'text', required: true },
@@ -233,7 +293,7 @@ export default function RegistrationForm() {
       name: 'businessCurrency',
       label: 'Business Currency',
       type: 'select',
-      options: ['USD', 'GBP', 'INR', 'AUD', 'CAD'],
+      options: currencyList,
     },
     { name: 'vat', label: 'VAT', type: 'text' },
   ]
@@ -249,16 +309,8 @@ export default function RegistrationForm() {
     { name: 'password', label: 'Password', type: 'password', required: true },
   ]
 
-  const placeholderMap: Record<string, string> = {
-    country: 'Select Country',
-    city: 'Select City',
-    businessCurrency: 'Select Currency',
-    title: 'Select Title',
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
-      {/* hot-toast container */}
       <Toaster position="top-right" reverseOrder={false} />
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
@@ -271,28 +323,104 @@ export default function RegistrationForm() {
         </div>
         {error && <div className="mt-4 text-red-600">{error}</div>}
         <form onSubmit={handleSubmit}>
-          {/* Agency Detail */}
           <h3 className="mt-8 text-xl font-semibold">Agency Detail</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {agencyFields.map(f =>
-              f.type === 'phone' ? (
-                <div key={f.name} className="w-full">
-                  <label className="block text-sm font-medium mb-1">{f.label}</label>
-                  <PhoneInput
-                    ref={phoneInputRef}
-                    country={'us'}
-                    value={agency.phoneNumber}
-                    onChange={phone => setAgency(prev => ({ ...prev, phoneNumber: phone }))}
-                    onCountryChange={() => phoneInputRef.current?.focus()}
-                    inputProps={{
-                      name: 'phoneNumber',
-                      required: true,
+            {agencyFields.map(f => {
+              if (f.type === 'phone') {
+                return (
+                  <div key={f.name} className="w-full">
+                    <label className="block text-sm font-medium mb-1">{f.label}</label>
+                    <PhoneInput
+                      ref={phoneInputRef}
+                      country={'us'}
+                      value={agency.phoneNumber}
+                      onChange={phone => setAgency(prev => ({ ...prev, phoneNumber: phone }))}
+                      onCountryChange={() => phoneInputRef.current?.focus()}
+                      inputProps={{
+                        name: 'phoneNumber',
+                        required: true,
+                      }}
+                      containerClass="w-full"
+                      inputStyle={{ width: '100%' }}
+                    />
+                  </div>
+                )
+              }
+              if (f.type === 'autocomplete' && f.name === 'country') {
+                return (
+                  <Autocomplete
+                    key="country-autocomplete"
+                    options={countryList}
+                    getOptionLabel={option => option.name}
+                    value={countryList.find(c => c.isoCode === agency.country) || null}
+                    inputValue={countryInput}
+                    onInputChange={(event, newInput) => {
+                      setCountryInput(newInput)
                     }}
-                    containerClass="w-full"
-                    inputStyle={{ width: '100%' }}
+                    onChange={(event, newValue) => {
+                      if (newValue) {
+                        setAgency(prev => ({ ...prev, country: newValue.isoCode, city: '' }))
+                        setCountryInput(newValue.name)
+                      } else {
+                        setAgency(prev => ({ ...prev, country: '', city: '' }))
+                        setCountryInput('')
+                      }
+                    }}
+                    disableClearable
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <ReactCountryFlag
+                          countryCode={option.isoCode}
+                          svg
+                          // increased gap in dropdown
+                          style={{ width: '1.2em', height: '1.2em', marginRight: '0.5em' }}
+                        />
+                        {option.name}
+                      </li>
+                    )}
+                    renderInput={params => {
+                      const selectedCountry = countryList.find(c => c.isoCode === agency.country)
+                      return (
+                        <TextField
+                          {...params}
+                          label="Country"
+                          placeholder="Type to search country"
+                          required
+                          InputLabelProps={{ shrink: true }}
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: selectedCountry ? (
+                              <InputAdornment position="start" sx={{ ml: 1 }}>
+                                <ReactCountryFlag
+                                  countryCode={selectedCountry.isoCode}
+                                  svg
+                                  style={{ width: '1.2em', height: '1.2em' }}
+                                />
+                              </InputAdornment>
+                            ) : null,
+                            endAdornment: selectedCountry ? (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setAgency(prev => ({ ...prev, country: '', city: '' }))
+                                    setCountryInput('')
+                                  }}
+                                >
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              </InputAdornment>
+                            ) : null,
+                          }}
+                          fullWidth
+                        />
+                      )
+                    }}
+                    fullWidth
                   />
-                </div>
-              ) : (
+                )
+              }
+              return (
                 <TextField
                   key={f.name}
                   name={f.name}
@@ -301,7 +429,13 @@ export default function RegistrationForm() {
                   select={f.type === 'select'}
                   required={!!f.required}
                   value={(agency as any)[f.name]}
-                  onChange={handleAgencyChange}
+                  onChange={e => {
+                    if (f.name === 'country') {
+                      // handled by Autocomplete
+                    } else {
+                      handleAgencyChange(e)
+                    }
+                  }}
                   fullWidth
                   variant="outlined"
                   InputLabelProps={{ shrink: true }}
@@ -310,23 +444,39 @@ export default function RegistrationForm() {
                     f.type === 'select'
                       ? {
                           displayEmpty: true,
-                          renderValue: selected =>
-                            (selected as string) || placeholderMap[f.name],
+                          renderValue: selected => {
+                            if (!selected) {
+                              return placeholderMap[f.name]
+                            }
+                            return selected as string
+                          },
                         }
                       : undefined
                   }
                 >
-                  {f.options?.map(opt => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
+                  {f.type === 'select' &&
+                    (f.name === 'city'
+                      ? cityList.map(opt => (
+                          <MenuItem key={opt} value={opt}>
+                            {opt}
+                          </MenuItem>
+                        ))
+                      : f.name === 'businessCurrency'
+                      ? currencyList.map(opt => (
+                          <MenuItem key={opt} value={opt}>
+                            {opt}
+                          </MenuItem>
+                        ))
+                      : f.options?.map(opt => (
+                          <MenuItem key={opt} value={opt}>
+                            {opt}
+                          </MenuItem>
+                        )))}
                 </TextField>
               )
-            )}
+            })}
           </div>
 
-          {/* License + Download */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
             {licenseName ? (
               <TextField
@@ -353,7 +503,7 @@ export default function RegistrationForm() {
               <TextField
                 label="License"
                 type="file"
-                required
+                // removed required so submission is allowed without a license
                 variant="outlined"
                 InputLabelProps={{ shrink: true }}
                 InputProps={{
@@ -382,7 +532,6 @@ export default function RegistrationForm() {
             </div>
           </div>
 
-          {/* Main User Detail */}
           <h3 className="mt-8 text-xl font-semibold">Main User Detail</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
             {userFields.map(f =>
@@ -421,8 +570,7 @@ export default function RegistrationForm() {
                     f.type === 'select'
                       ? {
                           displayEmpty: true,
-                          renderValue: selected =>
-                            (selected as string) || placeholderMap[f.name],
+                          renderValue: selected => (selected as string) || placeholderMap[f.name],
                         }
                       : undefined
                   }
@@ -437,7 +585,6 @@ export default function RegistrationForm() {
             )}
           </div>
 
-          {/* Captcha */}
           <h3 className="mt-8 text-xl font-semibold">Captcha</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div>
@@ -468,7 +615,6 @@ export default function RegistrationForm() {
             />
           </div>
 
-          {/* Actions */}
           <div className="mt-8 flex justify-end gap-4">
             <button
               type="reset"

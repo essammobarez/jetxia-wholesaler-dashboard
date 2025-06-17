@@ -1,4 +1,5 @@
 'use client'
+
 import React, { useState, useEffect } from 'react'
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/material.css'
@@ -10,15 +11,15 @@ import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DownloadIcon from '@mui/icons-material/Download'
-import Box from '@mui/material/Box'
-import Stack from '@mui/material/Stack'
-import Typography from '@mui/material/Typography'
-import CircularProgress from '@mui/material/CircularProgress'
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
+import CountryFlag from 'react-country-flag'
+import { Country, State, City } from 'country-state-city'
+import * as currencyCodes from 'currency-codes'
+import Autocomplete from '@mui/material/Autocomplete'
 
 const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}wholesaler/register`
+
 const generateCaptcha = (length = 6) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
@@ -59,17 +60,63 @@ export default function RegistrationForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Snackbar (toast) state
+  const [countries, setCountries] = useState<{ isoCode: string; name: string }[]>([])
+  const [cities, setCities] = useState<string[]>([])
+  const [currencies, setCurrencies] = useState<string[]>([])
+
   const [toastOpen, setToastOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success')
 
   useEffect(() => {
     setCaptchaCode(generateCaptcha())
+
+    // Load countries
+    const allCountries = Country.getAllCountries().map(c => ({
+      isoCode: c.isoCode,
+      name: c.name,
+    }))
+    allCountries.sort((a, b) => a.name.localeCompare(b.name))
+    setCountries(allCountries)
+
+    // Load currencies: popular first, then rest
+    const popularCurrencies = ['USD', 'AED', 'EUR', 'GBP', 'INR', 'AUD', 'CAD', 'SGD', 'JPY', 'CHF']
+    const codes = currencyCodes.codes() || []
+    const uniqueCodes = Array.from(new Set(codes.map(c => c.toUpperCase())))
+    uniqueCodes.sort()
+    const popularList = uniqueCodes.filter(code => popularCurrencies.includes(code))
+    const restList = uniqueCodes.filter(code => !popularCurrencies.includes(code))
+    setCurrencies([...popularList, ...restList])
   }, [])
 
+  useEffect(() => {
+    if (agency.country) {
+      const states = State.getStatesOfCountry(agency.country) || []
+      const cityAcc: string[] = []
+      states.forEach(st => {
+        const stCities = City.getCitiesOfState(agency.country, st.isoCode) || []
+        stCities.forEach(ci => {
+          if (ci.name && !cityAcc.includes(ci.name)) {
+            cityAcc.push(ci.name)
+          }
+        })
+      })
+      cityAcc.sort((a, b) => a.localeCompare(b))
+      setCities(cityAcc)
+      setAgency(prev => ({ ...prev, city: '' }))
+    } else {
+      setCities([])
+      setAgency(prev => ({ ...prev, city: '' }))
+    }
+  }, [agency.country])
+
   const handleAgencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAgency(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    if (name === 'country') {
+      setAgency(prev => ({ ...prev, country: value, city: '' }))
+    } else {
+      setAgency(prev => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleUserChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,9 +191,7 @@ export default function RegistrationForm() {
     event?: React.SyntheticEvent | Event,
     reason?: string
   ) => {
-    if (reason === 'clickaway') {
-      return
-    }
+    if (reason === 'clickaway') return
     setToastOpen(false)
   }
 
@@ -155,19 +200,12 @@ export default function RegistrationForm() {
     setLoading(true)
     setError(null)
 
-    if (!licenseBase64) {
-      setError('Please attach a license image or PDF')
-      setLoading(false)
-      return
-    }
-
     if (captchaInput.trim() !== captchaCode) {
       setError('Captcha does not match')
       setLoading(false)
       return
     }
-
-    const payload = {
+    const payload: any = {
       wholesalerName: agency.agencyName,
       country: agency.country,
       city: agency.city,
@@ -178,7 +216,7 @@ export default function RegistrationForm() {
       email: agency.email,
       businessCurrency: agency.businessCurrency,
       vat: agency.vat,
-      licenseUrl: licenseBase64,
+      ...(licenseBase64 ? { licenseUrl: licenseBase64 } : {}),
       title: user.title,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -188,7 +226,6 @@ export default function RegistrationForm() {
       userName: user.userName,
       password: user.password,
     }
-
     try {
       const res = await fetch(REGISTER_URL, {
         method: 'POST',
@@ -196,21 +233,17 @@ export default function RegistrationForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-
       if (!res.ok) {
         const errJson = await res.json().catch(() => null)
         throw new Error(errJson?.message || `Server ${res.status}: ${res.statusText}`)
       }
-
       const responseData = await res.json()
       if (responseData.token) {
         localStorage.setItem('authToken', responseData.token)
       }
-
       setToastMessage('Registration successful')
       setToastSeverity('success')
       setToastOpen(true)
-
       setAgency({
         agencyName: '',
         country: '',
@@ -223,7 +256,6 @@ export default function RegistrationForm() {
         businessCurrency: '',
         vat: '',
       })
-
       setUser({
         title: '',
         firstName: '',
@@ -234,7 +266,6 @@ export default function RegistrationForm() {
         userName: '',
         password: '',
       })
-
       setLicenseBase64('')
       setLicenseName('')
       refreshCaptcha()
@@ -249,20 +280,21 @@ export default function RegistrationForm() {
     }
   }
 
+  const placeholderMap: Record<string, string> = {
+    country: 'Select Country',
+    city: 'Select City',
+    businessCurrency: 'Select Currency',
+    title: 'Select Title',
+  }
+
   const agencyFields = [
     { name: 'agencyName', label: 'Agency Name', type: 'text', required: true },
-    {
-      name: 'country',
-      label: 'Country',
-      type: 'select',
-      options: ['United States', 'United Kingdom', 'India', 'Australia', 'Canada'],
-      required: true,
-    },
+    { name: 'country', label: 'Country', type: 'autocomplete', required: true },
     {
       name: 'city',
       label: 'City',
       type: 'select',
-      options: ['New York', 'London', 'Delhi', 'Sydney', 'Toronto'],
+      options: cities.map(name => ({ code: name, name })),
       required: true,
     },
     { name: 'postCode', label: 'Post Code', type: 'text', required: true },
@@ -274,7 +306,8 @@ export default function RegistrationForm() {
       name: 'businessCurrency',
       label: 'Business Currency',
       type: 'select',
-      options: ['USD', 'GBP', 'INR', 'AUD', 'CAD'],
+      options: currencies.map(code => ({ code, name: code })),
+      required: false,
     },
     { name: 'vat', label: 'VAT', type: 'text' },
   ]
@@ -290,13 +323,6 @@ export default function RegistrationForm() {
     { name: 'password', label: 'Password', type: 'password', required: true },
   ]
 
-  const placeholderMap: Record<string, string> = {
-    country: 'Select Country',
-    city: 'Select City',
-    businessCurrency: 'Select Currency',
-    title: 'Select Title',
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
@@ -310,54 +336,131 @@ export default function RegistrationForm() {
           {/* Agency Detail */}
           <h3 className="mt-8 text-xl font-semibold">Agency Detail</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {agencyFields.map(f =>
-              f.type === 'phone' ? (
-                <div key={f.name} className="w-full">
-                  <label className="block text-sm font-medium mb-1">{f.label}</label>
-                  <PhoneInput
-                    country={'us'}
-                    value={agency.phoneNumber}
-                    onChange={phone => setAgency(prev => ({ ...prev, phoneNumber: phone }))}
-                    inputProps={{
-                      name: 'phoneNumber',
-                      required: true,
+            {agencyFields.map(f => {
+              if (f.type === 'autocomplete') {
+                return (
+                  <Autocomplete
+                    key="country-autocomplete"
+                  
+                    options={countries}
+                    getOptionLabel={option => option.name}
+                    value={countries.find(c => c.isoCode === agency.country) || null}
+                    onChange={(e, newValue) => {
+                      const iso = newValue ? newValue.isoCode : ''
+                      setAgency(prev => ({ ...prev, country: iso, city: '' }))
                     }}
-                    containerClass="w-full"
-                    inputStyle={{ width: '100%' }}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.isoCode} className="flex items-center ml-2">
+                        <CountryFlag
+                          countryCode={option.isoCode}
+                          svg
+                          style={{ width: 20, height: 15, marginRight: 8 }}
+                        />
+                        {option.name}
+                      </li>
+                    )}
+                    renderInput={params => {
+                      // inject flag in input adornment if selected
+                      const startAdornment = agency.country ? (
+                        <>
+                          <CountryFlag
+                            countryCode={agency.country}
+                            svg
+                            style={{ width: 20, height: 15, marginRight: 8 }}
+                          />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ) : (
+                        params.InputProps.startAdornment
+                      )
+
+                      return (
+                        <TextField
+                          {...params}
+                          label="Country"
+                          variant="outlined"
+                          fullWidth
+                          required
+                          placeholder={placeholderMap.country}
+                          InputLabelProps={{ shrink: true }}
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment,
+                          }}
+                        />
+                      )
+                    }}
                   />
-                </div>
-              ) : (
+                )
+              }
+
+              if (f.type === 'phone') {
+                return (
+                  <div key={f.name} className="w-full">
+                    <label className="block text-sm font-medium mb-1">{f.label}</label>
+                    <PhoneInput
+                      country={'us'}
+                      value={(agency as any)[f.name]}
+                      onChange={phone => setAgency(prev => ({ ...prev, [f.name]: phone }))}
+                      inputProps={{
+                        name: f.name,
+                        required: !!f.required,
+                      }}
+                      containerClass="w-full"
+                      inputStyle={{ width: '100%' }}
+                    />
+                  </div>
+                )
+              }
+
+              if (f.type === 'select') {
+                return (
+                  <TextField
+                    key={f.name}
+                    name={f.name}
+                    label={f.label}
+                    select
+                    required={!!f.required}
+                    value={(agency as any)[f.name]}
+                    onChange={handleAgencyChange}
+                    fullWidth
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: selected => {
+                        if (f.name === 'city') return (selected as string) || placeholderMap.city
+                        if (f.name === 'businessCurrency')
+                          return (selected as string) || placeholderMap.businessCurrency
+                        return (selected as string) || ''
+                      },
+                    }}
+                  >
+                    {f.options?.map((opt: any) => (
+                      <MenuItem key={opt.code} value={opt.code}>
+                        {f.name === 'city' ? opt.name : f.name === 'businessCurrency' ? opt.code : opt.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )
+              }
+
+              return (
                 <TextField
                   key={f.name}
                   name={f.name}
                   label={f.label}
-                  type={f.type === 'select' ? undefined : f.type}
-                  select={f.type === 'select'}
+                  type={f.type}
                   required={!!f.required}
                   value={(agency as any)[f.name]}
                   onChange={handleAgencyChange}
                   fullWidth
                   variant="outlined"
                   InputLabelProps={{ shrink: true }}
-                  placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
-                  SelectProps={
-                    f.type === 'select'
-                      ? {
-                          displayEmpty: true,
-                          renderValue: selected =>
-                            (selected as string) || placeholderMap[f.name],
-                        }
-                      : undefined
-                  }
-                >
-                  {f.options?.map(opt => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  placeholder={`Enter ${f.label}`}
+                />
               )
-            )}
+            })}
           </div>
 
           {/* License + Download */}
@@ -387,7 +490,6 @@ export default function RegistrationForm() {
               <TextField
                 label="License"
                 type="file"
-                required
                 variant="outlined"
                 InputLabelProps={{ shrink: true }}
                 InputProps={{
@@ -425,39 +527,32 @@ export default function RegistrationForm() {
                   <label className="block text-sm font-medium mb-1">{f.label}</label>
                   <PhoneInput
                     country={'us'}
-                    value={user.mobileNumber}
-                    onChange={phone => setUser(prev => ({ ...prev, mobileNumber: phone }))}
+                    value={(user as any)[f.name]}
+                    onChange={phone => setUser(prev => ({ ...prev, [f.name]: phone }))}
                     inputProps={{
-                      name: 'mobileNumber',
-                      required: true,
+                      name: f.name,
+                      required: !!f.required,
                     }}
                     containerClass="w-full"
                     inputStyle={{ width: '100%' }}
                   />
                 </div>
-              ) : (
+              ) : f.type === 'select' ? (
                 <TextField
                   key={f.name}
                   name={f.name}
                   label={f.label}
-                  type={f.type === 'select' ? undefined : f.type}
-                  select={f.type === 'select'}
+                  select
                   required={!!f.required}
                   value={(user as any)[f.name]}
                   onChange={handleUserChange}
                   fullWidth
                   variant="outlined"
                   InputLabelProps={{ shrink: true }}
-                  placeholder={f.type !== 'select' ? `Enter ${f.label}` : undefined}
-                  SelectProps={
-                    f.type === 'select'
-                      ? {
-                          displayEmpty: true,
-                          renderValue: selected =>
-                            (selected as string) || placeholderMap[f.name],
-                        }
-                      : undefined
-                  }
+                  SelectProps={{
+                    displayEmpty: true,
+                    renderValue: selected => (selected as string) || placeholderMap[f.name],
+                  }}
                 >
                   {f.options?.map(opt => (
                     <MenuItem key={opt} value={opt}>
@@ -465,6 +560,20 @@ export default function RegistrationForm() {
                     </MenuItem>
                   ))}
                 </TextField>
+              ) : (
+                <TextField
+                  key={f.name}
+                  name={f.name}
+                  label={f.label}
+                  type={f.type}
+                  required={!!f.required}
+                  value={(user as any)[f.name]}
+                  onChange={handleUserChange}
+                  fullWidth
+                  variant="outlined"
+                  InputLabelProps={{ shrink: true }}
+                  placeholder={`Enter ${f.label}`}
+                />
               )
             )}
           </div>
@@ -483,7 +592,7 @@ export default function RegistrationForm() {
                   onClick={refreshCaptcha}
                   className="p-2 border rounded hover:bg-gray-100"
                 >
-                  🔄
+                  🔁
                 </button>
               </div>
             </div>

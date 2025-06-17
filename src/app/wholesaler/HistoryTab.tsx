@@ -1,7 +1,7 @@
 "use client";
 import { NextPage } from 'next';
 import Head from 'next/head';
-import { Search, UserPlus, List, Sun, Moon } from 'lucide-react';
+import { Search, UserPlus, List } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface HistoryRow {
@@ -50,21 +50,14 @@ const StatsCard = ({ title, value, icon }: { title: string; value: string; icon?
 );
 
 const HistoryPage: NextPage = () => {
-  const [darkMode, setDarkMode] = useState(false);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [hoveredData, setHoveredData] = useState<HistoryRow | null>(null);
   const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
 
   useEffect(() => {
-    // initialize dark mode
-    const stored = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-    const isDark = stored ? JSON.parse(stored) : prefersDark;
-    setDarkMode(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
-
     // fetch history
-    fetch('http://13.219.194.236:5000/api/v1/HistoryPage/history-page')
+    const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}HistoryPage/history-page`;
+    fetch(apiUrl)
       .then(res => res.json())
       .then(json => {
         if (json.success && Array.isArray(json.data.history)) {
@@ -73,15 +66,6 @@ const HistoryPage: NextPage = () => {
       })
       .catch(err => console.error('Failed to load history:', err));
   }, []);
-
-  const toggleDark = () => {
-    setDarkMode(prev => {
-      const next = !prev;
-      localStorage.setItem('darkMode', JSON.stringify(next));
-      document.documentElement.classList.toggle('dark', next);
-      return next;
-    });
-  };
 
   const formatDate = (iso?: string) => {
     if (!iso) return '-';
@@ -118,13 +102,6 @@ const HistoryPage: NextPage = () => {
             <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="flex items-center gap-4">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">History</h1>
-                <button
-                  onClick={toggleDark}
-                  aria-label="Toggle dark mode"
-                  className="p-2 rounded-full bg-white dark:bg-gray-700 shadow hover:shadow-md transition"
-                >
-                  {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-600" />}
-                </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 w-full lg:w-auto">
                 <StatsCard icon={<UserPlus className="h-5 w-5" />} title="Daily Records" value={`${totalRecords}`} />

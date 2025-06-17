@@ -97,19 +97,25 @@ const BookingsPage: NextPage = () => {
           const clientRef = String(init.clientRef ?? '');
           const serviceType = String(init.type ?? '');
           const initStatus = String(init.status ?? '').toLowerCase();
-          const price = Number(init.price?.selling?.value ?? 0);
-          const currency = String(init.price?.selling?.currency ?? 'USD');
+          
           const addedTime = String(init.added?.time ?? '');
           const addedUser = String(init.added?.user?.name ?? '');
-
+          
           const paymentType = String(det.service?.payment?.type ?? '');
           const paymentStatus = String(det.service?.payment?.status ?? '');
           const rateDescription = String(det.service?.rateDetails?.description ?? '');
-
+          
+          // --- MODIFIED CODE START ---
+          // Use the detailed pricing from `reservationDetails` as the primary source.
           const priceIssueNet = Number(det.service?.prices?.issue?.net?.value ?? 0);
           const priceIssueCommission = Number(det.service?.prices?.issue?.commission?.value ?? 0);
           const priceIssueSelling = Number(det.service?.prices?.issue?.selling?.value ?? 0);
-
+          
+          // The base price `S` should be the supplier's net price.
+          const price = priceIssueNet > 0 ? priceIssueNet : Number(init.price?.selling?.value ?? 0);
+          const currency = String(det.service?.prices?.issue?.selling?.currency || init.price?.selling?.currency || 'USD');
+          // --- MODIFIED CODE END ---
+          
           const cancellationDate = String(det.service?.cancellationPolicy?.date ?? '');
 
           const checkIn = String(det.service?.serviceDates?.startDate ?? '');
@@ -255,7 +261,8 @@ const BookingsPage: NextPage = () => {
 
   const calculatePricesForEditModal = () => {
     if (!editModalRes) return { s: 0, m: 0, np: 0, c: 0, d: 0, sp: 0 };
-    const s = editModalRes.price;
+    // The base price `s` is now correctly mapped to the supplier net price
+    const s = editModalRes.price; 
     const m = parseFloat(editMarkup) || 0;
     const c = parseFloat(editCommission) || 0;
     const d = parseFloat(editDiscount) || 0;
@@ -341,12 +348,25 @@ const BookingsPage: NextPage = () => {
               dynamicCardStyles = 'rounded-lg mb-6';
             }
           }
-          const S = r.price;
-          const M = 0;
-          const C = 0;
-          const D = 0;
-          const NP = S + M;
-          const SP = NP - C - D;
+
+          // --- MODIFIED CODE START ---
+          // Calculate price breakdown based on fetched reservation data.
+          const S = r.priceIssueNet;          // S (Supplier Price) = The net price from the supplier.
+          const C = r.priceIssueCommission;  // C (Commission) = Commission from the API.
+          const SP_from_api = r.priceIssueSelling; // SP (Selling Price) from the API.
+
+          // For display purposes on the card, we assume Discount (D) is 0.
+          // The Markup (M) can be derived from the other known values.
+          // Formula: SP = (S + M) - C - D  =>  M = SP - S + C + D
+          const D = 0.00;
+          const M = SP_from_api > 0 ? SP_from_api - S + C : 0.00;
+          
+          // Now, calculate the final display values based on the UI's formula.
+          const NP = S + M; // NP (Net Price) = Supplier Price + Markup.
+          const SP = NP - C - D; // SP (Selling Price) = Net Price - Commission - Discount.
+          // This calculated SP should now match the SP_from_api.
+          // --- MODIFIED CODE END ---
+          
           return (
             <div key={r.reservationId} className={`${baseCardStyles} ${dynamicCardStyles}`}>
               <div className="col-span-1 lg:col-span-6 p-4 sm:p-6 space-y-4">
@@ -391,10 +411,8 @@ const BookingsPage: NextPage = () => {
                     <p className="text-xs text-gray-500 dark:text-gray-400">Agency</p>
                     <p className="font-semibold text-gray-900 dark:text-gray-100">{r.agencyName}</p>
                   </div>
-                  {/* --- MODIFIED CODE START --- */}
                   {/* Wholesaler ID column is removed to hide it, placeholder keeps grid alignment */}
                   <div />
-                  {/* --- MODIFIED CODE END --- */}
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Guest</p>
                     <p className="font-semibold text-gray-900 dark:text-gray-100">{guestName}</p>
@@ -500,6 +518,7 @@ const BookingsPage: NextPage = () => {
         <div className="fixed inset-0 bg-black/10 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-xl w-full max-w-lg shadow-2xl my-8">
             <button onClick={() => setEditModalRes(null)}>Close Edit</button>
+            {/* The rest of your edit modal form would go here */}
           </div>
         </div>
       )}
