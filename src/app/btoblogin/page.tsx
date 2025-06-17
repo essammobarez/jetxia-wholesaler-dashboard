@@ -221,12 +221,12 @@ export default function Login() {
                 </button>
               </form>
 
-              <p className="mt-4 text-center text-sm text-gray-600">
+              {/* <p className="mt-4 text-center text-sm text-gray-600">
                 Don’t have an account?{' '}
                 <a href="/registration" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                   Register Now
                 </a>
-              </p>
+              </p> */}
             </div>
           </div>
 
