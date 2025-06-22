@@ -75,6 +75,8 @@ export default function MainPage() {
         }
         // Store the token itself for API calls
         localStorage.setItem('authToken', token);
+        // Also set it as a cookie if not already present
+        document.cookie = `authToken=${token}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
       } catch (e) {
         console.error('Failed to decode token:', e);
       }
@@ -100,8 +102,12 @@ export default function MainPage() {
   };
 
   const handleLogout = () => {
+    // remove local storage
     localStorage.removeItem('authToken');
     localStorage.removeItem('wholesalerId');
+    // remove cookie by setting max-age=0
+    document.cookie = 'authToken=; path=/; max-age=0; SameSite=Lax';
+    // redirect to home/login
     router.push('/');
   };
 
@@ -240,7 +246,7 @@ export default function MainPage() {
                       <LayoutGrid className="w-4 h-4" />
                       <span>
                         {tab === 'CreateMarkup' && 'Create Markup'}
-                        {/* {tab === 'AssignMarkup' && 'Assign Markup'} */}
+                        {tab === 'AssignMarkup' && 'Assign Markup'}
                         {tab === 'MarkupAgencyList' && 'Markup Agency List'}
                         {tab === 'PlanList' && 'Plan List'}
                       </span>
@@ -291,7 +297,7 @@ export default function MainPage() {
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="p-2 rounded-full hover:bg-gray-100 dark_hover:bg-gray-700"
             >
               {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-600" />}
             </button>

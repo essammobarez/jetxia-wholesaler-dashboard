@@ -315,7 +315,7 @@ export default function RegistrationForm() {
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
           <div className="absolute left-0">
-            <img src="/images/logo.jpg" alt="Logo" className="h-12 w-auto object-contain" />
+            <img src="/images/bdesk.jpg" alt="Logo" className="h-28 w-auto object-contain" />
           </div>
           <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
             Registration Form

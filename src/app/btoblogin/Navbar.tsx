@@ -58,11 +58,11 @@ export default function Navbar() {
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center ml-44">
               <Image
-                src="/images/logo.jpg"
+                src="/images/bdesk.jpg"
                 alt="JETIXIA Logo"
-                width={120}
-                height={40}
-                className="object-contain"
+                width={90}
+                height={10}
+                className="object-contain mt-3"
               />
             </Link>
           </div>

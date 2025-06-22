@@ -1,7 +1,8 @@
 // File: ./Login.tsx
+
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -18,36 +19,25 @@ import { OurFiguresSection } from './OurFiguresSection';
 import { NewsletterSection } from './NewsletterSection';
 import { NewsAndPartnershipSection } from './NewsAndPartnershipSection';
 import { PlatinumCollectionSection } from './PlatinumCollectionSection';
-import  Navbar  from './Navbar';
+import Navbar from './Navbar';
 
-// Custom Material-UI theme
 const muiTheme = createTheme({
   palette: {
-    primary: {
-      main: '#007bff',
-    },
+    primary: { main: '#007bff' },
   },
   components: {
     MuiTextField: {
-      defaultProps: {
-        variant: 'outlined',
-      },
+      defaultProps: { variant: 'outlined' },
       styleOverrides: {
         root: {
           '& .MuiInputLabel-root': {
             color: '#4B5563',
-            '&.Mui-focused': {
-              color: '#007bff',
-            },
+            '&.Mui-focused': { color: '#007bff' },
           },
           '& .MuiOutlinedInput-root': {
             borderRadius: '0.375rem',
-            '& fieldset': {
-              borderColor: '#E5E7EB',
-            },
-            '&:hover fieldset': {
-              borderColor: '#D1D5DB',
-            },
+            '& fieldset': { borderColor: '#E5E7EB' },
+            '&:hover fieldset': { borderColor: '#D1D5DB' },
             '&.Mui-focused fieldset': {
               borderColor: '#007bff',
               borderWidth: '1px',
@@ -71,85 +61,139 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [countdown, setCountdown] = useState(0); // Countdown in seconds for verification
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
+  // 1) on mount, and 2) every second thereafter, check for `authToken` cookie
+  useEffect(() => {
+    const checkAndRedirect = () => {
+      const match = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('authToken='));
+      if (match) {
+        const authToken = match.split('=')[1];
+        router.replace(`/wholesaler?token=${encodeURIComponent(authToken)}`);
+        return true;
+      }
+      return false;
+    };
+
+    // immediate check
+    if (checkAndRedirect()) return;
+
+    // then poll every second
+    const interval = setInterval(() => {
+      if (checkAndRedirect()) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [router]);
+
+  // Countdown effect for email verification
+  useEffect(() => {
+    if (countdown > 0) {
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown((prevCount) => prevCount - 1);
+      }, 1000);
+    } else if (countdown === 0 && messageType === 'success' && localStorage.getItem('pendingToken')) {
+      // If countdown reaches 0 and we were waiting for verification,
+      // it means 5 minutes passed, and the user likely didn't verify in time.
+      setMessage('Verification time expired. Please try logging in again to receive a new verification link.');
+      setMessageType('error');
+      localStorage.removeItem('pendingToken'); // Clear pending token as it might be expired on the backend
+      toast.error('Verification time expired. Please try logging in again.');
+      setLoading(false);
+    }
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+    };
+  }, [countdown, messageType]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    setCountdown(0); // Reset countdown on new login attempt
 
     try {
       const res = await fetch(`${API_URL}auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password,
-          type: 'wholesaler',
-        }),
+        body: JSON.stringify({ email, password, type: 'wholesaler' }),
       });
 
       if (!res.ok) {
-        const errorBody = await res.text();
-        let errorMessage = `Server returned ${res.status}`;
+        const text = await res.text();
+        let err = `Server ${res.status}`;
         try {
-          const errorJson = JSON.parse(errorBody);
-          errorMessage = errorJson.message || errorMessage;
+          const json = JSON.parse(text);
+          err = json.message || err;
         } catch {
-          errorMessage = `${errorMessage}: ${errorBody.substring(0, 100)}...`;
+          err = `${err}: ${text.substring(0, 100)}...`;
         }
-        throw new Error(errorMessage);
+        throw new Error(err);
       }
 
       const ct = res.headers.get('Content-Type') || '';
       if (!ct.includes('application/json')) {
         const txt = await res.text();
-        throw new Error(`Expected JSON, but got: ${txt.substring(0, 200)}`);
+        throw new Error(`Expected JSON but got: ${txt.substring(0, 200)}`);
       }
 
       const json = await res.json();
       if (!json.success) {
         throw new Error(json.message || 'Login failed');
       }
+
       const token = json.data?.token as string | undefined;
 
-      console.log('Login: received token:', token);
-      if (!token) {
-        throw new Error('No token received from server');
+      // Regardless of token presence, if login is successful, inform user to verify and start countdown
+      if (token) {
+        localStorage.setItem('pendingToken', token);
       }
-
-      // Store token
-      localStorage.setItem('authToken', token);
-
-      setMessage('Login successful!');
+      
+      setMessage('Login successful! Please check your email to verify your account.');
       setMessageType('success');
-      toast.success('Login successful!');
+      toast.success('Check your inbox for verification link.');
+      setCountdown(5 * 60); // Start 5-minute (300 seconds) countdown for verification
 
-      // Pass token in URL
-      router.push(`/wholesaler?token=${encodeURIComponent(token)}`);
+      // REMOVED: router.push(`/verify-login?email=${encodeURIComponent(email)}`);
+
     } catch (err: any) {
       console.error('Login error:', err);
       setMessage(err.message || 'Login failed');
       setMessageType('error');
       toast.error(err.message || 'Login failed!');
+      setCountdown(0); // Stop countdown on error
     } finally {
       setLoading(false);
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
   return (
     <ThemeProvider theme={muiTheme}>
-       <Navbar />
+      {/* <Navbar /> */}
       <div className="font-sans antialiased bg-gray-50 min-h-screen flex flex-col items-center">
         <Toaster position="top-right" reverseOrder={false} />
 
-        {/* Main container */}
         <div className="relative w-full max-w-7xl mt-12 mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Left Intro Panel */}
+            {/* Left Panel */}
             <div className="relative bg-white p-8 md:p-16 flex flex-col justify-center overflow-hidden">
               <div className="absolute -top-5 left-12 w-[320px] h-[90px]">
                 <Image
@@ -161,17 +205,17 @@ export default function Login() {
                 />
               </div>
               <div className="relative z-10">
-                <h2 className=" text-2xl md:text-3xl font-semibold text-gray-700 mb-3 leading-tight">
-                  Welcome To <span className="italic text-3xl md:text-4xl text-blue-600 font-extrabold">JETIXIA</span> The,
+                <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-3 leading-tight">
+                  Welcome To{' '}
+                  <span className="italic text-3xl md:text-4xl text-blue-600 font-extrabold">
+                    Booking Desk,
+                  </span>
                 </h2>
-                <p className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6 leading-snug">
-                  World Largest Professional network for business travel
-                </p>
-                <p className=" mb-2 text-blue-600 text-base">
-                  <span className="font-extrabold text-blue-600 ">JETIXIA</span> helps travel agencies do their business better.
+                <p className="mb-2 text-blue-600 text-base">
+                  <span className="text-blue-600">Booking Desk</span> helps travel agencies do their business better.
                 </p>
                 <p className="text-gray-600 mb-6 text-base max-w-lg">
-                  We are a top global travel distribution platform, simplifying business for suppliers like hotels, airlines, and car rentals, and buyers such as travel agencies and online travel companies. Publicly listed on the NSE and BSE, we connect over 159,000 buyers with 1 million+ hotels in 100+ countries, ensuring seamless transactions.
+                  Welcome to Booking Desk, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, Booking Desk helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.  
                 </p>
                 <button
                   type="button"
@@ -184,32 +228,33 @@ export default function Login() {
 
             {/* Right Login Panel */}
             <div className="relative flex items-center justify-center md:justify-end md:pr-12 overflow-hidden">
-              <div className="absolute inset-0 md:rounded-bl-[5rem] w-full first-letter:overflow-hidden">
+              <div className="absolute inset-0 md:rounded-bl-[5rem] w-full overflow-hidden">
                 <Image
                   src="/images/bg.png"
                   alt="Login Background"
                   fill
                   style={{ objectFit: 'cover' }}
-                  className="object-cover "
                   priority
                 />
-                <div className="absolute  bg-black/10 "></div>
+                <div className="absolute bg-black/10" />
               </div>
-
               <div className="relative bg-white bg-opacity-90 px-4 rounded-xl shadow-lg p-2 max-w-md w-full mx-2 md:mx-0">
                 <div className="flex justify-center mb-4">
-                  <Image src="/images/logo-dark.png" alt="Jetixia Logo Dark" width={150} height={50} priority />
+                  <Image src="/images/bdesk.jpg" alt="Jetixia Logo Dark" width={150} height={50} priority />
                 </div>
 
                 {message && (
                   <div
                     className={`w-full p-2 rounded text-center mb-3 text-sm ${
-                      messageType === 'success'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
+                      messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}
                   >
                     {message}
+                    {messageType === 'success' && countdown > 0 && (
+                      <div className="mt-1 font-bold">
+                        Waiting for verification: {formatTime(countdown)}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -241,10 +286,7 @@ export default function Login() {
                       />
                       Remember me
                     </label>
-                    <a
-                      href="/forgot-password"
-                      className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
-                    >
+                    <a href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
                       Forgot Password?
                     </a>
                   </div>
@@ -252,30 +294,24 @@ export default function Login() {
                   <div className="flex justify-center">
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || (messageType === 'success' && countdown > 0)}
                       className={`w-full sm:w-2/3 py-2 rounded-md text-white font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
-                        loading
+                        loading || (messageType === 'success' && countdown > 0)
                           ? 'bg-blue-300 cursor-not-allowed'
                           : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800'
                       }`}
                     >
-                      {loading ? 'Logging in...' : 'LOGIN'}
+                      {loading ? 'Logging in...' : (messageType === 'success' && countdown > 0 ? 'Verification Pending...' : 'LOGIN')}
                     </button>
                   </div>
                 </form>
 
                 <hr className="border-t border-gray-300 mb-2 mt-4 w-full" />
                 <div className="text-center text-sm text-gray-600 flex justify-between px-2 mb-2">
-                  <a
-                    href="/registration"
-                    className="font-semibold text-blue-600 hover:text-blue-500 hover:underline"
-                  >
+                  <a href="/registration" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                     New User
                   </a>
-                  <a
-                    href="/staff-login"
-                    className="font-semibold text-blue-600 hover:text-blue-500 hover:underline"
-                  >
+                  <a href="/staff-login" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
                     Staff Login
                   </a>
                 </div>
@@ -284,17 +320,8 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Other sections */}
-        <PlatinumCollectionSection />
-        <TravelGrowthSection />
-        <ProductShowcaseSection />
-        <TripBookingSection />
-        <EasyBusinessSection />
-        <TravelersGallerySection />
-        <HappyTravelersSection />
-        <OurFiguresSection />
-        <NewsletterSection />
-        <NewsAndPartnershipSection />
+        {/* Other sections (commented out) */}
+        {/* <PlatinumCollectionSection /> ... */}
       </div>
     </ThemeProvider>
   );
