@@ -161,7 +161,7 @@ export default function Login() {
         localStorage.setItem('pendingToken', token);
       }
       
-      setMessage('Login successful! Please check your email to verify your account.');
+      setMessage('Please check your email to verify your account.');
       setMessageType('success');
       toast.success('Check your inbox for verification link.');
       setCountdown(5 * 60); // Start 5-minute (300 seconds) countdown for verification
@@ -227,7 +227,7 @@ export default function Login() {
             </div>
 
             {/* Right Login Panel */}
-            <div className="relative flex items-center justify-center md:justify-end md:pr-12 overflow-hidden">
+            <div className="relative flex items-center justify-center  md:justify-end md:pr-12 overflow-hidden">
               <div className="absolute inset-0 md:rounded-bl-[5rem] w-full overflow-hidden">
                 <Image
                   src="/images/bg.png"
@@ -295,7 +295,7 @@ export default function Login() {
                     <button
                       type="submit"
                       disabled={loading || (messageType === 'success' && countdown > 0)}
-                      className={`w-full sm:w-2/3 py-2 rounded-md text-white font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
+                      className={`w-full mt-5 mb-10 sm:w-2/3 py-2 rounded-md text-white font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
                         loading || (messageType === 'success' && countdown > 0)
                           ? 'bg-blue-300 cursor-not-allowed'
                           : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800'
@@ -306,15 +306,7 @@ export default function Login() {
                   </div>
                 </form>
 
-                <hr className="border-t border-gray-300 mb-2 mt-4 w-full" />
-                <div className="text-center text-sm text-gray-600 flex justify-between px-2 mb-2">
-                  <a href="/registration" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
-                    New User
-                  </a>
-                  <a href="/staff-login" className="font-semibold text-blue-600 hover:text-blue-500 hover:underline">
-                    Staff Login
-                  </a>
-                </div>
+                
               </div>
             </div>
           </div>
