@@ -294,7 +294,7 @@ export default function WholesalerPage() {
               {/* Markup sub-menu */}
               {expandedMenu === 'Markup' && item === 'Markup' && (
                 <div className="pl-8 space-y-1">
-                  {['CreateMarkup', 'AssignMarkup', 'MarkupAgencyList', 'PlanList'].map((tab) => (
+                  {['CreateMarkup', 'PlanList'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
