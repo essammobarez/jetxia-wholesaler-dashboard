@@ -1,5 +1,4 @@
-// File: ./VerifyLoginPage.tsx
-
+// Code 2: VerifyLoginPage Component
 'use client';
 
 // Opt out of prerendering to avoid build errors in a client-only page
@@ -12,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const VerifyLoginPage: React.FC = () => {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams.get('token'); // This token is the actual authentication token
   const router = useRouter();
 
   const [status, setStatus] = useState<'pending' | 'success' | 'error' | 'no-token'>('pending');
@@ -22,7 +21,7 @@ const VerifyLoginPage: React.FC = () => {
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
-  // Countdown timer
+  // Countdown timer for the verification link itself
   useEffect(() => {
     if (status !== 'pending') return;
     if (timeLeft <= 0) {
@@ -53,12 +52,21 @@ const VerifyLoginPage: React.FC = () => {
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
         const json = await res.json();
+        // The backend should return the final, validated authentication token here.
         if (!json.success || !json.data?.token) {
-          throw new Error(json.message || 'Verification failed: no token received.');
+          throw new Error(json.message || 'Verification failed: no token received from backend.');
         }
 
-        // set in cookie (valid for 1 day)
+        // --- CRITICAL CONNECTION POINT ---
+        // Set the received authentication token in a cookie. This cookie will be checked by the Login page on subsequent visits.
+        // This is the actual session token.
         document.cookie = `authToken=${json.data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
+
+        // Clear the 'pendingToken' from localStorage. This signals to the Login component
+        // that the email verification process has completed successfully.
+        localStorage.removeItem('pendingToken');
+        // --- END CRITICAL CONNECTION POINT ---
+
 
         setStatus('success');
         toast.success('Verification successful! Redirecting you now...', {
@@ -67,6 +75,8 @@ const VerifyLoginPage: React.FC = () => {
         });
 
         setTimeout(() => {
+          // Redirect to the wholesaler dashboard after successful verification
+          // The token is passed as a query param, but the primary authentication is now via the cookie.
           router.replace(`/wholesaler?token=${encodeURIComponent(json.data.token)}`);
         }, 2500);
       } catch (err: any) {

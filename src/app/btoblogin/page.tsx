@@ -1,5 +1,3 @@
-// File: ./Login.tsx
-
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -8,18 +6,7 @@ import Image from 'next/image';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import toast, { Toaster } from 'react-hot-toast';
 
-import { InputField } from './loginInputField';
-import { TravelGrowthSection } from './TravelGrowthSection';
-import { ProductShowcaseSection } from './ProductShowcaseSection';
-import { TripBookingSection } from './TripBookingSection';
-import { EasyBusinessSection } from './EasyBusinessSection';
-import { TravelersGallerySection } from './TravelersGallerySection';
-import { HappyTravelersSection } from './HappyTravelersSection';
-import { OurFiguresSection } from './OurFiguresSection';
-import { NewsletterSection } from './NewsletterSection';
-import { NewsAndPartnershipSection } from './NewsAndPartnershipSection';
-import { PlatinumCollectionSection } from './PlatinumCollectionSection';
-import Navbar from './Navbar';
+import { InputField } from './loginInputField'; // Assuming this is a separate component
 
 const muiTheme = createTheme({
   palette: {
@@ -58,57 +45,104 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [messageType, setMessageType] = useState<'success' | 'error'>(
+    'success'
+  );
   const [countdown, setCountdown] = useState(0); // Countdown in seconds for verification
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [redirected, setRedirected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
-  // 1) on mount, and 2) every second thereafter, check for `authToken` cookie
+  // --- Initial Auth Check on Mount ---
   useEffect(() => {
-    const checkAndRedirect = () => {
+    const checkAuthToken = () => {
       const match = document.cookie
         .split('; ')
         .find((row) => row.startsWith('authToken='));
       if (match) {
         const authToken = match.split('=')[1];
         router.replace(`/wholesaler?token=${encodeURIComponent(authToken)}`);
+        setRedirected(true); // Indicate that a redirect is in progress
         return true;
       }
       return false;
     };
 
-    // immediate check
-    if (checkAndRedirect()) return;
+    if (!checkAuthToken()) {
+      setIsLoading(false); // Only show login form if no token found initially
+    }
 
-    // then poll every second
-    const interval = setInterval(() => {
-      if (checkAndRedirect()) {
-        clearInterval(interval);
+    // Cleanup for countdownIntervalRef, though it's managed by another effect now.
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
       }
-    }, 1000);
-
-    return () => clearInterval(interval);
+    };
   }, [router]);
 
-  // Countdown effect for email verification
+  // --- Polling for authToken cookie ---
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout | null = null;
+
+    const startPollingForAuthToken = () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval); // Clear any existing interval
+      }
+
+      pollingInterval = setInterval(() => {
+        const match = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('authToken='));
+
+        if (match) {
+          const authToken = match.split('=')[1];
+          // Auth token found, navigate and stop polling
+          router.replace(`/wholesaler?token=${encodeURIComponent(authToken)}`);
+          setRedirected(true); // Signal that a redirect is happening
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null; // Ensure ref is nulled after clearing
+          }
+        }
+      }, 2000); // Poll every 2 seconds
+    };
+
+    // Start polling if not already redirected and not in initial loading state
+    if (!redirected && !isLoading) {
+      startPollingForAuthToken();
+    }
+
+    // Cleanup interval when component unmounts or dependencies change leading to re-run
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    };
+  }, [redirected, isLoading, router]); // Re-run if redirected or initial loading state changes
+
+  // Countdown effect for email verification (remains the same)
   useEffect(() => {
     if (countdown > 0) {
       countdownIntervalRef.current = setInterval(() => {
         setCountdown((prevCount) => prevCount - 1);
       }, 1000);
-    } else if (countdown === 0 && messageType === 'success' && localStorage.getItem('pendingToken')) {
-      // If countdown reaches 0 and we were waiting for verification,
-      // it means 5 minutes passed, and the user likely didn't verify in time.
-      setMessage('Verification time expired. Please try logging in again to receive a new verification link.');
+    } else if (
+      countdown === 0 &&
+      messageType === 'success' &&
+      localStorage.getItem('pendingToken') // Still check for pendingToken here for time expiry
+    ) {
+      setMessage(
+        'Verification time expired. Please try logging in again to receive a new verification link.'
+      );
       setMessageType('error');
-      localStorage.removeItem('pendingToken'); // Clear pending token as it might be expired on the backend
+      localStorage.removeItem('pendingToken');
       toast.error('Verification time expired. Please try logging in again.');
-      setLoading(false);
     }
 
     return () => {
@@ -120,9 +154,8 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setMessage(null);
-    setCountdown(0); // Reset countdown on new login attempt
+    setCountdown(0);
 
     try {
       const res = await fetch(`${API_URL}auth/login`, {
@@ -156,35 +189,50 @@ export default function Login() {
 
       const token = json.data?.token as string | undefined;
 
-      // Regardless of token presence, if login is successful, inform user to verify and start countdown
       if (token) {
-        localStorage.setItem('pendingToken', token);
+        localStorage.setItem('pendingToken', token); // Still store pending token to manage UI state
       }
-      
+
       setMessage('Please check your email to verify your account.');
       setMessageType('success');
       toast.success('Check your inbox for verification link.');
-      setCountdown(5 * 60); // Start 5-minute (300 seconds) countdown for verification
-
-      // REMOVED: router.push(`/verify-login?email=${encodeURIComponent(email)}`);
-
+      setCountdown(5 * 60); // Start 5-minute countdown for email verification
     } catch (err: any) {
       console.error('Login error:', err);
       setMessage(err.message || 'Login failed');
       setMessageType('error');
       toast.error(err.message || 'Login failed!');
-      setCountdown(0); // Stop countdown on error
-    } finally {
-      setLoading(false);
+      setCountdown(0);
     }
   };
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
+      .toString()
+      .padStart(2, '0')}`;
   };
 
+  // Render loading state first
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      </div>
+    );
+  }
+
+  // If loading is done AND we are redirected, show redirecting message
+  if (redirected) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-600 dark:text-gray-300">Redirecting...</p>
+      </div>
+    );
+  }
+
+  // If not loading and not redirected, show the login form
   return (
     <ThemeProvider theme={muiTheme}>
       {/* <Navbar /> */}
@@ -212,10 +260,20 @@ export default function Login() {
                   </span>
                 </h2>
                 <p className="mb-2 text-blue-600 text-base">
-                  <span className="text-blue-600">Booking Desk</span> helps travel agencies do their business better.
+                  <span className="text-blue-600">Booking Desk</span> helps
+                  travel agencies do their business better.
                 </p>
                 <p className="text-gray-600 mb-6 text-base max-w-lg">
-                  Welcome to Booking Desk, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, Booking Desk helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.  
+                  Welcome to Booking Desk, your trusted partner in travel
+                  technology solutions. We empower travel agencies and tour
+                  operators with a powerful, all-in-one platform that offers
+                  seamless access to flights, hotels, transfers, and activities
+                  from top global suppliers. Designed for scalability and speed,
+                  Booking Desk helps you streamline operations, increase
+                  margins, and deliver exceptional service to your clients.
+                  Whether you’re growing your business or optimizing your
+                  current workflow, our technology is built to keep you ahead in
+                  the competitive travel market.
                 </p>
                 <button
                   type="button"
@@ -240,13 +298,21 @@ export default function Login() {
               </div>
               <div className="relative bg-white bg-opacity-90 px-4 rounded-xl shadow-lg p-2 max-w-md w-full mx-2 md:mx-0">
                 <div className="flex justify-center mb-4">
-                  <Image src="/images/bdesk.jpg" alt="Jetixia Logo Dark" width={150} height={50} priority />
+                  <Image
+                    src="/images/bdesk.jpg"
+                    alt="Jetixia Logo Dark"
+                    width={150}
+                    height={50}
+                    priority
+                  />
                 </div>
 
                 {message && (
                   <div
                     className={`w-full p-2 rounded text-center mb-3 text-sm ${
-                      messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      messageType === 'success'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
                     }`}
                   >
                     {message}
@@ -286,7 +352,10 @@ export default function Login() {
                       />
                       Remember me
                     </label>
-                    <a href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
+                    <a
+                      href="/forgot-password"
+                      className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
+                    >
                       Forgot Password?
                     </a>
                   </div>
@@ -294,26 +363,23 @@ export default function Login() {
                   <div className="flex justify-center">
                     <button
                       type="submit"
-                      disabled={loading || (messageType === 'success' && countdown > 0)}
+                      disabled={messageType === 'success' && countdown > 0}
                       className={`w-full mt-5 mb-10 sm:w-2/3 py-2 rounded-md text-white font-semibold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
-                        loading || (messageType === 'success' && countdown > 0)
+                        messageType === 'success' && countdown > 0
                           ? 'bg-blue-300 cursor-not-allowed'
                           : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800'
                       }`}
                     >
-                      {loading ? 'Logging in...' : (messageType === 'success' && countdown > 0 ? 'Verification Pending...' : 'LOGIN')}
+                      {messageType === 'success' && countdown > 0
+                        ? 'Verification Pending...'
+                        : 'LOGIN'}
                     </button>
                   </div>
                 </form>
-
-                
               </div>
             </div>
           </div>
         </div>
-
-        {/* Other sections (commented out) */}
-        {/* <PlatinumCollectionSection /> ... */}
       </div>
     </ThemeProvider>
   );
