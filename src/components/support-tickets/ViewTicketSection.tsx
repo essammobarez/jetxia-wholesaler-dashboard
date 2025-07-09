@@ -84,17 +84,25 @@ const MessageCard: React.FC<{
   content: string;
   createdAt: string;
   isReply?: boolean;
+  replies?: Message[];
   onReply?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onMessageEdit?: (messageId: string) => void;
+  onMessageDelete?: (messageId: string) => void;
+  onMessageReply?: (messageId: string) => void;
 }> = ({
   sender,
   content,
   createdAt,
   isReply = false,
+  replies = [],
   onReply,
   onEdit,
   onDelete,
+  onMessageEdit,
+  onMessageDelete,
+  onMessageReply,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -125,93 +133,116 @@ const MessageCard: React.FC<{
   const randomColor = React.useMemo(() => getRandomColor(), []);
 
   return (
-    <div className="group rounded-xl shadow-sm transition-all duration-200">
-      <div className="flex items-start gap-4">
-        {/* Avatar */}
-        <div
-          className={`
-          w-12 h-12
-          rounded-full 
-          flex items-center justify-center 
-          text-white font-medium
-          transform group-hover:scale-105 transition-transform duration-200
-          ${randomColor}
-        `}
-        >
-          {sender.name[0]}
-        </div>
+    <div className="space-y-4">
+      <div className="group rounded-xl transition-all duration-200">
+        <div className="flex items-start gap-4">
+          {/* Avatar */}
+          <div
+            className={`
+            w-12 h-12
+            rounded-full 
+            flex items-center justify-center 
+            text-white font-medium
+            transform group-hover:scale-105 transition-transform duration-200
+            ${randomColor}
+          `}
+          >
+            {sender.name[0]}
+          </div>
 
-        {/* Message Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
+          {/* Message Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
+                  {sender.name}
+                </h3>
+                <p className="text-sm text-gray-500">{createdAt}</p>
+              </div>
+            </div>
             <div>
-              <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
-                {sender.name}
-              </h3>
-              <p className="text-sm text-gray-500">{createdAt}</p>
+              <p className="mt-2 text-gray-700 break-words">{content}</p>
+              {isReply && (
+                <div className="mt-4 flex items-center gap-4">
+                  <button
+                    onClick={onReply}
+                    className="text-sm text-blue-600 hover:text-blue-700 transition-colors hover:underline"
+                  >
+                    Reply
+                  </button>
+                  <button
+                    onClick={onEdit}
+                    className="text-sm text-gray-500 hover:text-gray-600 transition-colors hover:underline"
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          <div>
-            <p className="mt-2 text-gray-700 break-words">{content}</p>
-            {isReply && (
-              <div className="mt-4 flex items-center gap-4">
-                <button
-                  onClick={onReply}
-                  className="text-sm text-blue-600 hover:text-blue-700 transition-colors hover:underline"
-                >
-                  Reply
-                </button>
-                <button
-                  onClick={onEdit}
-                  className="text-sm text-gray-500 hover:text-gray-600 transition-colors hover:underline"
-                >
-                  Edit
-                </button>
+          <div ref={dropdownRef} className="relative">
+            <button 
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className={`
+                text-gray-400 hover:text-gray-600 
+                p-1.5 rounded-full 
+                hover:bg-gray-50 
+                transition-all duration-200 
+                ${isDropdownOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+              `}
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+            {isDropdownOpen && (
+              <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      onEdit?.();
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDelete?.();
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
-        <div ref={dropdownRef} className="relative">
-          <button 
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={`
-              text-gray-400 hover:text-gray-600 
-              p-1.5 rounded-full 
-              hover:bg-gray-50 
-              transition-all duration-200 
-              ${isDropdownOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            `}
-          >
-            <MoreVertical className="h-5 w-5" />
-          </button>
-          {isDropdownOpen && (
-            <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    onEdit?.();
-                    setIsDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                >
-                  <Edit className="h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    onDelete?.();
-                    setIsDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* Nested Replies */}
+      {replies.length > 0 && (
+        <div className="space-y-4 pl-8 border-l-2 border-gray-200 ml-6">
+          {replies.map((reply) => (
+            <>
+            <Separator className="my-3" />
+            <MessageCard
+              key={reply.id}
+              sender={reply.sender}
+              content={reply.content}
+              createdAt={reply.createdAt}
+              isReply
+              onReply={() => onMessageReply?.(reply.id)}
+              onEdit={() => onMessageEdit?.(reply.id)}
+              onDelete={() => onMessageDelete?.(reply.id)}
+            />
+            </>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -269,8 +300,8 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
 
   if (!selectedTicket) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500">
-        <div className="bg-gray-50 rounded-full p-4 mb-4">
+      <div className="flex flex-col items-center justify-start h-full text-gray-500 pt-32">
+        <div className="bg-gray-50 rounded-full p-4 mb-2">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
           </svg>
@@ -319,7 +350,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full p-4 lg:p-6 xl:p-8">
+    <div className="flex flex-col h-fit p-4 lg:p-6 xl:p-8 bg-white shadow-xs border border-gray-200 border-l-0 rounded-r-2xl">
       {/* Breadcrumb */}
       <Breadcrumb subject={ticketDetails.subject} />
 
@@ -332,41 +363,26 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
       />
 
       {/* Messages Container */}
-      <div className="bg-gray-50 rounded-2xl p-6 flex-1 overflow-y-auto space-y-6">
-        {/* First Message - Full Width */}
+      <div className="bg-gray-50 rounded-2xl p-6 flex-1 overflow-y-auto space-y-6 mb-3">
         <MessageCard
           sender={ticketDetails.messages[0].sender}
           content={ticketDetails.messages[0].content}
           createdAt={ticketDetails.messages[0].createdAt}
           onEdit={() => onMessageEdit(ticketDetails.messages[0].id)}
           onDelete={() => onMessageDelete(ticketDetails.messages[0].id)}
-        />
-
-        <Separator className="my-6" />
-
-        {/* Replies - With Left Tab */}
-        <div className="space-y-4 pl-8 border-l-2 border-gray-200">
-          {ticketDetails.messages.slice(1).map((message) => (
-            <MessageCard
-              key={message.id}
-              sender={message.sender}
-              content={message.content}
-              createdAt={message.createdAt}
-              isReply
-              onReply={() => onMessageReply(message.id)}
-              onEdit={() => onMessageEdit(message.id)}
-              onDelete={() => onMessageDelete(message.id)}
-            />
-          ))}
-        </div>
-
-        {/* Reply Box */}
-        <ReplyBox
-          value={replyText}
-          onChange={onReplyChange}
-          onSend={onSendReply}
+          replies={ticketDetails.messages.slice(1)}
+          onMessageEdit={onMessageEdit}
+          onMessageDelete={onMessageDelete}
+          onMessageReply={onMessageReply}
         />
       </div>
+
+      {/* Reply Box */}
+      <ReplyBox
+        value={replyText}
+        onChange={onReplyChange}
+        onSend={onSendReply}
+      />
     </div>
   );
 };

@@ -39,7 +39,7 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
   onDelete,
 }) => {
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white border-r border-gray-300">
       {/* Filter Section - Fixed at top */}
       <div className="px-4 py-2">
         <FilterSection

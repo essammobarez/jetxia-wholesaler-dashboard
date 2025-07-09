@@ -1,6 +1,7 @@
 import { AllTicketsSection, ViewTicketSection } from "@/components/support-tickets";
 import { mockTickets } from "@/components/support-tickets/mockTickets";
 import { Message, StatusType, SortType, Ticket } from "@/components/support-tickets/types";
+import CreateTicketModal from "@/components/support-tickets/CreateTicketModal";
 import React, { useState, useCallback } from "react";
 
 const SupportTicketsPage = () => {
@@ -9,6 +10,7 @@ const SupportTicketsPage = () => {
   const [status, setStatus] = useState<StatusType>("All");
   const [sort, setSort] = useState<SortType>("Recent");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // States for ticket details
   const [replyText, setReplyText] = useState("");
@@ -31,8 +33,12 @@ const SupportTicketsPage = () => {
 
   // Event handlers
   const handleCreateTicket = useCallback(() => {
-    // TODO: Implement ticket creation
-    console.log("Create ticket clicked");
+    setIsCreateModalOpen(true);
+  }, []);
+
+  const handleCreateTicketSubmit = useCallback((data: { subject: string; message: string }) => {
+    // TODO: Implement actual ticket creation API call
+    console.log("Creating ticket:", data);
   }, []);
 
   const handleSendReply = useCallback(() => {
@@ -109,7 +115,7 @@ const SupportTicketsPage = () => {
       </div>
 
       {/* Right Panel - Ticket Detail */}
-      <div className="col-span-7 overflow-auto bg-white">
+      <div className="col-span-7 overflow-auto">
         <ViewTicketSection
           selectedId={selectedId}
           replyText={replyText}
@@ -122,6 +128,13 @@ const SupportTicketsPage = () => {
           onMessageReply={handleMessageReply}
         />
       </div>
+
+      {/* Create Ticket Modal */}
+      <CreateTicketModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleCreateTicketSubmit}
+      />
     </div>
   );
 };
