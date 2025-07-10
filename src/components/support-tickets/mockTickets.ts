@@ -1,45 +1,67 @@
-import type { Ticket } from './TicketCard';
+import { Ticket } from "@/types/supportTypes";
 
 export const mockTickets: Ticket[] = [
   {
-    id: 1,
-    subject: 'Need assistance with bulk hotel booking',
-    created: '2025-06-20',
-    status: 'Open',
-    agency: 'WS',
-    agencyName: 'Wanderlust Solutions',
-    message: 'Hi, we need to book 50 rooms for a corporate event in Dubai next month. Could you help us with getting the best rates and availability?',
-    replies: 2,
-    // avatarUrl: 'https://example.com/avatar1.jpg' // Optional: Remove if not using real avatars
+    _id: "1",
+    agencyId: "agency1",
+    wholesalerId: {
+      _id: "wholesaler1",
+      email: "contact@wholesaler1.com"
+    },
+    subject: "Need help with booking",
+    status: "open",
+    replies: [
+      {
+        _id: "reply1",
+        sender: "agency_admin",
+        message: "I need assistance with a booking issue",
+        createdAt: "2024-01-01T10:00:00.000Z"
+      }
+    ],
+    ticketNumber: "TCK-1234-5678",
+    createdAt: "2024-01-01T10:00:00.000Z",
+    updatedAt: "2024-01-01T10:00:00.000Z"
   },
   {
-    id: 2,
-    subject: 'Flight booking cancellation request',
-    created: '2025-06-19',
-    status: 'Pending',
-    agency: 'GT',
-    agencyName: 'Global Travels',
-    message: 'Due to unforeseen circumstances, we need to cancel the group booking for flight AB123 scheduled for July 15th. Please advise on the cancellation process and any applicable fees.',
-    replies: 3
+    _id: "2",
+    agencyId: "agency1",
+    wholesalerId: {
+      _id: "wholesaler2",
+      email: "contact@wholesaler2.com"
+    },
+    subject: "Payment issue",
+    status: "pending",
+    replies: [
+      {
+        _id: "reply2",
+        sender: "agency_admin",
+        message: "Having trouble with payment processing",
+        createdAt: "2024-01-02T10:00:00.000Z"
+      }
+    ],
+    ticketNumber: "TCK-1234-5679",
+    createdAt: "2024-01-02T10:00:00.000Z",
+    updatedAt: "2024-01-02T10:00:00.000Z"
   },
   {
-    id: 3,
-    subject: 'Package customization inquiry',
-    created: '2025-06-18',
-    status: 'Open',
-    agency: 'VE',
-    agencyName: 'Voyage Express',
-    message: 'We have a client interested in the Thailand package, but they want to extend the stay in Phuket and add some additional activities. Can we discuss the possibilities?',
-    replies: 1
-  },
-  {
-    id: 4,
-    subject: 'Technical issue with booking portal',
-    created: '2025-06-17',
-    status: 'Closed',
-    agency: 'TM',
-    agencyName: 'Travel Masters',
-    message: 'We are experiencing issues with the online booking portal. The system keeps timing out when we try to process payments. This is affecting our operations.',
-    replies: 5
-  },
+    _id: "3",
+    agencyId: "agency1",
+    wholesalerId: {
+      _id: "wholesaler1",
+      email: "contact@wholesaler1.com"
+    },
+    subject: "Refund request",
+    status: "closed",
+    replies: [
+      {
+        _id: "reply3",
+        sender: "agency_admin",
+        message: "Need to process a refund for booking",
+        createdAt: "2024-01-03T10:00:00.000Z"
+      }
+    ],
+    ticketNumber: "TCK-1234-5680",
+    createdAt: "2024-01-03T10:00:00.000Z",
+    updatedAt: "2024-01-03T10:00:00.000Z"
+  }
 ]; 

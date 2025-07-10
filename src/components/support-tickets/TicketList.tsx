@@ -4,17 +4,17 @@ import { Ticket } from './types';
 
 type TicketListProps = {
   tickets: Ticket[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
-  isDropdownOpen: number | null;
-  onDropdownToggle: (id: number | null) => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  selectedTicket: Ticket | null;
+  onSelect: (ticket: Ticket) => void;
+  isDropdownOpen: string | null;
+  onDropdownToggle: (id: string | null) => void;
+  onEdit: (ticket: Ticket) => void;
+  onDelete: (ticket: Ticket) => void;
 };
 
 const TicketList: React.FC<TicketListProps> = ({
   tickets,
-  selectedId,
+  selectedTicket,
   onSelect,
   isDropdownOpen,
   onDropdownToggle,
@@ -41,12 +41,12 @@ const TicketList: React.FC<TicketListProps> = ({
     <div className="space-y-4 px-4 py-1 overflow-y-auto max-h-fit">
       {tickets.map(ticket => (
         <TicketCard
-          key={ticket.id}
+          key={ticket._id}
           ticket={ticket}
-          selected={ticket.id === selectedId}
-          onClick={() => onSelect(ticket.id)}
-          isDropdownOpen={isDropdownOpen === ticket.id}
-          onDropdownToggle={() => onDropdownToggle(isDropdownOpen === ticket.id ? null : ticket.id)}
+          selected={ticket._id === selectedTicket?._id}
+          onClick={() => onSelect(ticket)}
+          isDropdownOpen={isDropdownOpen === ticket._id}
+          onDropdownToggle={() => onDropdownToggle(isDropdownOpen === ticket._id ? null : ticket._id)}
           onEdit={onEdit}
           onDelete={onDelete}
         />

@@ -15,19 +15,21 @@ import {
   DropdownMenuGroup,
 } from "../ui/dropdown-menu";
 import { Image as ImageIcon } from "lucide-react";
-import { Message, TicketDetails } from "./types";
+import { Message, Ticket, TicketDetails } from "./types";
 import { mockTickets } from "./mockTickets";
+import axios from "axios";
 
 interface ViewTicketSectionProps {
-  selectedId: number | null;
+  selectedTicket: Ticket | null;
   replyText: string;
   onReplyChange: (value: string) => void;
   onSendReply: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit: (ticket: Ticket) => void;
+  onDelete: (ticket: Ticket) => void;
   onMessageEdit: (messageId: string) => void;
   onMessageDelete: (messageId: string) => void;
   onMessageReply: (messageId: string) => void;
+  updated: boolean;
 }
 
 // Subcomponents
@@ -50,26 +52,27 @@ const Breadcrumb: React.FC<{ subject: string }> = ({ subject }) => (
 const TicketHeader: React.FC<{
   subject: string;
   createdAt: string;
-  onEdit: () => void;
-  onDelete: () => void;
-}> = ({ subject, createdAt, onEdit, onDelete }) => (
+  onEdit: (ticket: Ticket) => void;
+  onDelete: (ticket: Ticket) => void;
+  ticket: Ticket;
+}> = ({ subject, createdAt, onEdit, onDelete, ticket }) => (
   <div className="flex justify-between items-start mb-6">
     <div>
       <h1 className="text-2xl font-bold text-gray-900 hover:text-gray-700 transition-colors cursor-pointer">
         {subject}
       </h1>
-      <p className="text-sm text-gray-500 mt-1">Created on {createdAt}</p>
+      <p className="text-sm text-gray-500 mt-1">Created on {createdAt ? new Date(createdAt).toLocaleString() : ''}</p>
     </div>
     <div className="flex gap-3">
       <button
-        onClick={onEdit}
+        onClick={() => onEdit(ticket)}
         className="group px-4 py-2 text-sm font-medium text-blue-500 hover:text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-lg transition-all duration-200 flex items-center gap-2 hover:shadow-md active:scale-95"
       >
         <Edit className="h-4 w-4 group-hover:scale-110 transition-transform" />
         Edit
       </button>
       <button
-        onClick={onDelete}
+        onClick={() => onDelete(ticket)}
         className="group px-4 py-2 text-sm font-medium text-red-600 bg-red-100 hover:bg-red-200 rounded-lg transition-all duration-200 flex items-center gap-2 hover:shadow-md active:scale-95"
       >
         <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
@@ -83,9 +86,6 @@ const MessageCard: React.FC<{
   sender: Message["sender"];
   content: string;
   createdAt: string;
-  isReply?: boolean;
-  replies?: Message[];
-  onReply?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onMessageEdit?: (messageId: string) => void;
@@ -95,15 +95,114 @@ const MessageCard: React.FC<{
   sender,
   content,
   createdAt,
-  isReply = false,
-  replies = [],
-  onReply,
   onEdit,
   onDelete,
   onMessageEdit,
   onMessageDelete,
   onMessageReply,
 }) => {
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsDropdownOpen(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const getRandomColor = () => {
+      const colors = [
+        "bg-blue-600",
+        "bg-green-600",
+        "bg-purple-600",
+        "bg-pink-600",
+        "bg-indigo-600",
+        "bg-orange-600",
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    const randomColor = React.useMemo(() => getRandomColor(), []);
+
+    return (
+      <div className="space-y-4">
+        <div className="group rounded-xl transition-all duration-200">
+          <div className="flex items-start gap-4">
+            {/* Avatar */}
+            <div
+              className={`
+            w-12 h-12
+            rounded-full 
+            flex items-center justify-center 
+            text-white font-medium
+            transform group-hover:scale-105 transition-transform duration-200
+            ${randomColor}
+          `}
+            >
+              {sender.name[0]}
+            </div>
+
+            {/* Message Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
+                    {sender.name}
+                  </h3>
+                  <p className="text-sm text-gray-500">{new Date(createdAt).toLocaleString()}</p>
+                </div>
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                  >
+                    <MoreVertical className="h-5 w-5 text-gray-500" />
+                  </button>
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                      <div className="py-1">
+                        <button
+                          onClick={onEdit}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={onDelete}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="mt-2 text-gray-700 break-words">{content}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+const NewMessageCard: React.FC<{
+  ticketData: Ticket;
+  onEdit: (ticket: Ticket) => void;
+  onDelete: (ticket: Ticket) => void;
+  onMessageEdit: (messageId: string) => void;
+  onMessageDelete: (messageId: string) => void;
+  onMessageReply: (messageId: string) => void;
+}> = ({ ticketData, onEdit, onDelete, onMessageEdit, onMessageDelete, onMessageReply }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -118,6 +217,9 @@ const MessageCard: React.FC<{
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const mainMessage = ticketData.replies[0];
+  const replies = ticketData.replies.slice(1, ticketData.replies.length);
+
   const getRandomColor = () => {
     const colors = [
       "bg-blue-600",
@@ -131,6 +233,7 @@ const MessageCard: React.FC<{
   };
 
   const randomColor = React.useMemo(() => getRandomColor(), []);
+
 
   return (
     <div className="space-y-4">
@@ -147,7 +250,7 @@ const MessageCard: React.FC<{
             ${randomColor}
           `}
           >
-            {sender.name[0]}
+            {mainMessage.sender === "agency_admin" ? ticketData.agencyId.agencyName[0] : ticketData.wholesalerId.wholesalerName[0]}
           </div>
 
           {/* Message Content */}
@@ -155,33 +258,34 @@ const MessageCard: React.FC<{
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
-                  {sender.name}
+                  {mainMessage.sender === "agency_admin" ? ticketData.agencyId.agencyName : ticketData.wholesalerId.wholesalerName}
                 </h3>
-                <p className="text-sm text-gray-500">{createdAt}</p>
+                <p className="text-sm text-gray-500">{new Date(mainMessage.createdAt).toLocaleString()}</p>
               </div>
-            </div>
-            <div>
-              <p className="mt-2 text-gray-700 break-words">{content}</p>
-              {isReply && (
-                <div className="mt-4 flex items-center gap-4">
-                  <button
-                    onClick={onReply}
-                    className="text-sm text-blue-600 hover:text-blue-700 transition-colors hover:underline"
-                  >
-                    Reply
-                  </button>
-                  <button
-                    onClick={onEdit}
-                    className="text-sm text-gray-500 hover:text-gray-600 transition-colors hover:underline"
-                  >
-                    Edit
-                  </button>
-                </div>
-              )}
+              <div>
+                <p className="mt-2 text-gray-700 break-words">{mainMessage.message}</p>
+                {replies.length > 0 && (
+                  <div className="mt-4 flex items-center gap-4">
+                    <button
+                      onClick={() => onMessageReply(mainMessage._id)}
+                      className="text-sm text-blue-600 hover:text-blue-700 transition-colors hover:underline"
+                    >
+                      Reply
+                    </button>
+                    <button
+                      onClick={() => onMessageEdit(mainMessage._id)}
+                      className="text-sm text-gray-500 hover:text-gray-600 transition-colors hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
           <div ref={dropdownRef} className="relative">
-            <button 
+            <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className={`
                 text-gray-400 hover:text-gray-600 
@@ -198,7 +302,7 @@ const MessageCard: React.FC<{
                 <div className="py-1">
                   <button
                     onClick={() => {
-                      onEdit?.();
+                      onEdit(ticketData);
                       setIsDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -208,7 +312,7 @@ const MessageCard: React.FC<{
                   </button>
                   <button
                     onClick={() => {
-                      onDelete?.();
+                      onDelete(ticketData);
                       setIsDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
@@ -230,14 +334,18 @@ const MessageCard: React.FC<{
             <>
             <Separator className="my-3" />
             <MessageCard
-              key={reply.id}
-              sender={reply.sender}
-              content={reply.content}
+              key={reply._id}
+              sender={{
+                type: reply.sender === "agency_admin" ? "Agency" : "Wholesaler",
+                name: reply.sender === "agency_admin" ? ticketData.agencyId.agencyName : ticketData.wholesalerId.wholesalerName
+              }}
+              content={reply.message}
               createdAt={reply.createdAt}
-              isReply
-              onReply={() => onMessageReply?.(reply.id)}
-              onEdit={() => onMessageEdit?.(reply.id)}
-              onDelete={() => onMessageDelete?.(reply.id)}
+              onEdit={() => onMessageEdit(reply._id)}
+              onDelete={() => onMessageDelete(reply._id)}
+              onMessageEdit={onMessageEdit}
+              onMessageDelete={onMessageDelete}
+              onMessageReply={onMessageReply}
             />
             </>
           ))}
@@ -253,39 +361,46 @@ const ReplyBox: React.FC<{
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
-}> = ({ value, onChange, onSend }) => (
+  isLoading?: boolean;
+}> = ({ value, onChange, onSend, isLoading }) => (
   <div className="w-full">
     <div className="flex items-center px-4 py-1.5 bg-blue-50 border border-blue-100 rounded-full shadow-sm focus-within:ring-2 focus-within:ring-blue-200 transition-all">
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Reply to"
+        placeholder="Type your reply here..."
         className="flex-1 bg-transparent outline-none border-none text-gray-700 placeholder-gray-500 text-base px-2"
+        disabled={isLoading}
       />
-      {/* <button
-        type="button"
-        className="mx-1 text-gray-500 hover:text-blue-500 p-1 rounded-full transition-colors"
-        tabIndex={-1}
-        aria-label="Attach image"
-      >
-        <ImageIcon className="h-5 w-5" />
-      </button> */}
       <button
         onClick={onSend}
-        disabled={!value.trim()}
-        className="flex items-center gap-1 px-4 py-1 text-sm bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all duration-150 active:scale-95 disabled:opacity-60"
+        disabled={!value.trim() || isLoading}
+        className="flex items-center gap-1 px-4 py-1 text-sm bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all duration-150 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Send
-        <Send className="h-5 w-5 ml-1" />
+        {isLoading ? (
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        ) : (
+          <>
+            Send
+            <Send className="h-5 w-5 ml-1" />
+          </>
+        )}
       </button>
     </div>
   </div>
 );
 
+ const getAuthToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("authToken") || "";
+    }
+    return "";
+  };
+
 // Main Component
 const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
-  selectedId,
+  selectedTicket,
   replyText,
   onReplyChange,
   onSendReply,
@@ -294,9 +409,38 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
   onMessageEdit,
   onMessageDelete,
   onMessageReply,
+  updated,
 }) => {
-  // Find selected ticket
-  const selectedTicket = mockTickets.find((t) => t.id === selectedId);
+  const [isLoading, setIsLoading] = useState(false);
+  const [ticketData, setTicketData] = useState<Ticket | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
+  const token = getAuthToken();
+
+  useEffect(() => {
+    const fetchTicketData = async () => {
+      if (!selectedTicket?._id) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await axios.get(`${apiUrl}support/tickets/${selectedTicket?._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setTicketData(response.data.data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch ticket data');
+        console.error('Error fetching ticket:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTicketData();
+  }, [selectedTicket?._id, updated]);
 
   if (!selectedTicket) {
     return (
@@ -314,39 +458,48 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
     );
   }
 
-  // Mock ticket details - replace with actual data from your API
+  if (isLoading && !ticketData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">Loading ticket details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-red-600">
+        <p>Error: {error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!ticketData) return null;
+
+  console.log("ticketData: ", ticketData);
+
+  // Convert ticket data to TicketDetails format
   const ticketDetails: TicketDetails = {
-    subject: selectedTicket.subject,
-    createdAt: selectedTicket.created,
-    messages: [
-      {
-        id: "1",
-        sender: {
-          type: "Wholesaler",
-          name: "Wholesaler",
-        },
-        content: selectedTicket.message,
-        createdAt: selectedTicket.created,
+    subject: ticketData.subject,
+    createdAt: ticketData.createdAt,
+    messages: ticketData.replies.map(reply => ({
+      id: reply._id,
+      sender: {
+        type: reply.sender === "agency_admin" ? "Agency" : "Wholesaler",
+        name: reply.sender === "agency_admin"
+          ? ticketData.agencyId.agencyName
+          : ticketData.wholesalerId.wholesalerName
       },
-      {
-        id: "2",
-        sender: {
-          type: "Agency",
-          name: selectedTicket.agencyName,
-        },
-        content: "Yes, I do. Can you provide me more details.",
-        createdAt: "1 day ago",
-      },
-      {
-        id: "3",
-        sender: {
-          type: "Agency",
-          name: selectedTicket.agencyName,
-        },
-        content: "And I'm looking for the other opportunities.",
-        createdAt: "1 day ago",
-      },
-    ],
+      content: reply.message,
+      createdAt: reply.createdAt,
+    }))
   };
 
   return (
@@ -358,19 +511,33 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
       <TicketHeader
         subject={ticketDetails.subject}
         createdAt={ticketDetails.createdAt}
+        ticket={selectedTicket}
         onEdit={onEdit}
         onDelete={onDelete}
       />
 
       {/* Messages Container */}
-      <div className="bg-gray-50 rounded-2xl p-6 flex-1 overflow-y-auto space-y-6 mb-3">
-        <MessageCard
-          sender={ticketDetails.messages[0].sender}
-          content={ticketDetails.messages[0].content}
-          createdAt={ticketDetails.messages[0].createdAt}
-          onEdit={() => onMessageEdit(ticketDetails.messages[0].id)}
-          onDelete={() => onMessageDelete(ticketDetails.messages[0].id)}
-          replies={ticketDetails.messages.slice(1)}
+      {/* <div className="bg-gray-50 rounded-2xl p-6 flex-1 overflow-y-auto space-y-6 mb-3 min-h-[250px]">
+        {ticketDetails.messages.map((message, index) => (
+          <MessageCard
+            key={message.id}
+            sender={message.sender}
+            content={message.content}
+            createdAt={message.createdAt}
+            onEdit={() => onMessageEdit(message.id)}
+            onDelete={() => onMessageDelete(message.id)}
+            onMessageEdit={onMessageEdit}
+            onMessageDelete={onMessageDelete}
+            onMessageReply={onMessageReply}
+          />
+        ))}
+      </div> */}
+
+      <div className="bg-gray-50 rounded-2xl p-6 flex-1 overflow-y-auto space-y-6 mb-3 min-h-[250px]">
+        <NewMessageCard
+          ticketData={ticketData}
+          onEdit={onMessageEdit}
+          onDelete={onMessageDelete}
           onMessageEdit={onMessageEdit}
           onMessageDelete={onMessageDelete}
           onMessageReply={onMessageReply}
@@ -382,6 +549,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
         value={replyText}
         onChange={onReplyChange}
         onSend={onSendReply}
+        isLoading={isLoading}
       />
     </div>
   );

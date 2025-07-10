@@ -7,9 +7,9 @@ type HeaderSectionProps = {
 };
 
 const HeaderSection: React.FC<HeaderSectionProps> = ({ totalTickets, onCreateTicket }) => (
-  <div className="flex items-center justify-between">
+  <div className="flex items-center justify-start">
     <h1 className="text-2xl font-bold text-gray-900">Support Tickets</h1>
-    <button
+    {/* <button
       className="flex items-center px-3 py-1.5 border-2 border-blue-500 hover:bg-gray-50 text-blue-500 hover:text-blue-600 rounded-full transition-colors text-sm"
       onClick={onCreateTicket}
     >
@@ -27,7 +27,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ totalTickets, onCreateTic
         />
       </svg>
       Create New Ticket
-    </button>
+    </button> */}
   </div>
 );
 
@@ -78,9 +78,9 @@ const StatusTabs: React.FC<StatusTabsProps> = ({ status, onStatus }) => {
         {statusOptions.map((option) => (
           <button
             key={option}
-            onClick={() => onStatus(option)}
+            onClick={() => onStatus(option.toLowerCase())}
             className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 ${
-              status === option
+              status === option.toLowerCase()
                 ? 'bg-gray-900 text-white'
                 : 'text-gray-600 hover:text-gray-900'
             }`}

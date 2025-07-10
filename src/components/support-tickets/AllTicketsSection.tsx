@@ -12,14 +12,14 @@ interface AllTicketsSectionProps {
   onStatus: (value: StatusType) => void;
   sort: SortType;
   onSort: (value: SortType) => void;
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedTicket: Ticket | null;
+  onSelect: (ticket: Ticket) => void;
   tickets: Ticket[];
   onCreateTicket: () => void;
-  isDropdownOpen: number | null;
-  onDropdownToggle: (id: number | null) => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  isDropdownOpen: string | null;
+  onDropdownToggle: (id: string | null) => void;
+  onEdit: (ticket: Ticket) => void;
+  onDelete: (ticket: Ticket) => void;
 }
 
 const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
@@ -29,7 +29,7 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
   onStatus,
   sort,
   onSort,
-  selectedId,
+  selectedTicket,
   onSelect,
   tickets,
   onCreateTicket,
@@ -59,7 +59,7 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
         <div className="h-full overflow-y-auto">
           <TicketList
             tickets={tickets}
-            selectedId={selectedId}
+            selectedTicket={selectedTicket}
             onSelect={onSelect}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={onDropdownToggle}
