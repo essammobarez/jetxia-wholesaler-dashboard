@@ -1,16 +1,29 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
-import { Eye, Edit2, Trash2, Tag, List } from 'lucide-react';
-import {
-  Registration,
-  Agency as BaseAgency,
-  AgencyModal,
-} from './AgencyModal';
+import { Eye, Edit2, Trash2, Tag } from 'lucide-react'; // Removed List import
+import { Registration, Agency as BaseAgency, AgencyModal } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
 import { TbCreditCardPay } from 'react-icons/tb';
+import { Fragment } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
 
 type Supplier = { id: string; name: string; enabled: boolean };
+
+type PlanType = {
+  _id: string;
+  name: string;
+  service: string;
+  markups: Array<{
+    provider?: {
+      _id: string;
+      name: string;
+    };
+    type: string;
+    value: number;
+    _id: string;
+  }>;
+};
 
 type AgencyWithState = BaseAgency & {
   status: 'pending' | 'approved' | 'suspended';
@@ -24,7 +37,9 @@ type AgencyWithState = BaseAgency & {
 export default function AgencyAdminPanel() {
   const [agencies, setAgencies] = useState<AgencyWithState[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modalMode, setModalMode] = useState<'view' | 'edit' | 'markup' | null>(null);
+  const [modalMode, setModalMode] = useState<'view' | 'edit' | 'markup' | null>(
+    null
+  );
   const [selected, setSelected] = useState<AgencyWithState | null>(null);
   const [formState, setFormState] = useState<Partial<Registration>>({});
   const [profileForm, setProfileForm] = useState<{
@@ -36,9 +51,9 @@ export default function AgencyAdminPanel() {
     markupPlanName: '',
     markupPercentage: 0,
   });
-  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState(false); // Kept for now, but not used by a button
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<PlanType[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
 
@@ -51,25 +66,89 @@ export default function AgencyAdminPanel() {
     if (stored) setWholesalerId(stored);
   }, []);
 
-  // Fetch agencies
+  // Fetch markup plans
+  const fetchPlans = async (wid: string): Promise<PlanType[]> => {
+    try {
+      const res = await fetch(`${API_URL}markup/plans/wholesaler/${wid}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setPlans(json.data);
+        return json.data;
+      } else {
+        setPlans([]);
+        return [];
+      }
+    } catch (err) {
+      console.error('Error fetching plans:', err);
+      setPlans([]);
+      return [];
+    }
+  };
+
+  // Helper to get plan by name
+  const getPlanByName = (planName: string) =>
+    plans.find((p) => p.name === planName);
+
+  // Component for rendering the markup details tooltip
+  const MarkupTooltip = ({ plan }: { plan: PlanType | undefined }) => {
+    if (!plan || !plan.markups || plan.markups.length === 0) {
+      return null;
+    }
+    return (
+      <div
+        className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
+                   invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity
+                   bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50"
+      >
+        <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
+          Providers & Markups
+        </h4>
+        <ul className="space-y-1">
+          {plan.markups.map((markup) => (
+            <li key={markup._id} className="flex justify-between items-center space-x-4">
+              <span>{markup.provider?.name ?? 'Default'}</span>
+              <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
+                {markup.value}%
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
+                       border-x-8 border-x-transparent border-t-8 border-t-gray-800"
+        />
+      </div>
+    );
+  };
+
+  // Fetch agencies and plans
   useEffect(() => {
     if (!API_URL || !wholesalerId) return;
 
-    const fetchAgencies = async () => {
+    const fetchData = async () => {
       try {
+        const fetchedPlans = await fetchPlans(wholesalerId); // Fetch plans first
+
         const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`);
         const json = await res.json();
         if (!json.success || !Array.isArray(json.data)) return;
 
         const enriched: AgencyWithState[] = json.data.map((item: any) => {
-          const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${item.lastName ?? ''}`.trim();
-          const status = (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
+          const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${
+            item.lastName ?? ''
+          }`.trim();
+          const status =
+            (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
           const suspended = status !== 'approved';
 
           let markupPlanName = '—';
           let markupPercentage = 0;
 
-          if (item.markupPlan && Array.isArray(item.markupPlan.markups) && item.markupPlan.markups.length > 0) {
+          if (
+            item.markupPlan &&
+            Array.isArray(item.markupPlan.markups) &&
+            item.markupPlan.markups.length > 0
+          ) {
             markupPlanName = item.markupPlan.name || '—';
             const firstMarkup = item.markupPlan.markups[0];
             if (firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number') {
@@ -94,33 +173,14 @@ export default function AgencyAdminPanel() {
 
         setAgencies(enriched);
       } catch (err) {
-        console.error('Error fetching agencies:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAgencies();
+    fetchData();
   }, [API_URL, wholesalerId]);
-
-  // Fetch markup plans
-  const fetchPlans = async (wid: string): Promise<any[]> => {
-    try {
-      const res = await fetch(`${API_URL}markup/plans/wholesaler/${wid}`);
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setPlans(json.data);
-        return json.data;
-      } else {
-        setPlans([]);
-        return [];
-      }
-    } catch (err) {
-      console.error('Error fetching plans:', err);
-      setPlans([]);
-      return [];
-    }
-  };
 
   // Toggle agency status
   const toggleStatus = async (agency: AgencyWithState) => {
@@ -134,8 +194,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
-      setAgencies(prev =>
-        prev.map(a =>
+      setAgencies((prev) =>
+        prev.map((a) =>
           a.id === agency.id
             ? { ...a, status: newStatus, suspended: newStatus !== 'approved' }
             : a
@@ -147,21 +207,29 @@ export default function AgencyAdminPanel() {
   };
 
   // Open modals with appropriate setup
-  const openModal = (mode: 'view' | 'edit' | 'markup', agency: AgencyWithState) => {
+  const openModal = (
+    mode: 'view' | 'edit' | 'markup',
+    agency: AgencyWithState
+  ) => {
     setSelected(agency);
     setModalMode(mode);
 
     const commonSetup = (fetchedPlans: any[]) => {
-      const match = fetchedPlans.find((p: any) => p.name === agency.markupPlanName);
+      const match = fetchedPlans.find(
+        (p: any) => p.name === agency.markupPlanName
+      );
       if (match) {
         setProfileForm({
           markupPlanId: match._id,
           markupPlanName: match.name,
           markupPercentage: (() => {
-            const firstMarkup = Array.isArray(match.markups) && match.markups.length > 0
-              ? match.markups[0]
-              : null;
-            return firstMarkup && firstMarkup.type === 'percentage' && typeof firstMarkup.value === 'number'
+            const firstMarkup =
+              Array.isArray(match.markups) && match.markups.length > 0
+                ? match.markups[0]
+                : null;
+            return firstMarkup &&
+              firstMarkup.type === 'percentage' &&
+              typeof firstMarkup.value === 'number'
               ? firstMarkup.value
               : agency.markupPercentage;
           })(),
@@ -215,8 +283,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
-      setAgencies(prev =>
-        prev.map(a =>
+      setAgencies((prev) =>
+        prev.map((a) =>
           a.id === selected.id
             ? { ...a, agencyName: formState.agencyName || a.agencyName }
             : a
@@ -243,8 +311,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
-      setAgencies(prev =>
-        prev.map(a =>
+      setAgencies((prev) =>
+        prev.map((a) =>
           a.id === selected.id
             ? {
                 ...a,
@@ -264,14 +332,16 @@ export default function AgencyAdminPanel() {
   // Delete agency
   const deleteAgency = (agency: BaseAgency) => {
     if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
-      setAgencies(prev => prev.filter(a => a.id !== agency.id));
+      setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
     }
     closeModal();
   };
 
   const closeModal = () => setModalMode(null);
 
-  // Open supplier modal
+  // The openSupplierModal and related state (showSupplierModal, suppliers) are no longer tied to a button
+  // but I'm keeping them in case they're used elsewhere or intended for future use.
+  // If not needed at all, they can be entirely removed.
   const openSupplierModal = async (agency: AgencyWithState) => {
     try {
       const res = await fetch(`${API_URL}markup/agency/${agency.id}`);
@@ -280,8 +350,12 @@ export default function AgencyAdminPanel() {
         const allProviders = json.data.flatMap((plan: any) =>
           Array.isArray(plan.providers) ? plan.providers : []
         );
-        const uniqueProviders = Array.from(new Map(allProviders.map(p => [p._id, p])).values());
-        setSuppliers(uniqueProviders.map(p => ({ id: p._id, name: p.name, enabled: p.isActive })));
+        const uniqueProviders = Array.from(
+          new Map(allProviders.map((p) => [p._id, p])).values()
+        );
+        setSuppliers(
+          uniqueProviders.map((p: any) => ({ id: p._id, name: p.name, enabled: p.isActive }))
+        );
       } else {
         setSuppliers([]);
       }
@@ -313,15 +387,26 @@ export default function AgencyAdminPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white to-blue-50 p-8">
       <header className="mb-8 text-center">
-        <h1 className="text-4xl font-extrabold text-blue-800">Agency Management</h1>
-        <p className="mt-2 text-blue-600">View, edit or manage agency registrations</p>
+        <h1 className="text-4xl font-extrabold text-blue-800">
+          Agency Management
+        </h1>
+        <p className="mt-2 text-blue-600">
+          View, edit or manage agency registrations
+        </p>
       </header>
 
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-blue-100">
             <tr>
-              {['Agency', 'Contact', 'Submitted', 'Markup Plan', 'Status', 'Actions'].map(h => (
+              {[
+                'Agency',
+                'Contact',
+                'Submitted',
+                'Markup Plan',
+                'Status',
+                'Actions',
+              ].map((h) => (
                 <th
                   key={h}
                   className="px-6 py-4 text-left text-sm font-semibold text-blue-700 uppercase tracking-wider"
@@ -332,7 +417,7 @@ export default function AgencyAdminPanel() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {agencies.map(a => (
+            {agencies.map((a) => (
               <tr key={a.id} className="hover:bg-blue-50 transition-colors">
                 <td className="px-6 py-4">{a.agencyName}</td>
                 <td className="px-6 py-4">{a.contactName}</td>
@@ -349,6 +434,10 @@ export default function AgencyAdminPanel() {
                       <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
                         {a.markupPlanName}
                       </span>
+                      <div className="group relative">
+                        <Tag className="w-5 h-5 text-blue-500 cursor-pointer" />
+                        <MarkupTooltip plan={getPlanByName(a.markupPlanName)} />
+                      </div>
                     </div>
                   ) : (
                     <span className="text-gray-500">—</span>
@@ -402,7 +491,9 @@ export default function AgencyAdminPanel() {
                       !a.suspended ? 'bg-green-400' : 'bg-red-300'
                     }`}
                   >
-                    <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
+                    <span className="sr-only">
+                      {a.suspended ? 'Unsuspend' : 'Suspend'}
+                    </span>
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                         !a.suspended ? 'translate-x-6' : 'translate-x-1'
@@ -416,13 +507,7 @@ export default function AgencyAdminPanel() {
                   >
                     <Trash2 size={18} className="text-red-700" />
                   </button>
-                  <button
-                    title="Suppliers"
-                    onClick={() => openSupplierModal(a)}
-                    className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition"
-                  >
-                    <List size={18} className="text-gray-700" />
-                  </button>
+                  {/* Removed the "Suppliers" button */}
                 </td>
               </tr>
             ))}
@@ -455,19 +540,23 @@ export default function AgencyAdminPanel() {
         <AddCreditModal onClose={closeCreditModal} agencyId={agencyId} />
       )}
 
+      {/* The supplier modal itself is still present if `showSupplierModal` is ever set to true by other means.
+          If it's not used anywhere else, you can remove this entire block. */}
       {showSupplierModal && (
         <div className="fixed inset-0 bg-black/10 bg-opacity-60 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
             <h3 className="text-xl font-semibold mb-4">Provider List</h3>
             <ul className="space-y-2">
-              {suppliers.map(s => (
+              {suppliers.map((s) => (
                 <li key={s.id} className="flex items-center justify-between">
                   <span>{s.name}</span>
                   <Switch
                     checked={s.enabled}
                     onChange={() =>
-                      setSuppliers(prev =>
-                        prev.map(x => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
+                      setSuppliers((prev) =>
+                        prev.map((x) =>
+                          x.id === s.id ? { ...x, enabled: !x.enabled } : x
+                        )
                       )
                     }
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${

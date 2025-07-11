@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Fragment } from 'react';
 import { Reservation } from './BookingModal'; // Ensure Reservation interface is imported
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,7 +11,10 @@ import {
   FiX,
   FiCheck,
   FiChevronDown,
+  FiWifi, // Icon for Online
 } from 'react-icons/fi';
+import { MdWifiOff } from 'react-icons/md'; // Import MdWifiOff for Offline suppliers
+import { Listbox, Transition } from '@headlessui/react'; // Using Headless UI for an accessible custom select
 
 interface EditPriceModalProps {
   isOpen: boolean;
@@ -65,16 +68,32 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
     const originalMarkup = originalMarkupRef.current;
 
     if (!isNaN(newPriceValue) && !isNaN(originalBasePrice) && !isNaN(originalMarkup)) {
-      const difference = originalBasePrice - newPriceValue;
-      const newCalculatedMarkup = originalMarkup + difference;
+      // Discount and Commission adjustments
+      const discountAmount = parseFloat(discount);
+      const commissionAmount = parseFloat(commission);
+
+      let adjustedPrice = originalBasePrice;
+
+      // Adjusting price based on discount
+      if (!isNaN(discountAmount) && discountAmount > 0) {
+        adjustedPrice -= discountAmount;
+      }
+
+      // Adjusting price based on commission
+      if (!isNaN(commissionAmount) && commissionAmount > 0) {
+        adjustedPrice -= commissionAmount;
+      }
+
+      // Calculate markup based on the adjusted price
+      const newCalculatedMarkup = originalMarkup + (adjustedPrice - newPriceValue);
       setMarkup(newCalculatedMarkup.toFixed(2));
     } else {
       // If "New Price" is empty or invalid, revert to original markup or a default
       setMarkup(originalMarkup !== 0 ? originalMarkup.toFixed(2) : '0.00');
     }
-  }, [basePrice]); // Depend on basePrice (New Price)
+  }, [basePrice, discount, commission]); // Depend on basePrice, discount, and commission
 
-  // Effect to re-calculate markup whenever basePrice (New Price) changes
+  // Effect to re-calculate markup whenever basePrice (New Price), discount, or commission changes
   useEffect(() => {
     calculateMarkup();
   }, [calculateMarkup]);
@@ -82,19 +101,17 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
   // Initialize states when modal opens or reservation data changes
   useEffect(() => {
     if (isOpen && reservation && calculatedPrices) {
-      // Don't set supplierId or supplierName here initially to allow "Select a supplier" to show
       setBasePrice(''); // Always initialize "New Price" as empty for user input
-
-      // Store original values when modal opens
       originalBasePriceRef.current = reservation.priceIssueNet;
       originalMarkupRef.current = calculatedPrices.m;
-
       setCurrency(reservation.currency);
-      setMarkup(calculatedPrices.m.toFixed(2)); // Initialize markup with response value
+      setMarkup(calculatedPrices.m.toFixed(2));
       setCommission(calculatedPrices.c.toFixed(2));
       setDiscount(calculatedPrices.d.toFixed(2));
+      setSelectedSupplier(null); // Ensure "Select a supplier" is default
+      setSupplierId('');
+      setSupplierName('');
     } else if (!isOpen) {
-      // Reset all states when modal closes to ensure a clean slate
       setSupplierId('');
       setSupplierName('');
       setBasePrice('');
@@ -102,8 +119,8 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
       setMarkup('');
       setCommission('');
       setDiscount('');
-      setSelectedSupplier(null); // Ensure selectedSupplier is null to show "Select a supplier"
-      originalBasePriceRef.current = 0; // Reset refs too
+      setSelectedSupplier(null); // Ensure "Select a supplier" is default
+      originalBasePriceRef.current = 0;
       originalMarkupRef.current = 0;
     }
   }, [isOpen, reservation, calculatedPrices]);
@@ -116,13 +133,10 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
 
-  // Fetch suppliers from both APIs
   useEffect(() => {
     const fetchSuppliers = async () => {
       try {
         const wholesalerId = '6857c852462871f5be84204c';
-
-        // Fetch from first API (Offline)
         const response1 = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`);
         if (!response1.ok) throw new Error(`HTTP error! status: ${response1.status}`);
         const data1 = await response1.json();
@@ -132,7 +146,6 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
           type: 'Offline',
         }));
 
-        // Fetch from second API (Online)
         const response2 = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`);
         if (!response2.ok) throw new Error(`HTTP error! status: ${response2.status}`);
         const data2 = await response2.json();
@@ -142,89 +155,46 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
           type: 'Online',
         }));
 
-        // Merge both supplier lists
         const mergedSuppliers = [...offlineSuppliers, ...onlineSuppliers];
         setSuppliers(mergedSuppliers);
-
-        // Pre-select the supplier if one exists from reservation data
-        // This block is now moved here, and it will only pre-select if a reservation providerId exists
-        if (reservation?.providerId) {
-          const initialSupplier = mergedSuppliers.find((sup: Supplier) => sup._id === reservation.providerId);
-          if (initialSupplier) {
-            setSelectedSupplier(initialSupplier);
-            setSupplierId(initialSupplier._id); // Set supplierId for the form submission
-            setSupplierName(initialSupplier.name); // Set supplierName for the form submission
-          } else {
-            // If reservation providerId doesn't match any fetched supplier, clear selection
-            setSelectedSupplier(null);
-            setSupplierId('');
-            setSupplierName('');
-          }
-        } else {
-          // If no reservation providerId, ensure nothing is pre-selected
-          setSelectedSupplier(null);
-          setSupplierId('');
-          setSupplierName('');
-        }
+        setSelectedSupplier(null); // Ensure "Select a supplier" is default
+        setSupplierId('');
+        setSupplierName('');
       } catch (error) {
         console.error('Error fetching suppliers:', error);
       }
     };
 
     if (isOpen) fetchSuppliers();
-  }, [isOpen, reservation?.providerId]);
+  }, [isOpen]);
 
   if (!reservation || !calculatedPrices) return null;
 
   const handleSave = () => {
     onSave({
-      supplierId: selectedSupplier?._id || '', // Ensure supplierId is empty if no supplier selected
-      supplierName: selectedSupplier?.name || '', // Ensure supplierName is empty if no supplier selected
-      basePrice, // This is the "New Price" entered by the user
+      supplierId: selectedSupplier?._id || '',
+      supplierName: selectedSupplier?.name || '',
+      basePrice,
       currency,
-      markup, // Use the calculated markup
+      markup,
       commission,
       discount,
     });
   };
 
-  // Calculate the commission value as a direct amount (not percentage)
-  const calculateCommissionedPrice = (sellingPrice: number) => {
-    const commissionAmount = parseFloat(commission);
-
-    if (isNaN(commissionAmount) || commissionAmount <= 0) {
-      return sellingPrice; // No commission applied or invalid commission
-    }
-
-    return sellingPrice - commissionAmount;
-  };
-
-  // Calculate the discount value as a direct amount (not percentage)
-  const calculateDiscountedPrice = (sellingPrice: number) => {
-    const discountAmount = parseFloat(discount);
-
-    if (isNaN(discountAmount) || discountAmount <= 0) {
-      return sellingPrice; // No discount applied or invalid discount
-    }
-
-    return sellingPrice - discountAmount;
-  };
-
-  // Calculate the final selling price considering both commission and discount
   const calculateFinalSellingPrice = () => {
-    let priceAfterDiscount = calculatedPrices.sp; // Start with original selling price
+    let priceAfterDiscount = calculatedPrices.sp;
     const discountAmount = parseFloat(discount);
     if (!isNaN(discountAmount) && discountAmount > 0) {
-        priceAfterDiscount = priceAfterDiscount - discountAmount;
+      priceAfterDiscount = priceAfterDiscount - discountAmount;
     }
 
     const commissionAmount = parseFloat(commission);
     if (!isNaN(commissionAmount) && commissionAmount > 0) {
-        return priceAfterDiscount - commissionAmount;
+      return priceAfterDiscount - commissionAmount;
     }
     return priceAfterDiscount;
   };
-
 
   const currentReservationDetails = [
     { label: 'Supplier Name', icon: FiUser, value: reservation.providerName },
@@ -240,7 +210,6 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
     { label: 'Currency', icon: FiGlobe, value: currency, onChange: setCurrency, type: 'text', editable: true },
     { label: 'Markup', icon: FiArrowUp, value: markup, onChange: setMarkup, type: 'number', editable: false },
     { label: 'Commission (Amount)', icon: FiDollarSign, value: commission, onChange: setCommission, type: 'number', editable: true },
-    { label: 'Discount (Amount)', icon: FiTag, value: discount, onChange: setDiscount, type: 'number', editable: true },
   ];
 
   return (
@@ -255,7 +224,7 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
         >
           <motion.div
             ref={modalRef}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
             variants={modalVariants}
           >
             <header className="flex items-center justify-between px-6 py-3 border-b dark:border-gray-700 shrink-0">
@@ -263,128 +232,196 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ isOpen, onClose, onSave
                 <FiDollarSign className="mr-2 text-indigo-600" size={20} />
                 Edit Reservation Price
               </h3>
-              <button onClick={onClose} aria-label="Close">
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
                 <FiX className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" size={20} />
               </button>
             </header>
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 overflow-y-auto flex-grow">
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-8 overflow-y-auto flex-grow">
               {/* Left Section: Current Reservation Details (Read-only) */}
-              <div className="space-y-4">
-                <h4 className="flex items-center text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                  <FiTag className="mr-2 text-indigo-600" size={18} /> Current Details
+              <div className="lg:col-span-2 bg-gray-50 dark:bg-gray-700 rounded-xl p-6 shadow-inner border border-gray-200 dark:border-gray-600">
+                <h4 className="flex items-center text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-600">
+                  <FiTag className="mr-2 text-blue-500" size={20} /> Current Details
                 </h4>
-                {currentReservationDetails.map(({ label, icon: Icon, value }) => (
-                  <div key={label}>
-                    <label className="flex items-center text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      <Icon className="mr-2 text-gray-500" size={16} />
-                      {label}
-                    </label>
-                    <div className="flex items-center bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5">
-                      <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">{value}</span>
+                <div className="space-y-4">
+                  {currentReservationDetails.map(({ label, icon: Icon, value }) => (
+                    <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-600 last:border-b-0">
+                      <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <Icon className="mr-2 text-gray-500" size={18} />
+                        {label}
+                      </label>
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{value}</span>
                     </div>
-                  </div>
-                ))}
-                {/* Selling Price on the Left Side */}
-                <div>
-                  <label className="flex items-center text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    <FiDollarSign className="mr-2 text-gray-500" size={16} />
-                    Selling Price
-                  </label>
-                  <div className="flex items-center bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5">
-                    <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">
-                      {calculateFinalSellingPrice().toFixed(2)}
+                  ))}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-600">
+                    <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <FiDollarSign className="mr-2 text-gray-500" size={18} />
+                      Selling Price
+                    </label>
+                    <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                      {calculatedPrices.sp.toFixed(2)}
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Right Section: Editable Price Details and Supplier Dropdown */}
-              <div className="space-y-4">
-                <h4 className="flex items-center text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                  <FiDollarSign className="mr-2 text-indigo-600" size={18} /> Edit Price
+              <div className="lg:col-span-3 bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+                <h4 className="flex items-center text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <FiDollarSign className="mr-2 text-green-500" size={20} /> Edit Price
                 </h4>
-
-                {/* Supplier Name Dropdown */}
-                <div>
-                  <label htmlFor="supplier-select" className="flex items-center text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    <FiUser className="mr-2 text-gray-500" size={16} />
-                    Supplier Name
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="supplier-select"
-                      className="block w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none pr-8 text-sm"
-                      value={selectedSupplier?._id || ''} // Set value to empty string if no supplier is selected
-                      onChange={(e) => {
-                        const sup = suppliers.find(s => s._id === e.target.value);
-                        setSelectedSupplier(sup || null);
+                <div className="space-y-5">
+                  {/* Supplier Name Custom Dropdown */}
+                  <div>
+                    <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <FiUser className="mr-2 text-gray-500" size={18} />
+                      Supplier Name
+                    </label>
+                    <Listbox
+                      value={selectedSupplier}
+                      onChange={(sup: Supplier | null) => {
+                        setSelectedSupplier(sup);
                         setSupplierId(sup?._id || '');
                         setSupplierName(sup?.name || '');
                       }}
                     >
-                      <option value="" disabled>Select a supplier</option> {/* Default disabled option */}
-                      {suppliers.map((sup) => (
-                        // Display name and type in a more "tag-like" format
-                        <option key={sup._id} value={sup._id}>
-                          {`${sup.name} [${sup.type}]`}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-200">
-                      <FiChevronDown size={16} />
-                    </div>
+                      {({ open }) => (
+                        <div className="relative">
+                          <Listbox.Button className="relative w-full cursor-default rounded-lg bg-gray-50 dark:bg-gray-700 py-2 pl-3 pr-10 text-left border border-gray-300 dark:border-gray-600 shadow-sm focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-300 sm:text-base">
+                            <span className={`block truncate ${selectedSupplier ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
+                              {selectedSupplier ? (
+                                <span className="flex items-center gap-2">
+                                  {selectedSupplier.type === 'Online' ? <FiWifi className="text-indigo-500" size={18} /> : <MdWifiOff className="text-red-500" size={18} />}
+                                  {selectedSupplier.name}
+                                </span>
+                              ) : (
+                                'Select a supplier'
+                              )}
+                            </span>
+                            <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                              <FiChevronDown
+                                className="h-5 w-5 text-gray-400"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </Listbox.Button>
+                          <Transition
+                            as={Fragment}
+                            leave="transition ease-in duration-100"
+                            leaveFrom="opacity-100"
+                            leaveTo="opacity-0"
+                          >
+                            <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm z-10">
+                              {suppliers.map((supplier) => (
+                                <Listbox.Option
+                                  key={supplier._id}
+                                  className={({ active }) =>
+                                    `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                                      active ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100' : 'text-gray-900 dark:text-gray-100'
+                                    }`
+                                  }
+                                  value={supplier}
+                                >
+                                  {({ selected }) => (
+                                    <span className={`flex items-center gap-2 ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                      {supplier.type === 'Online' ? <FiWifi className="text-indigo-500" size={18} /> : <MdWifiOff className="text-red-500" size={18} />}
+                                      {supplier.name}
+                                      {selected ? (
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-indigo-600">
+                                          <FiCheck className="h-5 w-5" aria-hidden="true" />
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  )}
+                                </Listbox.Option>
+                              ))}
+                            </Listbox.Options>
+                          </Transition>
+                        </div>
+                      )}
+                    </Listbox>
                   </div>
-                </div>
 
-                {/* Editable Price Fields */}
-                {editablePriceDetails.map(({ label, icon: Icon, value, onChange, type, editable }) => (
-                  <div key={label}>
-                    <label className="flex items-center text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      <Icon className="mr-2 text-gray-500" size={16} />
-                      {label}
-                    </label>
-                    <div className={`flex items-center border rounded-md ${editable ? 'bg-gray-50 dark:bg-gray-700 focus-within:ring-2 focus-within:ring-indigo-500' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                      <Icon className="ml-2 text-gray-400" size={16} />
-                      <input
-                        type={type}
-                        min={type === 'number' ? "0" : undefined}
-                        step={type === 'number' ? "0.01" : undefined}
-                        value={value}
-                        onChange={e => onChange(e.target.value)}
-                        className="flex-1 px-2 py-1.5 bg-transparent focus:outline-none text-sm"
-                        disabled={!editable} // Disable based on 'editable' prop
-                      />
-                    </div>
+                  {/* Editable Price Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {editablePriceDetails.map(({ label, icon: Icon, value, onChange, type, editable }) => (
+                      <div key={label}>
+                        <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <Icon className="mr-2 text-gray-500" size={18} />
+                          {label}
+                        </label>
+                        <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 ${editable ? 'bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500' : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-700'}`}>
+                          <span className="flex items-center pl-3 pr-2 text-gray-400 dark:text-gray-500">
+                            <Icon size={18} />
+                          </span>
+                          <input
+                            type={type}
+                            min={type === 'number' ? "0" : undefined}
+                            step={type === 'number' ? "0.01" : undefined}
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="flex-1 px-2 py-2 bg-transparent focus:outline-none text-base text-gray-800 dark:text-gray-100"
+                            disabled={!editable}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {/* Selling Price on the Right Side */}
-                <div>
-                  <label className="flex items-center text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    <FiDollarSign className="mr-2 text-gray-500" size={16} />
-                    Selling Price
-                  </label>
-                  <div className="flex items-center bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5">
-                    <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">
-                      {calculateFinalSellingPrice().toFixed(2)}
-                    </span>
+
+                  {/* Discount (Amount) and Selling Price (Calculated) in the same row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <FiTag className="mr-2 text-gray-500" size={18} />
+                        Discount (Amount)
+                      </label>
+                      <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500`}>
+                        <span className="flex items-center pl-3 pr-2 text-gray-400 dark:text-gray-500">
+                          <FiTag size={18} />
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={discount}
+                          onChange={(e) => setDiscount(e.target.value)}
+                          className="flex-1 px-2 py-2 bg-transparent focus:outline-none text-base text-gray-800 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <FiDollarSign className="mr-2 text-gray-500" size={18} />
+                        Selling Price (Calculated)
+                      </label>
+                      <div className="flex items-center bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2">
+                        <span className="flex-1 text-base font-bold text-indigo-600 dark:text-indigo-400">
+                          {calculateFinalSellingPrice().toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <footer className="px-6 py-3 bg-white dark:bg-gray-800 flex justify-end space-x-3 border-t dark:border-gray-700 shrink-0">
+            <footer className="px-6 py-4 bg-gray-50 dark:bg-gray-800 flex justify-end space-x-3 border-t dark:border-gray-700 shrink-0">
               <button
                 onClick={onClose}
-                className="flex items-center gap-1.5 px-4 py-1.5 border rounded-lg border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                className="flex items-center gap-2 px-5 py-2.5 border rounded-lg border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 text-base font-medium shadow-sm"
               >
-                <FiX size={16} /> Cancel
+                <FiX size={18} /> Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm"
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-base font-medium shadow-md transition-colors duration-200"
               >
-                <FiCheck size={16} /> Save
+                <FiCheck size={18} /> Save Changes
               </button>
             </footer>
           </motion.div>

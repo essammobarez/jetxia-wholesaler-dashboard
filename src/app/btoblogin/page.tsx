@@ -157,11 +157,14 @@ export default function Login() {
     setMessage(null);
     setCountdown(0);
 
+    // Convert email to lowercase before sending
+    const lowercasedEmail = email.toLowerCase();
+
     try {
       const res = await fetch(`${API_URL}auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, type: 'wholesaler' }),
+        body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
       });
 
       if (!res.ok) {

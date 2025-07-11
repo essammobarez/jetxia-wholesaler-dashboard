@@ -225,26 +225,34 @@ export default function RegistrationForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    
+    // Convert emails to lowercase
+    const userEmail = user.emailId.toLowerCase();
+    const agencyEmail = agency.email.toLowerCase();
+
     if (!wholesalerId) {
       toast.error('No wholesaler ID found in local storage.')
       setLoading(false)
       return
     }
-    // License is now optional: do not block submission if licenseBase64 is empty
     if (captchaInput.trim() !== captchaCode) {
       toast.error('Captcha does not match.')
       setLoading(false)
       return
     }
+
     // Build payload; include licenseUrl only if provided
     const payload: any = {
       ...agency,
       ...user,
       wholesaler: wholesalerId,
+      emailId: userEmail, // Ensure user's email is lowercase
+      email: agencyEmail, // Ensure agency's email is lowercase
     }
     if (licenseBase64) {
       payload.licenseUrl = licenseBase64
     }
+    
     try {
       const res = await fetch(REGISTER_URL, {
         method: 'POST',
