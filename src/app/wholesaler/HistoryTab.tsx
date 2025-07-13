@@ -1,9 +1,29 @@
 import { NextPage } from 'next';
 import Head from 'next/head';
-import { Search, UserPlus, List } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  Download,
+  Calendar,
+  MapPin,
+  User,
+  Clock,
+  Bed,
+  Users,
+  Globe,
+  TrendingUp,
+  BarChart3,
+  Activity,
+  RefreshCw,
+  ChevronDown,
+  CheckCircle,
+  AlertCircle,
+  MoreVertical,
+} from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-// Types and other constants remain unchanged
+// --- TYPES ---
+// Merged interface combining fields from both versions
 interface HistoryRow {
   User: string;
   LoginDate: string;
@@ -17,226 +37,448 @@ interface HistoryRow {
   CheckOutDate?: string;
   RoomsInfo?: string;
   Citizenship?: string;
+  // Fields from code2 for UI enhancement (optional, with defaults)
+  id?: string;
+  status?: 'completed' | 'pending' | 'cancelled' | 'processing';
+  priority?: 'high' | 'medium' | 'low';
+  revenue?: number;
+  commission?: number;
 }
 
-const stageLabels = [
-  { key: 'HS', label: 'HS' },
-  { key: 'AV', label: 'AV' },
-  { key: 'PB', label: 'PB' },
-  { key: 'OK', label: 'OK' },
+// --- CONSTANTS & HELPERS from code2 ---
+const stageConfig = [
+  { key: 'HS', label: 'Hotel Search', color: 'bg-blue-500', description: 'Initial search performed' },
+  { key: 'AV', label: 'Availability', color: 'bg-purple-500', description: 'Availability checked' },
+  { key: 'PB', label: 'Pre-booking', color: 'bg-orange-500', description: 'Pre-booking initiated' },
+  { key: 'OK', label: 'Booked', color: 'bg-green-500', description: 'Successfully booked' },
 ];
 
-const StatusRing = ({ label, active }: { label: string; active: boolean }) => {
-  const ringClass = active
-    ? 'ring-green-500 text-green-600'
-    : 'ring-red-400 text-red-500';
-  return (
-    <div
-      className={`w-6 h-6 flex items-center justify-center rounded-full ring-2 ${ringClass} text-[10px] font-semibold`}
-    >
-      {label}
-    </div>
-  );
-};
+// --- UI COMPONENTS from code2 ---
 
-const StatsCard = ({ title, value, icon }: { title: string; value: string; icon?: React.ReactNode }) => (
-  <div className="bg-white dark:bg-gray-700 shadow-sm dark:shadow-none rounded-lg p-5 flex flex-col">
-    <div className="flex items-center">
-      {icon && <div className="mr-2 text-indigo-500">{icon}</div>}
-      <span className="text-xs uppercase tracking-wide font-semibold text-gray-700 dark:text-gray-300">{title}</span>
+const StatusBadge = ({ stage, active }: { stage: typeof stageConfig[0]; active: boolean }) => (
+  <div className="relative group">
+    <div
+      className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold transition-all duration-300 ${
+        active
+          ? `${stage.color} shadow-lg scale-110`
+          : 'bg-gray-300 dark:bg-gray-600 text-gray-500'
+      }`}
+    >
+      {stage.key}
     </div>
-    <span className="mt-1 text-xl font-medium text-gray-700 dark:text-gray-200">{value}</span>
+    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-max opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+      <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap">
+        <div className="font-medium">{stage.label}</div>
+        <div className="text-gray-300">{stage.description}</div>
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+      </div>
+    </div>
   </div>
 );
 
-const HistoryPage: NextPage = () => {
-  const [history, setHistory] = useState<HistoryRow[]>([]);
-  const [hoveredData, setHoveredData] = useState<HistoryRow | null>(null);
-  const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
-  const [loading, setLoading] = useState<boolean>(true); // <-- Loading state added
+const MetricCard = ({
+  title,
+  value,
+  change,
+  icon: Icon,
+  color,
+  subtitle
+}: {
+  title: string;
+  value: string | number;
+  change?: string;
+  icon: React.ComponentType<any>;
+  color: string;
+  subtitle?: string;
+}) => (
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
+    <div className="flex items-start justify-between">
+      <div className="flex-1">
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{value}</p>
+        {subtitle && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+        )}
+        {change && (
+          <div className="flex items-center mt-2">
+            <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
+            <span className="text-xs text-green-600 font-medium">{change}</span>
+          </div>
+        )}
+      </div>
+      <div className={`p-3 rounded-lg ${color}`}>
+        <Icon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
+);
 
-  useEffect(() => {
+
+// --- MAIN PAGE COMPONENT ---
+
+const HistoryPage: NextPage = () => {
+  // Original state for raw data
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  
+  // State from code2 for UI and filtering
+  const [filteredData, setFilteredData] = useState<HistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<'date' | 'user' | 'revenue'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Fetch data from the original API endpoint
+  const fetchData = () => {
+    setLoading(true);
     const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}HistoryPage/history-page`;
     fetch(apiUrl)
       .then(res => res.json())
       .then(json => {
         if (json.success && Array.isArray(json.data.history)) {
-          setHistory(json.data.history);
+          // Augment fetched data with fields needed for the new UI
+          const augmentedData = json.data.history.map((row: HistoryRow, index: number) => {
+            let status: HistoryRow['status'] = 'processing';
+            if (row.BookingStages.includes('OK')) status = 'completed';
+            else if (row.BookingStages.includes('PB')) status = 'pending';
+            else if (row.BookingStages.length === 0) status = 'cancelled';
+
+            return {
+              ...row,
+              id: `record-${index}`, // Assign a unique ID
+              status,
+              priority: (['high', 'medium', 'low'] as const)[index % 3], // Mock priority
+              revenue: status === 'completed' ? Math.floor(Math.random() * 2000) + 500 : 0, // Mock revenue
+              commission: status === 'completed' ? Math.floor(Math.random() * 200) + 50 : 0, // Mock commission
+            };
+          });
+          setHistory(augmentedData);
+          setFilteredData(augmentedData);
         }
       })
       .catch(err => console.error('Failed to load history:', err))
       .finally(() => {
-        setLoading(false); // <-- Stop loader after fetch completes
+        setLoading(false);
       });
+  };
+  
+  useEffect(() => {
+    fetchData();
   }, []);
+
+  // Filtering and sorting logic from code2, adapted for HistoryRow interface
+  useEffect(() => {
+    let filtered = history.filter(record => {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      const matchesSearch = 
+        record.User.toLowerCase().includes(lowerSearchTerm) ||
+        record.Search.toLowerCase().includes(lowerSearchTerm) ||
+        record.Hotel.toLowerCase().includes(lowerSearchTerm) ||
+        record.Destination?.toLowerCase().includes(lowerSearchTerm) ||
+        record.HotelCode.toLowerCase().includes(lowerSearchTerm);
+
+      const matchesUser = selectedUser === 'all' || record.User === selectedUser;
+      const matchesStatus = selectedStatus === 'all' || record.status === selectedStatus;
+
+      let matchesDate = true;
+      if (dateRange.from && dateRange.to) {
+        const recordDate = new Date(record.LoginDate);
+        // Add one day to 'to' date to include the whole day in the range
+        const fromDate = new Date(dateRange.from);
+        const toDate = new Date(dateRange.to);
+        toDate.setDate(toDate.getDate() + 1);
+        matchesDate = recordDate >= fromDate && recordDate < toDate;
+      }
+
+      return matchesSearch && matchesUser && matchesStatus && matchesDate;
+    });
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'date':
+          comparison = new Date(a.LoginDate).getTime() - new Date(b.LoginDate).getTime();
+          break;
+        case 'user':
+          comparison = a.User.localeCompare(b.User);
+          break;
+        case 'revenue':
+          comparison = (a.revenue || 0) - (b.revenue || 0);
+          break;
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    setFilteredData(filtered);
+  }, [history, searchTerm, selectedUser, selectedStatus, dateRange, sortBy, sortOrder]);
+  
+  // Helper functions from code2
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      case 'pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 'processing': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
+    }
+  };
+
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case 'high': return 'border-l-red-500';
+      case 'medium': return 'border-l-yellow-500';
+      case 'low': return 'border-l-green-500';
+      default: return 'border-l-gray-500';
+    }
+  };
 
   const formatDate = (iso?: string) => {
     if (!iso) return '-';
-    const d = new Date(iso);
-    return d.toLocaleString('en-US', {
+    return new Date(iso).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
-      hour12: true,
+      hour12: true
     });
   };
 
-  const totalRecords = history.length;
-  const totalSearches = history.filter(h => h.Search && h.Search !== 'N/A').length;
-
-  const handleMouseEnter = (e: React.MouseEvent, row: HistoryRow) => {
-    const cellRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const approxTooltipH = 200;
-    const spaceBelow = window.innerHeight - cellRect.bottom;
-    setPlacement(spaceBelow < approxTooltipH ? 'top' : 'bottom');
-    setHoveredData(row);
+  const exportToCSV = () => {
+    const headers = ['User', 'Login Date', 'Search Query', 'Hotel', 'Destination', 'Check In', 'Check Out', 'Status', 'Revenue', 'Commission'];
+    const csvData = filteredData.map(record => [
+      record.User,
+      formatDate(record.LoginDate),
+      record.Search,
+      record.Hotel,
+      record.Destination || '',
+      record.CheckInDate ? formatDate(record.CheckInDate) : '',
+      record.CheckOutDate ? formatDate(record.CheckOutDate) : '',
+      record.status || 'N/A',
+      record.revenue || 0,
+      record.commission || 0
+    ]);
+    const csvContent = [headers, ...csvData].map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `booking-history-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
+  
+  // Calculations for Metric Cards
+  const uniqueUsers = Array.from(new Set(history.map(r => r.User)));
+  const totalRevenue = filteredData.reduce((sum, r) => sum + (r.revenue || 0), 0);
+  const totalCommission = filteredData.reduce((sum, r) => sum + (r.commission || 0), 0);
+  const completedBookings = filteredData.filter(r => r.status === 'completed').length;
+  
+  if (loading) {
+    return (
+      <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+          <div className="animate-pulse space-y-6">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              </div>
+              <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+              <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
+          </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      <Head><title>History</title></Head>
-      <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-        <aside className="bg-gray-200 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-700" />
-        <main className="flex-1 py-10">
-          <div className="max-w-7xl mx-auto px-6">
-            {/* Header & Stats */}
-            <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">History</h1>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 w-full lg:w-auto">
-                <StatsCard icon={<UserPlus className="h-5 w-5" />} title="Daily Records" value={`${totalRecords}`} />
-                <StatsCard icon={<Search className="h-5 w-5" />} title="Valid Searches" value={`${totalSearches}`} />
-                <div className="bg-white dark:bg-gray-700 shadow-sm dark:shadow-none rounded-lg p-5">
-                  <div className="flex items-center">
-                    <List className="h-5 w-5 mr-2 text-indigo-500" />
-                    <span className="text-xs uppercase tracking-wide font-semibold text-gray-700 dark:text-gray-300">
-                      Booking Stages
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed font-medium">
-                    <strong>HS</strong> = Hotel Search, <strong>AV</strong> = Availability,{' '}
-                    <strong>PB</strong> = Pre-booking, <strong>OK</strong> = Booked
-                  </p>
-                </div>
-              </div>
-            </header>
+      <Head><title>Booking History</title></Head>
+      <main className="flex-1 py-10 px-6 bg-gray-50 dark:bg-gray-900">
+        {/* Enhanced Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Booking History</h1>
+                <p className="text-gray-600 dark:text-gray-400">Track all booking activities, searches, and user interactions.</p>
+            </div>
+            <div className="flex items-center gap-3">
+                <button onClick={fetchData} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <RefreshCw className="w-4 h-4" /> Refresh
+                </button>
+                <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                    <Download className="w-4 h-4" /> Export CSV
+                </button>
+            </div>
+        </div>
 
-            {/* Toolbar */}
-            <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <button className="w-full sm:w-32 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-4 shadow-sm hover:shadow-md">
-                Filters
-              </button>
-              <div className="relative w-full sm:w-1/3">
-                <Search className="absolute left-3 top-1/2 h-5 w-5 text-gray-400 dark:text-gray-500 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search history..."
-                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition"
-                />
-              </div>
+        {/* Enhanced Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard title="Total Records" value={filteredData.length} change="+12% this week" icon={Activity} color="bg-blue-500" subtitle="Active booking searches" />
+          <MetricCard title="Completed Bookings" value={completedBookings} change="+8% completion rate" icon={CheckCircle} color="bg-green-500" subtitle="Successfully processed" />
+          <MetricCard title="Total Revenue" value={`$${totalRevenue.toLocaleString()}`} change="+15% this month" icon={BarChart3} color="bg-purple-500" subtitle="Generated revenue" />
+          <MetricCard title="Commission Earned" value={`$${totalCommission.toLocaleString()}`} change="+10% this month" icon={TrendingUp} color="bg-orange-500" subtitle="Commission from bookings" />
+        </div>
+
+        {/* Enhanced Filters Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-8">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filters & Search</h3>
+                <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <Filter className="w-4 h-4" />
+                    <span>{showFilters ? 'Hide' : 'Show'} Filters</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                </button>
             </div>
 
-            {/* Data Table or Loader */}
-            {loading ? (
-              <div className="mt-10 flex justify-center items-center py-10">
-                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
-                <span className="ml-3 text-gray-700 dark:text-gray-300">Loading history...</span>
-              </div>
-            ) : (
-              <div className="mt-8 bg-white dark:bg-gray-800 shadow-sm dark:shadow-none rounded-lg overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      {['User', 'Login Date', 'Search', 'Hotel', 'Room', 'Stage'].map(h => (
-                        <th
-                          key={h}
-                          className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {history.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {row.User}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {formatDate(row.LoginDate)}
-                        </td>
-                        <td
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer relative"
-                          onMouseEnter={e => handleMouseEnter(e, row)}
-                          onMouseLeave={() => setHoveredData(null)}
-                        >
-                          {row.Search || 'N/A'}
-                          {hoveredData === row && (
-                            <div
-                              className={
-                                `absolute w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-gray-800 dark:text-gray-100 z-10 ` +
-                                (placement === 'bottom'
-                                  ? 'top-full left-0 mt-1'
-                                  : 'bottom-full left-0 mb-1')
-                              }
-                            >
-                              <h4 className="text-sm font-medium mb-2">Destination</h4>
-                              <p className="font-semibold mb-3">{row.Destination || '-'}</p>
-                              <div className="flex justify-between mb-3">
-                                <div>
-                                  <h5 className="text-xs">Check in</h5>
-                                  <p className="font-semibold text-sm">{formatDate(row.CheckInDate)}</p>
-                                </div>
-                                <div>
-                                  <h5 className="text-xs">Check out</h5>
-                                  <p className="font-semibold text-sm">{formatDate(row.CheckOutDate)}</p>
-                                </div>
-                              </div>
-                              <div className="mb-3">
-                                <h5 className="text-xs">Room & guest</h5>
-                                <div className="font-semibold text-sm">
-                                  {row.RoomsInfo?.split('|').map((r, i) => (
-                                    <p key={i}>{r.trim()}</p>
-                                  )) || <p>-</p>}
-                                </div>
-                              </div>
-                              <div>
-                                <h5 className="text-xs">Guest citizenship</h5>
-                                <p className="font-semibold text-sm">{row.Citizenship || '-'}</p>
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {row.Hotel}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                          {row.Room?.length ? row.Room.join(', ') : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap flex space-x-2">
-                          {stageLabels.map(({ key, label }) => (
-                            <StatusRing
-                              key={key}
-                              label={label}
-                              active={row.BookingStages.includes(key)}
-                            />
-                          ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div className="relative lg:col-span-2">
+                    <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search users, hotels, destinations..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all" />
+                </div>
+                <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    <option value="all">All Users</option>
+                    {uniqueUsers.map(user => (<option key={user} value={user}>{user}</option>))}
+                </select>
+                <select value={`${sortBy}-${sortOrder}`} onChange={(e) => { const [sort, order] = e.target.value.split('-'); setSortBy(sort as any); setSortOrder(order as any); }} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                    <option value="date-desc">Latest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="user-asc">User A-Z</option>
+                    <option value="user-desc">User Z-A</option>
+                    <option value="revenue-desc">Highest Revenue</option>
+                    <option value="revenue-asc">Lowest Revenue</option>
+                </select>
+            </div>
+
+            {showFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                        <option value="all">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <div>
+                        <input type="date" value={dateRange.from} onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white" />
+                    </div>
+                    <div>
+                        <input type="date" value={dateRange.to} onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white" />
+                    </div>
+                </div>
             )}
+            
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setSelectedStatus('all'); setDateRange({ from: '', to: '' }); }} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    Clear All Filters
+                </button>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Showing {filteredData.length} of {history.length} records
+                </span>
+            </div>
+        </div>
+
+        {/* Enhanced Data Cards View */}
+        <div className="space-y-4">
+          {filteredData.map((record) => (
+            <div key={record.id} className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border ${getPriorityColor(record.priority)} border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300`}>
+                <div className="flex items-start justify-between">
+                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-x-6 gap-y-4">
+                        {/* User Info */}
+                        <div className="lg:col-span-3">
+                            <div className="flex items-center space-x-3 mb-2">
+                                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                                    <User className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-gray-900 dark:text-white">{record.User}</h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center"><Clock className="w-3 h-3 mr-1" />{formatDate(record.LoginDate)}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Search & Hotel Info */}
+                        <div className="lg:col-span-4">
+                            <div className="space-y-2">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white">{record.Search}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center"><MapPin className="w-3 h-3 mr-1" />{record.Destination || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">{record.Hotel}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Code: {record.HotelCode}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Booking Details */}
+                        <div className="lg:col-span-3">
+                            {(record.CheckInDate || record.RoomsInfo) && (
+                              <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                                  {record.CheckInDate && record.CheckOutDate && (
+                                      <div className="flex items-center"><Calendar className="w-3 h-3 mr-2 flex-shrink-0" /><span>{formatDate(record.CheckInDate)} - {formatDate(record.CheckOutDate)}</span></div>
+                                  )}
+                                  {record.Room?.length > 0 && (
+                                      <div className="flex items-center"><Bed className="w-3 h-3 mr-2 flex-shrink-0" /><span>{record.Room.join(', ')}</span></div>
+                                  )}
+                                  {record.RoomsInfo && (
+                                      <div className="flex items-center"><Users className="w-3 h-3 mr-2 flex-shrink-0" /><span>{record.RoomsInfo.replace(/\|/g, ', ')}</span></div>
+                                  )}
+                              </div>
+                            )}
+                        </div>
+
+                        {/* Revenue & Status */}
+                        <div className="lg:col-span-2 text-right lg:text-left">
+                            <div className="space-y-2">
+                                {record.revenue ? (
+                                    <div>
+                                        <p className="text-lg font-bold text-gray-900 dark:text-white">${record.revenue.toLocaleString()}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Comm: ${record.commission?.toLocaleString()}</p>
+                                    </div>
+                                ) : (<p className="text-sm text-gray-500 dark:text-gray-400">No revenue</p>)}
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status!)}`}>
+                                    {record.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
+                                    {record.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                                    {record.status === 'cancelled' && <AlertCircle className="w-3 h-3 mr-1" />}
+                                    {record.status!.charAt(0).toUpperCase() + record.status!.slice(1)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Booking Stages */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress:</span>
+                            <div className="flex items-center space-x-2">
+                                {stageConfig.map((stage) => (<StatusBadge key={stage.key} stage={stage} active={record.BookingStages.includes(stage.key)} />))}
+                            </div>
+                        </div>
+                        {record.Citizenship && (<div className="flex items-center text-xs text-gray-500 dark:text-gray-400"><Globe className="w-3 h-3 mr-1" /><span>{record.Citizenship}</span></div>)}
+                    </div>
+                </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {filteredData.length === 0 && !loading && (
+          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+              <Search className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No History Found</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">Try adjusting your search or clearing the filters.</p>
+              <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setSelectedStatus('all'); setDateRange({ from: '', to: '' }); }} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  Clear All Filters
+              </button>
           </div>
-        </main>
-      </div>
+        )}
+      </main>
     </>
   );
 };

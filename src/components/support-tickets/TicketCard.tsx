@@ -148,10 +148,10 @@ const TicketCard: React.FC<TicketCardProps> = ({
 
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          {ticket.wholesalerId.email ? (
+          {ticket.wholesalerId?.email ? (
             <img
               src={ticket.wholesalerId.email}
-              alt={ticket.agencyId.email}
+              alt={ticket.wholesalerId.email}
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
@@ -164,17 +164,20 @@ const TicketCard: React.FC<TicketCardProps> = ({
                 ${randomBgColor}
               `}
             >
-              {ticket.agencyId.email.slice(0, 2)}
+              {/* Fallback initials from agency email or generic 'NA' */}
+              {ticket.agencyId?.email
+                ? ticket.agencyId.email.slice(0, 2).toUpperCase()
+                : 'NA'}
             </div>
           )}
 
           {/* Message */}
           <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-600 line-clamp-2">{ticket.replies[0].message}</p>
+              <p className="text-sm text-gray-600 line-clamp-2">{ticket.replies[0]?.message}</p>
           </div>
 
           {/* Replies */}
-          {ticket.replies.length > 0 && (
+          {ticket.replies?.length > 0 && (
             <div className="flex items-center gap-1.5 text-blue-600 text-sm">
               <FiMessageCircle className="w-4 h-4" />
               <span className="font-medium">{ticket.replies.length}</span>
@@ -186,4 +189,4 @@ const TicketCard: React.FC<TicketCardProps> = ({
   );
 };
 
-export default TicketCard; 
+export default TicketCard;

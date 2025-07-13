@@ -1,123 +1,1083 @@
-import React, { useState, useEffect } from 'react';
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle,
+  Clock,
+  Edit,
+  Eye,
+  Globe,
+  Link,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  Server,
+  Shield,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+
+interface OfflineSupplier {
+  _id: string;
+  name: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  status?: string;
+  address?: string;
+  nationality?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+  offline: boolean;
+  wholesaler: string;
+  contactInfo?: {
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  services?: string[];
+  rating?: number;
+}
+
+interface OnlineProvider {
+  _id: string;
+  name: string;
+  apiBaseUrl: string;
+  authType: string;
+  logoUrl: string;
+  tokenExpiryHours: number;
+  isActive: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+interface ProviderData {
+  offline: OfflineSupplier[];
+  online: OnlineProvider[];
+}
 
 export default function ManageSupplier() {
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [providers, setProviders] = useState<ProviderData>({
+    offline: [],
+    online: [],
+  });
+  const [filteredProviders, setFilteredProviders] = useState<ProviderData>({
+    offline: [],
+    online: [],
+  });
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [selectedProvider, setSelectedProvider] = useState<any>(null);
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [showViewModal, setShowViewModal] = useState<boolean>(false);
 
+  // Dynamic wholesalerId from localStorage
+  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
+
+  // Load stored wholesaler ID on mount
   useEffect(() => {
-    const wholesalerId = '6857c852462871f5be84204c';
-
-    const fetchAllSuppliers = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const [offlineResponse, onlineResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`)
-        ]);
-
-        let combinedSuppliers: any[] = [];
-        let hasError = false;
-        let errorMessage = '';
-
-        // Process offline suppliers
-        if (offlineResponse.ok) {
-          const offlineData = await offlineResponse.json();
-          const taggedOfflineSuppliers = offlineData.map((supplier: any) => ({
-            ...supplier,
-            type: 'Offline'
-          }));
-          combinedSuppliers = combinedSuppliers.concat(taggedOfflineSuppliers);
-        } else {
-          const errorData = await offlineResponse.json();
-          errorMessage += `Failed to load offline suppliers: ${errorData.message || 'Unknown error'}. `;
-          hasError = true;
-        }
-
-        // Process online suppliers
-        if (onlineResponse.ok) {
-          const onlineData = await onlineResponse.json();
-          if (onlineData.success) {
-            const taggedOnlineSuppliers = onlineData.data.map((supplier: any) => ({
-              ...supplier,
-              type: 'Online'
-            }));
-            combinedSuppliers = combinedSuppliers.concat(taggedOnlineSuppliers);
-          } else {
-            errorMessage += `Failed to load online suppliers: ${onlineData.message || 'Unknown error'}. `;
-            hasError = true;
-          }
-        } else {
-          const errorData = await onlineResponse.json();
-          errorMessage += `Failed to load online suppliers: ${errorData.message || 'Unknown error'}. `;
-          hasError = true;
-        }
-
-        setSuppliers(combinedSuppliers);
-        if (hasError) {
-          setError(errorMessage.trim());
-        }
-
-      } catch (err) {
-        setError('Failed to fetch supplier data. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllSuppliers();
+    const stored = localStorage.getItem("wholesalerId");
+    setWholesalerId(stored);
   }, []);
 
-  // Helper function to format the date
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
+  useEffect(() => {
+    fetchAllProviders();
+  }, [wholesalerId]);
+
+  // Filter providers based on search and filters
+  useEffect(() => {
+    let filteredOffline = providers.offline;
+    let filteredOnline = providers.online;
+
+    if (searchTerm) {
+      filteredOffline = filteredOffline.filter(
+        (provider) =>
+          provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          provider.notes?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      filteredOnline = filteredOnline.filter(
+        (provider) =>
+          provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          provider.notes.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (statusFilter !== "all") {
+      filteredOffline = filteredOffline.filter(
+        (provider) => (provider.status || "active") === statusFilter
+      );
+      filteredOnline = filteredOnline.filter((provider) =>
+        statusFilter === "active" ? provider.isActive : !provider.isActive
+      );
+    }
+
+    if (typeFilter !== "all") {
+      if (typeFilter === "offline") {
+        filteredOnline = [];
+      } else if (typeFilter === "online") {
+        filteredOffline = [];
+      }
+    }
+
+    setFilteredProviders({
+      offline: filteredOffline,
+      online: filteredOnline,
+    });
+  }, [providers, searchTerm, statusFilter, typeFilter]);
+
+  const fetchAllProviders = async () => {
+    if (!wholesalerId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Fetch offline suppliers
+      const offlineResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`
+      );
+      const offlineData = await offlineResponse.json();
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
+      // Fetch online providers
+      const onlineResponse = await fetch(`${apiUrl}/provider`);
+      const onlineData = await onlineResponse.json();
+
+      if (offlineResponse.ok && onlineResponse.ok) {
+        setProviders({
+          offline: offlineData || [],
+          online: onlineData.data || [],
+        });
+      } else {
+        setError("Failed to load some provider data");
+      }
+    } catch (err) {
+      setError("Failed to fetch provider data. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    // Changed max-w-4xl to max-w-7xl for a wider container
-    <div className="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-      <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-8 text-center">Manage Suppliers</h2>
+  const handleAddProvider = () => {
+    setShowAddModal(true);
+  };
 
-      {error && <div className="text-red-500 mb-4">{error}</div>}
+  const handleEditProvider = (provider: any, type: "offline" | "online") => {
+    setSelectedProvider({ ...provider, type });
+    setShowEditModal(true);
+  };
 
-      {loading ? (
-        <div className="text-center text-gray-600 dark:text-gray-300">Loading suppliers...</div>
+  const handleDeleteProvider = (provider: any, type: "offline" | "online") => {
+    setSelectedProvider({ ...provider, type });
+    setShowDeleteModal(true);
+  };
+
+  const handleViewProvider = (provider: any, type: "offline" | "online") => {
+    setSelectedProvider({ ...provider, type });
+    setShowViewModal(true);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getStatusColor = (status?: string, isActive?: boolean) => {
+    if (status) {
+      switch (status) {
+        case "active":
+          return "text-green-600 bg-green-100 dark:bg-green-900/30";
+        case "inactive":
+          return "text-red-600 bg-red-100 dark:bg-red-900/30";
+        case "pending":
+          return "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30";
+        default:
+          return "text-gray-600 bg-gray-100 dark:bg-gray-900/30";
+      }
+    } else if (typeof isActive === "boolean") {
+      return isActive
+        ? "text-green-600 bg-green-100 dark:bg-green-900/30"
+        : "text-red-600 bg-red-100 dark:bg-red-900/30";
+    }
+    return "text-gray-600 bg-gray-100 dark:bg-gray-900/30";
+  };
+
+  const getStatusIcon = (status?: string, isActive?: boolean) => {
+    if (status) {
+      switch (status) {
+        case "active":
+          return <CheckCircle className="w-4 h-4" />;
+        case "inactive":
+          return <AlertCircle className="w-4 h-4" />;
+        case "pending":
+          return <Clock className="w-4 h-4" />;
+        default:
+          return <Clock className="w-4 h-4" />;
+      }
+    } else if (typeof isActive === "boolean") {
+      return isActive ? (
+        <CheckCircle className="w-4 h-4" />
       ) : (
-        <table className="min-w-full mt-4 table-auto border-collapse">
-          <thead>
-            <tr className="bg-gray-200 dark:bg-gray-700">
-              <th className="py-3 px-4 text-left text-gray-600 dark:text-gray-300 font-medium">Supplier Name</th>
-              <th className="py-3 px-4 text-left text-gray-600 dark:text-gray-300 font-medium">Notes</th>
-              <th className="py-3 px-4 text-left text-gray-600 dark:text-gray-300 font-medium">Type</th>
-              <th className="py-3 px-4 text-left text-gray-600 dark:text-gray-300 font-medium">Created At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.length === 0 ? (
+        <AlertCircle className="w-4 h-4" />
+      );
+    }
+    return <Clock className="w-4 h-4" />;
+  };
+
+  const getTypeIcon = (type: "offline" | "online") => {
+    return type === "offline" ? (
+      <Building2 className="w-4 h-4" />
+    ) : (
+      <Globe className="w-4 h-4" />
+    );
+  };
+
+  const getTypeColor = (type: "offline" | "online") => {
+    return type === "offline"
+      ? "text-blue-600 bg-blue-100 dark:bg-blue-900/30"
+      : "text-purple-600 bg-purple-100 dark:bg-purple-900/30";
+  };
+
+  const totalProviders = providers.offline.length + providers.online.length;
+  const activeOffline = providers.offline.filter(
+    (p) => (p.status || "active") === "active"
+  ).length;
+  const activeOnline = providers.online.filter((p) => p.isActive).length;
+  const totalActive = activeOffline + activeOnline;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400">
+            Loading providers...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Manage Providers
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Manage your offline suppliers and online service providers
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchAllProviders}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+
+          <button
+            onClick={handleAddProvider}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Provider
+          </button>
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <p className="text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Search Providers
+            </label>
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name or notes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Status Filter
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Type Filter
+            </label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            >
+              <option value="all">All Types</option>
+              <option value="offline">Offline Suppliers</option>
+              <option value="online">Online Providers</option>
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("all");
+                setTypeFilter("all");
+              }}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Building2 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Total Providers
+              </p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {totalProviders}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
+              <p className="text-2xl font-bold text-green-600">{totalActive}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Building2 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Offline
+              </p>
+              <p className="text-2xl font-bold text-blue-600">
+                {providers.offline.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+              <Globe className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Online</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {providers.online.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <Clock className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Pending
+              </p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {providers.offline.filter((p) => p.status === "pending").length}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Providers Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <td colSpan={4} className="py-4 px-4 text-center text-gray-500 dark:text-gray-400">No suppliers found</td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Provider Details
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  API Info
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Created
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
-            ) : (
-              suppliers.map((supplier: any) => (
-                <tr key={supplier._id} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="py-2 px-4 text-gray-800 dark:text-gray-200">{supplier.name}</td>
-                  <td className="py-2 px-4 text-gray-800 dark:text-gray-200">{supplier.notes}</td>
-                  <td className="py-2 px-4 text-gray-800 dark:text-gray-200">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      supplier.type === 'Online' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' :
-                      'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100'
-                    }`}>
-                      {supplier.type}
-                    </span>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredProviders.offline.length === 0 &&
+              filteredProviders.online.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center">
+                      <Building2 className="w-12 h-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                        No providers found
+                      </h3>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        {searchTerm ||
+                        statusFilter !== "all" ||
+                        typeFilter !== "all"
+                          ? "Try adjusting your search criteria or filters."
+                          : "Get started by adding your first provider."}
+                      </p>
+                      {!searchTerm &&
+                        statusFilter === "all" &&
+                        typeFilter === "all" && (
+                          <button
+                            onClick={handleAddProvider}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add First Provider
+                          </button>
+                        )}
+                    </div>
                   </td>
-                  <td className="py-2 px-4 text-gray-800 dark:text-gray-200">{formatDate(supplier.createdAt)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                <>
+                  {/* Offline Suppliers */}
+                  {filteredProviders.offline.map((supplier) => (
+                    <tr
+                      key={`offline-${supplier._id}`}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {supplier.name}
+                          </div>
+                          {supplier.notes && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {supplier.notes}
+                            </div>
+                          )}
+                          {supplier.contactInfo?.email && (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              {supplier.contactInfo.email}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                            "offline"
+                          )}`}
+                        >
+                          <Building2 className="w-4 h-4" />
+                          <span>Offline</span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                            supplier.status || "active"
+                          )}`}
+                        >
+                          {getStatusIcon(supplier.status || "active")}
+                          <span className="capitalize">
+                            {supplier.status || "active"}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-1">
+                            <Server className="w-3 h-3" />
+                            <span>Manual</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(supplier.createdAt)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() =>
+                              handleViewProvider(supplier, "offline")
+                            }
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleEditProvider(supplier, "offline")
+                            }
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                            title="Edit Provider"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDeleteProvider(supplier, "offline")
+                            }
+                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                            title="Delete Provider"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Online Providers */}
+                  {filteredProviders.online.map((provider) => (
+                    <tr
+                      key={`online-${provider._id}`}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {provider.name}
+                          </div>
+                          {provider.notes && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {provider.notes}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                            "online"
+                          )}`}
+                        >
+                          <Globe className="w-4 h-4" />
+                          <span>Online</span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                            undefined,
+                            provider.isActive
+                          )}`}
+                        >
+                          {getStatusIcon(undefined, provider.isActive)}
+                          <span className="capitalize">
+                            {provider.isActive ? "active" : "inactive"}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Link className="w-3 h-3" />
+                            <span>{provider.apiBaseUrl}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Shield className="w-3 h-3" />
+                            <span>{provider.authType}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(provider.createdAt)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() =>
+                              handleViewProvider(provider, "online")
+                            }
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleEditProvider(provider, "online")
+                            }
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                            title="Edit Provider"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDeleteProvider(provider, "online")
+                            }
+                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                            title="Delete Provider"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showViewModal && selectedProvider && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Provider Details
+              </h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  Basic Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Name
+                    </label>
+                    <p className="text-gray-900 dark:text-white font-medium">
+                      {selectedProvider.name}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Type
+                    </label>
+                    <span
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                        selectedProvider.type
+                      )}`}
+                    >
+                      {getTypeIcon(selectedProvider.type)}
+                      <span className="capitalize">
+                        {selectedProvider.type}
+                      </span>
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Status
+                    </label>
+                    <span
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        selectedProvider.type === "offline"
+                          ? getStatusColor(selectedProvider.status || "active")
+                          : getStatusColor(undefined, selectedProvider.isActive)
+                      }`}
+                    >
+                      {selectedProvider.type === "offline"
+                        ? getStatusIcon(selectedProvider.status || "active")
+                        : getStatusIcon(undefined, selectedProvider.isActive)}
+                      <span className="capitalize">
+                        {selectedProvider.type === "offline"
+                          ? selectedProvider.status || "active"
+                          : selectedProvider.isActive
+                          ? "active"
+                          : "inactive"}
+                      </span>
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Created
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {formatDate(selectedProvider.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedProvider.notes && (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                    Notes
+                  </h4>
+                  <p className="text-gray-700 dark:text-gray-300">
+                    {selectedProvider.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Contact Information (Offline only) */}
+              {selectedProvider.type === "offline" && (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                    Contact Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedProvider.phoneNumber && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Phone Number
+                        </label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedProvider.phoneNumber}
+                        </p>
+                      </div>
+                    )}
+                    {selectedProvider.nationality && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Nationality
+                        </label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedProvider.nationality}
+                        </p>
+                      </div>
+                    )}
+                    {selectedProvider.address && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Address
+                        </label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedProvider.address}
+                        </p>
+                      </div>
+                    )}
+                    {/* Legacy contact info fallback */}
+                    {selectedProvider.contactInfo && (
+                      <>
+                        {selectedProvider.contactInfo.email && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Email (Legacy)
+                            </label>
+                            <p className="text-gray-900 dark:text-white">
+                              {selectedProvider.contactInfo.email}
+                            </p>
+                          </div>
+                        )}
+                        {selectedProvider.contactInfo.phone &&
+                          !selectedProvider.phoneNumber && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                Phone (Legacy)
+                              </label>
+                              <p className="text-gray-900 dark:text-white">
+                                {selectedProvider.contactInfo.phone}
+                              </p>
+                            </div>
+                          )}
+                        {selectedProvider.contactInfo.address &&
+                          !selectedProvider.address && (
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                Address (Legacy)
+                              </label>
+                              <p className="text-gray-900 dark:text-white">
+                                {selectedProvider.contactInfo.address}
+                              </p>
+                            </div>
+                          )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Services (Offline only) */}
+              {selectedProvider.type === "offline" &&
+                selectedProvider.services &&
+                selectedProvider.services.length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                      Services
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProvider.services.map(
+                        (service: string, index: number) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full"
+                          >
+                            {service}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {/* API Information (Online only) */}
+              {selectedProvider.type === "online" && (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                    API Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        API Base URL
+                      </label>
+                      <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
+                        {selectedProvider.apiBaseUrl}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Authentication Type
+                      </label>
+                      <p className="text-gray-900 dark:text-white">
+                        {selectedProvider.authType}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Token Expiry (Hours)
+                      </label>
+                      <p className="text-gray-900 dark:text-white">
+                        {selectedProvider.tokenExpiryHours}
+                      </p>
+                    </div>
+                    {selectedProvider.logoUrl && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Logo URL
+                        </label>
+                        <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
+                          {selectedProvider.logoUrl}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Information */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  Additional Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Provider ID
+                    </label>
+                    <p className="text-gray-900 dark:text-white font-mono text-sm">
+                      {selectedProvider._id}
+                    </p>
+                  </div>
+                  {selectedProvider.updatedAt && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Last Updated
+                      </label>
+                      <p className="text-gray-900 dark:text-white">
+                        {formatDate(selectedProvider.updatedAt)}
+                      </p>
+                    </div>
+                  )}
+                  {selectedProvider.type === "offline" &&
+                    selectedProvider.rating && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Rating
+                        </label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedProvider.rating}/5
+                        </p>
+                      </div>
+                    )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add New Provider</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Add provider functionality would be implemented here.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Add Provider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && selectedProvider && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Edit Provider</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Edit {selectedProvider.type} provider functionality would be
+              implemented here.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && selectedProvider && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Delete Provider</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Are you sure you want to delete "{selectedProvider.name}"? This
+              action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

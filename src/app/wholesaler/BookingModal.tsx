@@ -41,13 +41,17 @@ interface Remark {
 }
 
 export interface Reservation {
+  dbId?: string;
   bookingId: string;
   sequenceNumber: number;
   reservationId: number;
   topStatus: string;
   createdAt: string;
   agencyName: string;
+  wholesaler?: string;
   wholesalerName: string;
+  providerId?: string;
+  providerName?: string;
   clientRef: string;
   serviceType: string;
   initStatus: string;
@@ -73,6 +77,11 @@ export interface Reservation {
   hotelInfo: HotelInfo;
   rooms: RoomDetail[];
   freeCancellation: string;
+  priceDetails?: {
+    price?: { value: number; currency: string };
+    originalPrice?: { value: number; currency: string };
+    markupApplied?: { type: string; value: number };
+  };
 }
 
 interface BookingModalProps {
@@ -149,7 +158,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Created: {fmtDateTime(r.createdAt)}
             </span>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200">
+            <button 
+              onClick={onClose} 
+              aria-label="Close modal"
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"
+            >
               <FiX size={20} />
             </button>
           </div>

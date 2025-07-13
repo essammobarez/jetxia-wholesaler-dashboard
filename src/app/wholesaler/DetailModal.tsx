@@ -57,7 +57,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ item, onClose }) => {
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-2xl font-bold text-gray-800">{item.agencyName}</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800" aria-label="Close modal">
             <FiXCircle size={24} />
           </button>
         </div>

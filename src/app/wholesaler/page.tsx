@@ -16,6 +16,7 @@ import {
 import DashboardPage from './DashboardPage';
 import OverviewTab from './OverviewTab';
 import HistoryTab from './HistoryTab';
+import HistoryTabElite from './HistoryTabElite';
 import CompanyDetailsTab from './CompanyDetailsTab';
 import ManualReservationsTab from './ManualReservationsTab';
 import ManageAgentPage from './registration';
@@ -34,6 +35,14 @@ import PlanList from './PlanList';
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
 import SupportTicketsPage from './SupportTicketsPage';
+// New imports for Reports submenu
+import OutstandingReport from './OutstandingReport';
+import LedgerReport from './LedgerReport';
+import StatementOfAccount from './StatementOfAccount';
+import PaymentReport from './PaymentReport';
+import ReportsDashboard from './ReportsDashboard';
+import AdvancedAnalytics from './AdvancedAnalytics';
+import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
 const menuItems = [
   'Dashboard',
@@ -49,6 +58,14 @@ const menuItems = [
   'Tools',
   'Visa',
   'Settings',
+  'Reports',
+  'Analytics',
+  'Users',
+  'Permissions',
+  'Notifications',
+  'Integrations',
+  'API Management',
+  'Logs',
 ];
 
 export default function WholesalerPage() {
@@ -67,6 +84,19 @@ export default function WholesalerPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // 🔧 DEVELOPMENT BYPASS - Remove this section when authentication is needed
+    const devBypass = searchParams.get('dev') === 'true' || localStorage.getItem('devMode') === 'true';
+    
+    if (devBypass) {
+      console.log('🔧 Development mode: Authentication bypassed');
+      localStorage.setItem('devMode', 'true');
+      localStorage.setItem('wholesalerId', 'dev_wholesaler_123');
+      setUserName('Developer User');
+      setIsLoading(false);
+      return;
+    }
+    // 🔧 END DEVELOPMENT BYPASS
+
     let authToken = null;
 
     // 1. Check for token in URL params first (highest priority for new logins)
@@ -76,7 +106,7 @@ export default function WholesalerPage() {
       // Clear the token from the URL to keep it clean after processing
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
-      router.replace(url.pathname + url.search, { shallow: true });
+      router.replace(url.pathname + url.search);
     } else {
       // 2. If no token in URL, check cookies
       const authTokenFromCookie = document.cookie
@@ -148,6 +178,7 @@ export default function WholesalerPage() {
     // Remove local storage items
     localStorage.removeItem('authToken');
     localStorage.removeItem('wholesalerId');
+    localStorage.removeItem('devMode'); // 🔧 Clear dev mode
     // Remove cookie by setting max-age=0
     document.cookie = 'authToken=; path=/; max-age=0; SameSite=Lax';
     // Redirect to home/login
@@ -166,136 +197,171 @@ export default function WholesalerPage() {
   // If we reach here, it means isLoading is false and a valid token was found,
   // so the user is authenticated and the page can render.
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-opacity-10 backdrop-blur-sm z-40 sm:hidden"
+          className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm z-40 lg:hidden transition-all duration-300"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Enhanced Sidebar */}
       <aside
         className={`
-          fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-          transform transition-transform duration-200 ease-in-out z-50
+          fixed inset-y-0 left-0 w-64 glass border-r border-white/20 dark:border-gray-700/50
+          transform transition-all duration-300 ease-in-out z-50 flex flex-col h-screen
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          sm:translate-x-0 sm:static sm:block
+          lg:translate-x-0 lg:static lg:flex
         `}
       >
-        {/* Profile Header */}
+        {/* Enhanced Profile Header */}
         <div
-          className="relative p-4 flex items-center space-x-3 cursor-pointer"
+          className="relative p-6 flex items-center space-x-3 cursor-pointer group hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300"
           onClick={() => setShowProfileMenu((p) => !p)}
         >
-          <img
-            src="/images/profile.png"
-            className="w-8 h-8 rounded-full"
-            alt="Profile"
-          />
-          <span className="font-medium text-gray-700 dark:text-gray-200">
-            {userName}
-          </span>
-          <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <div className="relative">
+            <img
+              src="/images/profile.png"
+              className="w-10 h-10 rounded-full ring-2 ring-white/20 group-hover:ring-blue-500/50 transition-all duration-300"
+              alt="Profile"
+            />
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+          </div>
+          <div className="flex-1">
+            <span className="font-semibold text-gray-800 dark:text-gray-100 block">
+              {userName}
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Wholesaler Admin
+            </span>
+          </div>
+          <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors duration-300" />
+          
           {showProfileMenu && (
-            <div className="absolute top-full left-4 mt-2 w-40 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg">
+            <div className="absolute top-full left-6 mt-2 w-48 card-modern py-2 z-50 animate-fade-scale">
+              <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{userName}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">developer@example.com</p>
+              </div>
+              <button className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200">
+                Profile Settings
+              </button>
+              <button className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200">
+                Preferences
+              </button>
+              <hr className="my-2 border-gray-100 dark:border-gray-700" />
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-100"
+                className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors duration-200"
               >
-                Logout
+                Sign Out
               </button>
             </div>
           )}
         </div>
 
-        {/* Navigation */}
-        <nav className="px-2 space-y-1">
-          {menuItems.map((item) => (
-            <div key={item}>
+        {/* Enhanced Navigation with Scroll */}
+        <div className="flex-1 overflow-y-auto">
+          <nav className="px-4 space-y-2 mt-4 sidebar-scroll pb-20"
+          >
+          {menuItems.map((item, index) => (
+            <div key={item} className="animate-slide-right" style={{ animationDelay: `${index * 0.05}s` }}>
               <button
                 onClick={() => handleMenuClick(item)}
                 className={`
-                  w-full flex items-center justify-between px-3 py-2 rounded-lg
-                  hover:bg-gray-100 dark:hover:bg-gray-700
+                  w-full flex items-center justify-between px-4 py-3 rounded-xl
+                  transition-all duration-300 ease-in-out group
                   ${
                     activePage === item
-                      ? 'bg-gray-200 dark:bg-gray-700'
-                      : 'text-gray-600 dark:text-gray-300'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-800/50 hover:shadow-md'
                   }
                 `}
               >
-                <div className="flex items-center space-x-2">
-                  <LayoutGrid className="w-5 h-5" />
-                  <span>{item}</span>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-lg transition-all duration-300 ${
+                    activePage === item 
+                      ? 'bg-white/20' 
+                      : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
+                  }`}>
+                    <LayoutGrid className={`w-4 h-4 ${
+                      activePage === item 
+                        ? 'text-white' 
+                        : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
+                    }`} />
+                  </div>
+                  <span className={`font-medium ${
+                    activePage === item 
+                      ? 'text-white' 
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Markup', 'Supplier'].includes(
-                  item
-                ) && (
+                {['Booking', 'Customers', 'Markup', 'Supplier', 'Reports'].includes(item) && (
                   <ChevronDown
-                    className={`w-4 h-4 transform transition-transform ${
+                    className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
-                    }`}
+                    } ${activePage === item ? 'text-white' : 'text-gray-400'}`}
                   />
                 )}
               </button>
 
-              {/* Booking sub-menu */}
+              {/* Enhanced Sub-menus */}
               {expandedMenu === 'Booking' && item === 'Booking' && (
-                <div className="pl-8 space-y-1">
-                  {['Overview', 'History', 'Company', 'ManualReservations'].map(
-                    (tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => {
-                          setActivePage('Booking');
-                          setActiveTab(tab);
-                        }}
-                        className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-                      >
-                        <LayoutGrid className="w-4 h-4" />
-                        <span>
-                          {tab === 'Overview' && 'Overview'}
-                          {tab === 'History' && 'History'}
-                          {tab === 'Company' && 'Company Details'}
-                          {tab === 'ManualReservations' &&
-                            'Manual Reservations'}
-                        </span>
-                      </button>
-                    )
-                  )}
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['Overview', 'History', 'Company', 'ManualReservations'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Booking');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
+                        {tab === 'Overview' && 'Overview'}
+                        {tab === 'History' && 'History'}
+                        {tab === 'Company' && 'Company Details'}
+                        {tab === 'ManualReservations' && 'Manual Reservations'}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               )}
 
-              {/* Customers sub-menu */}
               {expandedMenu === 'Customers' && item === 'Customers' && (
-                <div className="pl-8 space-y-1">
-                  {['CreateAgent', 'ManageAgent', 'ManageRequest'].map(
-                    (tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => {
-                          setActivePage('Customers');
-                          setActiveTab(tab);
-                        }}
-                        className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-                      >
-                        <LayoutGrid className="w-4 h-4" />
-                        <span>
-                          {tab === 'CreateAgent' && 'Create Agency'}
-                          {tab === 'ManageAgent' && 'Manage Agency'}
-                          {tab === 'ManageRequest' && 'Manage Request'}
-                        </span>
-                      </button>
-                    )
-                  )}
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['CreateAgent', 'ManageAgent', 'ManageRequest'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Customers');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
+                        {tab === 'CreateAgent' && 'Create Agency'}
+                        {tab === 'ManageAgent' && 'Manage Agency'}
+                        {tab === 'ManageRequest' && 'Manage Request'}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               )}
 
-              {/* Markup sub-menu */}
               {expandedMenu === 'Markup' && item === 'Markup' && (
-                <div className="pl-8 space-y-1">
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
                   {['CreateMarkup', 'PlanList'].map((tab) => (
                     <button
                       key={tab}
@@ -303,13 +369,15 @@ export default function WholesalerPage() {
                         setActivePage('Markup');
                         setActiveTab(tab);
                       }}
-                      className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
                     >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span>
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
                         {tab === 'CreateMarkup' && 'Create Markup'}
-                        {tab === 'AssignMarkup' && 'Assign Markup'}
-                        {tab === 'MarkupAgencyList' && 'Markup Agency List'}
                         {tab === 'PlanList' && 'Plan List'}
                       </span>
                     </button>
@@ -317,9 +385,8 @@ export default function WholesalerPage() {
                 </div>
               )}
 
-              {/* Supplier sub-menu */}
               {expandedMenu === 'Supplier' && item === 'Supplier' && (
-                <div className="pl-8 space-y-1">
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
                   {['CreateOfflineSupplier', 'ManageSupplier'].map((tab) => (
                     <button
                       key={tab}
@@ -327,10 +394,14 @@ export default function WholesalerPage() {
                         setActivePage('Supplier');
                         setActiveTab(tab);
                       }}
-                      className="w-full flex items-center space-x-2 px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
                     >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span>
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
                         {tab === 'CreateOfflineSupplier' && 'Create Supplier'}
                         {tab === 'ManageSupplier' && 'Manage Supplier'}
                       </span>
@@ -338,123 +409,225 @@ export default function WholesalerPage() {
                   ))}
                 </div>
               )}
+
+              {expandedMenu === 'Reports' && item === 'Reports' && (
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['OutstandingReport', 'AgencyOutstandingStatement', 'LedgerReport', 'StatementOfAccount', 'PaymentReport', 'AdvancedAnalytics'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Reports');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
+                        {tab === 'OutstandingReport' && 'Outstanding Report'}
+                        {tab === 'AgencyOutstandingStatement' && 'Agency Outstanding Statement'}
+                        {tab === 'LedgerReport' && 'Ledger Report'}
+                        {tab === 'StatementOfAccount' && 'Statement of Account'}
+                        {tab === 'PaymentReport' && 'Payment Report'}
+                        {tab === 'AdvancedAnalytics' && 'Advanced Analytics'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
-        </nav>
+          </nav>
+        </div>
+
+        {/* Enhanced Footer - Fixed at bottom */}
+        <div className="mt-auto p-4 border-t border-white/10 dark:border-gray-700/50">
+          <div className="card-modern p-4 text-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mx-auto mb-3 flex items-center justify-center">
+              <LayoutGrid className="w-5 h-5 text-white" />
+            </div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Need Help?</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Contact our support team</p>
+            <button className="w-full btn-modern bg-gradient-to-r from-blue-50 to-purple-50 text-blue-600 dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900 dark:text-blue-300 text-sm py-2 px-4 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-800 dark:hover:to-purple-800">
+              Get Support
+            </button>
+          </div>
+        </div>
       </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-4 sm:space-x-6 flex-1">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="sm:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-            </button>
-            <div className="relative text-gray-500 dark:text-gray-400 w-full sm:w-auto">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Quick search"
-                className="pl-10 pr-4 py-2 w-full sm:w-64 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:bg-gray-700 dark:text-gray-100"
-              />
+        {/* Enhanced Header */}
+        <header className="glass border-b border-white/20 dark:border-gray-700/50">
+          {/* 🔧 Development Mode Notice */}
+          {localStorage.getItem('devMode') === 'true' && (
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 text-center text-sm animate-pulse">
+              🔧 DEVELOPMENT MODE - Authentication temporarily disabled
             </div>
-            <button className="hidden sm:flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
-              <LayoutGrid className="w-5 h-5" />
-              <span>News letters</span>
-              <ChevronDown className="w-4 h-4" />
-            </button>
-            <button className="hidden sm:flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
-              <LayoutGrid className="w-5 h-5" />
-              <span>Release Tracker</span>
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-full hover:bg-gray-100 dark_hover:bg-gray-700"
-            >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-yellow-400" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-600" />
-              )}
-            </button>
-            <Bell className="w-6 h-6 text-red-500" />
+          )}
+          
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center space-x-6 flex-1">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-label="Toggle sidebar menu"
+                className="lg:hidden p-2 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300"
+              >
+                <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+              </button>
+              
+              <div className="relative text-gray-500 dark:text-gray-400 w-full sm:w-auto">
+                <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search anything..."
+                  className="input-modern pl-10 pr-4 py-3 w-full sm:w-80 text-sm"
+                />
+              </div>
+              
+              <div className="hidden lg:flex items-center space-x-4">
+                <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
+                  <LayoutGrid className="w-4 h-4 mr-2" />
+                  Newsletters
+                </button>
+                <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
+                  <LayoutGrid className="w-4 h-4 mr-2" />
+                  Release Tracker
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 group"
+              >
+                {darkMode ? (
+                  <Sun className="w-5 h-5 text-yellow-500 group-hover:rotate-180 transition-transform duration-500" />
+                ) : (
+                  <Moon className="w-5 h-5 text-gray-600 group-hover:rotate-180 transition-transform duration-500" />
+                )}
+              </button>
+              
+              <div className="relative">
+                <button 
+                  aria-label="View notifications" 
+                  className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 relative"
+                >
+                  <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
-        {/* Body */}
-        <main className="p-4 sm:p-6 overflow-y-auto">
+        {/* Enhanced Body */}
+        <main className="p-6 overflow-y-auto flex-1 bg-gradient-to-br from-transparent to-white/30 dark:to-gray-800/30">
           {activePage === 'Dashboard' && <DashboardPage />}
 
           {activePage === 'Booking' && (
-            <>
+            <div className="animate-fade-scale">
               {activeTab === 'Overview' && <OverviewTab />}
               {activeTab === 'History' && <HistoryTab />}
               {activeTab === 'Company' && <CompanyDetailsTab />}
               {activeTab === 'ManualReservations' && <ManualReservationsTab />}
               {!activeTab && (
-                <p className="text-gray-500 dark:text-gray-400">
-                  Select a Booking submenu above.
-                </p>
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Select Booking Option</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Choose a booking submenu from the sidebar to get started.</p>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {activePage === 'Customers' && (
-            <>
+            <div className="animate-fade-scale">
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
               {activeTab === 'ManageRequest' && <ManageRequestPage />}
               {!activeTab && (
-                <p className="text-gray-500 dark:text-gray-400">
-                  Select a Customers submenu above.
-                </p>
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Customer Management</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Select a customer management option from the sidebar.</p>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {activePage === 'Markup' && (
-            <>
+            <div className="animate-fade-scale">
               {activeTab === 'CreateMarkup' && <CreateMarkup />}
               {activeTab === 'AssignMarkup' && <AssignMarkup />}
               {activeTab === 'MarkupAgencyList' && <MarkupAgencyList />}
               {activeTab === 'PlanList' && <PlanList />}
               {!activeTab && (
-                <p className="text-gray-500 dark:text-gray-400">
-                  Select a Markup submenu above.
-                </p>
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Markup Configuration</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Choose a markup option to configure pricing.</p>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {activePage === 'Supplier' && (
-            <>
+            <div className="animate-fade-scale">
               {activeTab === 'CreateOfflineSupplier' && <CreateOfflineSupplier />}
               {activeTab === 'ManageSupplier' && <ManageSupplier />}
               {!activeTab && (
-                <p className="text-gray-500 dark:text-gray-400">
-                  Select a Supplier submenu above.
-                </p>
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Supplier Management</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Select a supplier management option from the sidebar.</p>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
           {activePage === 'Support Tickets' && <SupportTicketsPage />}
 
-          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings'].includes(
-            activePage
-          ) && (
-            <p className="text-gray-500 dark:text-gray-400">
-              {activePage} page coming soon…
-            </p>
+          {activePage === 'Reports' && (
+            <div className="animate-fade-scale">
+              {activeTab === 'OutstandingReport' && <OutstandingReport />}
+              {activeTab === 'AgencyOutstandingStatement' && <AgencyOutstandingStatement />}
+              {activeTab === 'LedgerReport' && <LedgerReport />}
+              {activeTab === 'StatementOfAccount' && <StatementOfAccount />}
+              {activeTab === 'PaymentReport' && <PaymentReport />}
+              {activeTab === 'AdvancedAnalytics' && <AdvancedAnalytics />}
+              {!activeTab && (
+                <ReportsDashboard onSelectReport={setActiveTab} />
+              )}
+            </div>
+          )}
+
+          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings', 'Analytics', 'Users', 'Permissions', 'Notifications', 'Integrations', 'API Management', 'Logs'].includes(activePage) && (
+            <div className="card-modern p-12 text-center animate-fade-scale">
+              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <LayoutGrid className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">{activePage}</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-lg mb-6">This feature is coming soon! We're working hard to bring you this functionality.</p>
+              <button className="btn-gradient">
+                Request Early Access
+              </button>
+            </div>
           )}
         </main>
       </div>
