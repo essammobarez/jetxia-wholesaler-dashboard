@@ -33,6 +33,7 @@ import PlanList from './PlanList';
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
+import SupportTicketsPage from './SupportTicketsPage';
 
 const menuItems = [
   'Dashboard',
@@ -44,6 +45,7 @@ const menuItems = [
   'Payment',
   'Messages',
   'Masters',
+  "Support Tickets",
   'Tools',
   'Visa',
   'Settings',
@@ -445,6 +447,7 @@ export default function WholesalerPage() {
 
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
+          {activePage === 'Support Tickets' && <SupportTicketsPage />}
 
           {['Messages', 'Masters', 'Tools', 'Visa', 'Settings'].includes(
             activePage
