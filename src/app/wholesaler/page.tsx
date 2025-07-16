@@ -35,6 +35,10 @@ import PlanList from './PlanList';
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
 import SupportTicketsPage from './SupportTicketsPage';
+
+// ✨ New import for Sales Person
+import SalesPerson from './SalesPerson';
+
 // New imports for Reports submenu
 import OutstandingReport from './OutstandingReport';
 import LedgerReport from './LedgerReport';
@@ -44,12 +48,14 @@ import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
+// ✨ Added 'Sales Person' to the menu
 const menuItems = [
   'Dashboard',
   'Booking',
   'Customers',
   'Markup',
   'Supplier',
+  'Sales Person',
   'Metrics',
   'Payment',
   'Messages',
@@ -598,6 +604,9 @@ export default function WholesalerPage() {
               )}
             </div>
           )}
+          
+          {/* ✨ Render the new SalesPerson component */}
+          {activePage === 'Sales Person' && <SalesPerson />}
 
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
