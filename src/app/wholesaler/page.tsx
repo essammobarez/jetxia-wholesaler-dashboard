@@ -24,7 +24,8 @@ import CreateAgent from './agency-panel';
 import ManageRequestPage from './admin-approve';
 import Metrics from './Metrics';
 import Payment from './Payment';
-
+import Permissions from './Permissions';
+import Users from './Users';
 // New imports for Markup submenu
 import CreateMarkup from './CreateMarkup';
 import AssignMarkup from './AssignMarkup';
@@ -48,8 +49,8 @@ import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
-// ✨ Added 'Sales Person' to the menu
-const menuItems = [
+// This is the full list of all possible menu items
+const allMenuItems = [
   'Dashboard',
   'Booking',
   'Customers',
@@ -88,6 +89,11 @@ export default function WholesalerPage() {
 
   // Added a loading state to prevent UI flash before auth check
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for user type and permissions
+  const [userType, setUserType] = useState<string | null>(null);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [visibleMenuItems, setVisibleMenuItems] = useState<string[]>(allMenuItems);
 
   useEffect(() => {
     // 🔧 DEVELOPMENT BYPASS - Remove this section when authentication is needed
@@ -144,6 +150,15 @@ export default function WholesalerPage() {
         if (payload.wholesalerId) {
           localStorage.setItem('wholesalerId', payload.wholesalerId);
         }
+
+        // Decode userType and permissions from token
+        if (payload.userType) {
+            setUserType(payload.userType);
+        }
+        if (payload.permissions && Array.isArray(payload.permissions)) {
+            setUserPermissions(payload.permissions);
+        }
+
         // Ensure token is in localStorage and cookie for persistence
         localStorage.setItem('authToken', authToken);
         document.cookie = `authToken=${authToken}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
@@ -161,6 +176,27 @@ export default function WholesalerPage() {
       router.replace('/');
     }
   }, [searchParams, router]);
+  
+  // Effect to filter menu items based on permissions
+  useEffect(() => {
+    if (userType === 'subuser' && userPermissions.length > 0) {
+      // Create a Set of unique menu names from permissions (e.g., "Dashboard:Read" -> "Dashboard")
+      const allowedMenuSet = new Set(
+        userPermissions.map(p => p.split(':')[0])
+      );
+      // Filter the main menu list to only include items present in the user's permissions
+      const filteredItems = allMenuItems.filter(item => allowedMenuSet.has(item));
+      setVisibleMenuItems(filteredItems);
+      // Set the default active page to the first available item if the current one is not allowed
+      if (filteredItems.length > 0 && !filteredItems.includes(activePage)) {
+        setActivePage(filteredItems[0]);
+      }
+    } else {
+      // If user is not a subuser or has no permissions, show all menu items
+      setVisibleMenuItems(allMenuItems);
+    }
+  }, [userType, userPermissions, activePage]);
+
 
   // Sync dark mode class on <html>
   useEffect(() => {
@@ -238,8 +274,9 @@ export default function WholesalerPage() {
             <span className="font-semibold text-gray-800 dark:text-gray-100 block">
               {userName}
             </span>
+            {/* ✨ Dynamically display user role */}
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Wholesaler Admin
+              {userType === 'subuser' ? 'Subuser Panel' : 'Wholesaler Admin'}
             </span>
           </div>
           <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors duration-300" />
@@ -269,9 +306,9 @@ export default function WholesalerPage() {
 
         {/* Enhanced Navigation with Scroll */}
         <div className="flex-1 overflow-y-auto">
-          <nav className="px-4 space-y-2 mt-4 sidebar-scroll pb-20"
-          >
-          {menuItems.map((item, index) => (
+          {/* Render the menu using the dynamically filtered 'visibleMenuItems' list */}
+          <nav className="px-4 space-y-2 mt-4 sidebar-scroll pb-20">
+          {visibleMenuItems.map((item, index) => (
             <div key={item} className="animate-slide-right" style={{ animationDelay: `${index * 0.05}s` }}>
               <button
                 onClick={() => handleMenuClick(item)}
@@ -446,7 +483,7 @@ export default function WholesalerPage() {
               )}
             </div>
           ))}
-          </nav>
+        </nav>
         </div>
 
         {/* Enhanced Footer - Fixed at bottom */}
@@ -611,7 +648,8 @@ export default function WholesalerPage() {
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
           {activePage === 'Support Tickets' && <SupportTicketsPage />}
-
+          {activePage === 'Permissions' && <Permissions />}
+        {activePage === 'Users' && <Users />}
           {activePage === 'Reports' && (
             <div className="animate-fade-scale">
               {activeTab === 'OutstandingReport' && <OutstandingReport />}
@@ -626,7 +664,7 @@ export default function WholesalerPage() {
             </div>
           )}
 
-          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings', 'Analytics', 'Users', 'Permissions', 'Notifications', 'Integrations', 'API Management', 'Logs'].includes(activePage) && (
+          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings', 'Analytics', 'Notifications', 'Integrations', 'API Management', 'Logs'].includes(activePage) && (
             <div className="card-modern p-12 text-center animate-fade-scale">
               <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
                 <LayoutGrid className="w-10 h-10 text-gray-400" />
