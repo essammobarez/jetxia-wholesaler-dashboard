@@ -962,7 +962,7 @@ const PaymentReport: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
           <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
@@ -974,7 +974,7 @@ const PaymentReport: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <XCircle className="w-8 h-8 text-red-600" />
@@ -995,206 +995,265 @@ const PaymentReport: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Payment Report
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Track payment status, methods, and transaction history
-          </p>
-        </div>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export CSV</span>
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <DollarSign className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Total Amount
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ${totalAmount.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Completed
-              </p>
-              <p className="text-2xl font-bold text-green-600">
-                ${completedAmount.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Pending
-              </p>
-              <p className="text-2xl font-bold text-yellow-600">
-                ${pendingAmount.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <XCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Failed</p>
-              <p className="text-2xl font-bold text-red-600">
-                ${failedAmount.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="md:col-span-2 lg:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Search
-            </label>
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search payments..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-          </div>
+    <>
+      {/* Styles for advanced responsive table */}
+      <style jsx global>{`
+        @media (max-width: 767px) {
+          /* Hide table header on mobile */
+          .responsive-table thead {
+            display: none;
+          }
+          /* Make table and rows block elements */
+          .responsive-table tbody,
+          .responsive-table tr {
+            display: block;
+          }
+          /* Style each row as a card */
+          .responsive-table tr {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            display: block;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            position: relative;
+          }
+          .dark .responsive-table tr {
+            background-color: #1f2937;
+            border-color: #374151;
+          }
+          /* Style each cell */
+          .responsive-table td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: right;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+          }
+          .dark .responsive-table td {
+            border-color: #374151;
+          }
+          /* No border for the last cell in the card */
+          .responsive-table td:last-of-type {
+            border-bottom: none;
+          }
+          /* Add data labels before each cell */
+          .responsive-table td[data-label]::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: #4b5563;
+            margin-right: 1rem;
+            text-align: left;
+          }
+          .dark .responsive-table td[data-label]::before {
+            color: #d1d5db;
+          }
+          /* Special style for the first cell to act as card header */
+          .responsive-table td:first-child {
+            display: block;
+            padding: 0;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+          }
+          .dark .responsive-table td:first-child {
+            border-color: #374151;
+          }
+          .responsive-table td:first-child::before {
+            display: none;
+          }
+          /* Position action button in top right of card */
+          .responsive-table .action-cell {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.25rem;
+            border: none;
+          }
+          .responsive-table .action-cell::before {
+            display: none;
+          }
+        }
+      `}</style>
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Agency
-            </label>
-            <select
-              value={selectedAgency}
-              onChange={(e) => setSelectedAgency(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            >
-              <option value="all">All Agencies</option>
-              {agencies.map((agency) => (
-                <option key={agency.id} value={agency.id}>
-                  {agency.agencyName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            >
-              <option value="all">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-              <option value="refunded">Refunded</option>
-              <option value="partial">Partial</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Payment Method
-            </label>
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            >
-              <option value="all">All Methods</option>
-              <option value="credit_card">Credit Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="paypal">PayPal</option>
-              <option value="cash">Cash</option>
-              <option value="check">Check</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Date From
-              </label>
-              <input
-                type="date"
-                value={dateRange.from}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, from: e.target.value }))
-                }
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Date To
-              </label>
-              <input
-                type="date"
-                value={dateRange.to}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, to: e.target.value }))
-                }
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              />
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Payment Report
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Track payment status, methods, and transaction history
+            </p>
           </div>
           <button
-            onClick={() => {
-              setSearchTerm("");
-              setSelectedAgency("all");
-              setStatusFilter("all");
-              setMethodFilter("all");
-              setDateRange({ from: "", to: "" });
-            }}
-            className="self-end px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            onClick={exportToCSV}
+            className="flex w-full sm:w-auto items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Clear Filters
+            <Download className="w-4 h-4" />
+            <span>Export CSV</span>
           </button>
         </div>
-      </div>
 
-      {/* Payment Records Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <DollarSign className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Total Amount
+                </p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${totalAmount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Completed
+                </p>
+                <p className="text-2xl font-bold text-green-600">
+                  ${completedAmount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                <Clock className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Pending
+                </p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  ${pendingAmount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <XCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Failed
+                </p>
+                <p className="text-2xl font-bold text-red-600">
+                  ${failedAmount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="md:col-span-2 lg:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Search
+              </label>
+              <div className="relative">
+                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search payments..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Agency
+              </label>
+              <select
+                value={selectedAgency}
+                onChange={(e) => setSelectedAgency(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              >
+                <option value="all">All Agencies</option>
+                {agencies.map((agency) => (
+                  <option key={agency.id} value={agency.id}>
+                    {agency.agencyName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              >
+                <option value="all">All Status</option>
+                <option value="completed">Completed</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+                <option value="partial">Partial</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Payment Method
+              </label>
+              <select
+                value={methodFilter}
+                onChange={(e) => setMethodFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              >
+                <option value="all">All Methods</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="paypal">PayPal</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+        
+            </div>
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedAgency("all");
+                setStatusFilter("all");
+                setMethodFilter("all");
+                setDateRange({ from: "", to: "" });
+              }}
+              className="w-full lg:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        {/* Payment Records Table */}
+        <div className="bg-white dark:bg-gray-800 md:rounded-lg md:shadow-sm md:overflow-hidden">
+          <table className="w-full responsive-table">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -1220,11 +1279,11 @@ const PaymentReport: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 md:divide-y-0">
               {filteredRecords.map((record) => (
                 <tr
                   key={record.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700/50 md:border-b md:border-gray-200 md:dark:border-gray-700"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -1239,7 +1298,10 @@ const PaymentReport: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    data-label="Customer:"
+                  >
                     <div>
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {record.agencyName}
@@ -1249,14 +1311,18 @@ const PaymentReport: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {record.currency} {record.amount.toLocaleString()}
-                      </div>
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    data-label="Amount:"
+                  >
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {record.currency} {record.amount.toLocaleString()}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    data-label="Method:"
+                  >
                     <div className="flex items-center space-x-2">
                       {getMethodIcon(record.paymentMethod)}
                       <span className="text-sm text-gray-900 dark:text-white">
@@ -1264,7 +1330,10 @@ const PaymentReport: React.FC = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    data-label="Status:"
+                  >
                     <span
                       className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
                         record.paymentStatus
@@ -1274,18 +1343,20 @@ const PaymentReport: React.FC = () => {
                       <span className="capitalize">{record.paymentStatus}</span>
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    data-label="Dates:"
+                  >
                     <div className="text-sm text-gray-900 dark:text-white">
                       Due: {new Date(record.dueDate).toLocaleDateString()}
                     </div>
                     {record.paymentDate && (
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        Paid:{" "}
-                        {new Date(record.paymentDate).toLocaleDateString()}
+                        Paid: {new Date(record.paymentDate).toLocaleDateString()}
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 action-cell">
                     <button
                       onClick={() => handleDownloadVoucher(record)}
                       title="Download Voucher"
@@ -1321,62 +1392,62 @@ const PaymentReport: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {filteredRecords.length === 0 && (
+            <div className="text-center py-12">
+              <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No payment records found
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400">
+                Try adjusting your filters or search criteria.
+              </p>
+            </div>
+          )}
         </div>
-        {filteredRecords.length === 0 && (
-          <div className="text-center py-12">
-            <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No payment records found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Try adjusting your filters or search criteria.
-            </p>
+
+        {/* PDF Loading Modal */}
+        {pdfLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg
+                    className="w-8 h-8 text-blue-600 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Generating PDF Receipt
+                </h3>
+                {pdfLoadingRecord && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    Booking ID: {pdfLoadingRecord}
+                  </p>
+                )}
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${pdfProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {pdfProgress}%
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* PDF Loading Modal */}
-      {pdfLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg
-                  className="w-8 h-8 text-blue-600 animate-spin"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Generating PDF Receipt
-              </h3>
-              {pdfLoadingRecord && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Booking ID: {pdfLoadingRecord}
-                </p>
-              )}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
-                <div
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${pdfProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                {pdfProgress}%
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 

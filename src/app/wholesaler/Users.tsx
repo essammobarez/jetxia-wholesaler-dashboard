@@ -60,7 +60,7 @@ export default function Users() {
       }
 
       const response = await res.json();
-      
+
       const mappedUsers: User[] = (response.data || []).map((u: any) => ({
         id: u._id,
         name: `${u.firstName} ${u.lastName}`,
@@ -136,23 +136,77 @@ export default function Users() {
     }
   };
 
+  const renderUserDetails = (user: User) => (
+    <>
+      {/* Name */}
+      <div className="flex justify-between items-center py-2">
+        <p className="text-sm font-medium text-gray-500">Name</p>
+        <p className="text-sm font-semibold text-gray-900 text-right">{user.name}</p>
+      </div>
+      {/* Email */}
+      <div className="flex justify-between items-center py-2">
+        <p className="text-sm font-medium text-gray-500">Email</p>
+        <p className="text-sm text-gray-600 text-right truncate">{user.email}</p>
+      </div>
+      {/* Role */}
+      <div className="flex justify-between items-center py-2">
+        <p className="text-sm font-medium text-gray-500">Role</p>
+        <span className="px-3 py-1 text-xs font-semibold leading-5 rounded-full bg-green-100 text-green-800">
+          SubUser
+        </span>
+      </div>
+      {/* Joined On */}
+      <div className="flex justify-between items-center py-2">
+        <p className="text-sm font-medium text-gray-500">Joined On</p>
+        <p className="text-sm text-gray-500 text-right">
+          {new Date(user.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+    </>
+  );
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Manage Users</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+          <h1 className="text-3xl font-bold text-gray-800 text-center sm:text-left">
+            Manage Users
+          </h1>
           <button
             onClick={handleOpenModal}
-            className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
           >
             + Add Moderator
           </button>
         </div>
 
-        {/* User Table */}
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
+        {/* User List Section */}
+        <div>
+          {/* Mobile View: List of Cards (Visible on small screens) */}
+          <div className="lg:hidden space-y-4">
+            {loading ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
+                Loading users...
+              </div>
+            ) : users.length === 0 ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center">
+                <p className="text-gray-500 font-medium">No users found.</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Click "Add Moderator" to get started.
+                </p>
+              </div>
+            ) : (
+              users.map((user) => (
+                <div key={user.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 divide-y divide-gray-100">
+                  {renderUserDetails(user)}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop View: Table (Visible on large screens) */}
+          <div className="hidden lg:block bg-white rounded-lg shadow-md overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-100">
                 <tr>
@@ -162,29 +216,28 @@ export default function Users() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Joined On</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-12">
+                    <td colSpan={4} className="text-center py-12 px-6">
                       <p className="text-gray-500">Loading users...</p>
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-12">
+                    <td colSpan={4} className="text-center py-12 px-6">
                       <p className="text-gray-500 font-medium">No users found.</p>
                       <p className="text-sm text-gray-400 mt-1">Click "Add Moderator" to get started.</p>
                     </td>
                   </tr>
                 ) : (
                   users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {/* {user.role} */}
-                             SubUser
+                          SubUser
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -201,8 +254,8 @@ export default function Users() {
 
       {/* Add User Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md m-4 transform transition-all">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md transform transition-all">
             <form onSubmit={handleSubmit}>
               <div className="p-6">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Add New Moderator</h3>

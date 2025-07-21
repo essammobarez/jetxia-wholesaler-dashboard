@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaChevronDown } from 'react-icons/fa';
 import toast, { Toaster } from 'react-hot-toast';
 
 // --- Types ---
@@ -16,18 +16,21 @@ export type PermissionKey =
   | 'Payment'
   | 'Support Tickets'
   | 'Reports';
+
 export interface Subuser {
   _id: string;
   firstName: string;
   lastName: string;
   permissions: string[];
 }
+
 interface PermissionsState {
   [key: string]: {
     expanded: boolean;
     modes: { ReadOnly: boolean; ReadWrite: boolean };
   };
 }
+
 const moduleList: PermissionKey[] = [
   'Dashboard',
   'Booking',
@@ -46,6 +49,10 @@ export default function PermissionsPage() {
   const [filter, setFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [perms, setPerms] = useState<PermissionsState>({});
+  
+  // State to handle mobile view for user list
+  const [isUserListOpen, setIsUserListOpen] = useState(false);
+
 
   const loadSubusers = useCallback(() => {
     if (!wholesalerId) return;
@@ -92,6 +99,12 @@ export default function PermissionsPage() {
     [filter, subusers]
   );
 
+  const selectedUserName = useMemo(() => {
+    const user = subusers.find(u => u._id === selectedId);
+    return user ? `${user.firstName} ${user.lastName}` : 'Select a User';
+  }, [selectedId, subusers]);
+
+
   const toggleExpand = (mod: PermissionKey) =>
     setPerms(prev => ({ ...prev, [mod]: { ...prev[mod], expanded: !prev[mod].expanded } }));
 
@@ -104,9 +117,17 @@ export default function PermissionsPage() {
       },
     }));
 
+  const handleSelectUser = (id: string) => {
+    setSelectedId(id);
+    setIsUserListOpen(false); // Close dropdown on selection
+  };
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedId) return;
+    if (!selectedId) {
+      toast.error('Please select a user first.');
+      return;
+    };
 
     const updatedPerms = Object.entries(perms).flatMap(([mod, cfg]) => {
       const arr: string[] = [];
@@ -114,37 +135,41 @@ export default function PermissionsPage() {
       if (cfg.modes.ReadWrite) arr.push(`${mod}:Write`);
       return arr;
     });
-
-    fetch(
+    
+    const promise = fetch(
       `${process.env.NEXT_PUBLIC_BACKEND_URL}/subuser/assign-permissions`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subuserId: selectedId, permissions: updatedPerms }),
       }
-    )
-      .then(res => res.json())
-      .then(data => {
+    ).then(res => {
+        if (!res.ok) throw new Error('Update failed');
+        return res.json();
+    }).then(data => {
         if (data.success) {
-          toast.success('Permissions updated');
-          // Refresh subusers/permissions state
-          loadSubusers();
+          loadSubusers(); // Refresh permissions count
+          return 'Permissions updated successfully!';
         } else {
-          toast.error(data.message || 'Update failed');
+          throw new Error(data.message || 'Update failed');
         }
-      })
-      .catch(err => {
-        console.error('Network error:', err);
-        toast.error('Network error');
-      });
+    });
+
+    toast.promise(promise, {
+      loading: 'Saving changes...',
+      success: (message) => message,
+      error: (err) => err.message,
+    });
   };
 
   return (
     <>
       <Toaster position="top-right" />
-      <form onSubmit={handleSubmit} className="flex h-full gap-6 p-6 bg-gray-50 dark:bg-gray-900">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg">
+      {/* On mobile, layout is flex-col. On lg+, it's flex-row */}
+      <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row h-full gap-6 p-4 md:p-6 bg-gray-50 dark:bg-gray-900">
+        
+        {/* --- Sidebar (Desktop) --- */}
+        <aside className="hidden lg:block w-64 flex-shrink-0 bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg">
           <div className="relative mb-4">
             <FaSearch className="absolute top-3 left-3 text-gray-400" />
             <input
@@ -152,77 +177,123 @@ export default function PermissionsPage() {
               placeholder="Search users..."
               value={filter}
               onChange={e => setFilter(e.target.value)}
-              className="pl-10 pr-3 py-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none"
+              className="pl-10 pr-3 py-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
-          <ul className="space-y-2 overflow-y-auto max-h-[60vh]">
+          <ul className="space-y-2 overflow-y-auto max-h-[calc(100vh-12rem)]">
             {filtered.map(u => (
               <li key={u._id}>
-  <button
-    type="button"
-    onClick={() => setSelectedId(u._id)}
-    className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex justify-between items-center
-      ${u._id === selectedId
-        ? 'bg-purple-600 text-white'
-        : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
-  >
-    {u.firstName} {u.lastName}
-    <span
-      className={`text-sm font-semibold 
-        ${u._id === selectedId
-          ? 'text-white'
-          : 'text-gray-500 dark:text-gray-400'}`}
-    >
-      ({u.permissions.length})
-    </span>
-  </button>
-</li>
-
+                <button
+                  type="button"
+                  onClick={() => handleSelectUser(u._id)}
+                  className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex justify-between items-center
+                  ${u._id === selectedId
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
+                >
+                  <span className="truncate">{u.firstName} {u.lastName}</span>
+                  <span
+                    className={`text-sm font-semibold px-2 py-0.5 rounded-full
+                    ${u._id === selectedId
+                        ? 'bg-white/20 text-white'
+                        : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400'}`}
+                  >
+                    {u.permissions.length}
+                  </span>
+                </button>
+              </li>
             ))}
           </ul>
         </aside>
 
-        {/* Main */}
-        <section className="flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6 overflow-auto">
-          <header className="flex justify-between items-center">
+        {/* --- User Dropdown (Mobile) --- */}
+        <div className="relative lg:hidden">
+            <button
+                type="button"
+                onClick={() => setIsUserListOpen(!isUserListOpen)}
+                className="w-full flex items-center justify-between text-left px-4 py-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg text-gray-800 dark:text-gray-200"
+            >
+                <span className="font-semibold">{selectedUserName}</span>
+                <FaChevronDown className={`transition-transform duration-200 ${isUserListOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+                {isUserListOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full mt-2 w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg z-10 p-2"
+                    >
+                        <div className="relative p-2">
+                            <FaSearch className="absolute top-5 left-5 text-gray-400" />
+                            <input
+                                type="search"
+                                placeholder="Search users..."
+                                value={filter}
+                                onChange={e => setFilter(e.target.value)}
+                                className="pl-10 pr-3 py-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none"
+                            />
+                        </div>
+                        <ul className="space-y-1 overflow-y-auto max-h-60 p-2">
+                            {filtered.map(u => (
+                                <li key={u._id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectUser(u._id)}
+                                        className={`w-full text-left px-3 py-2 rounded-lg ${u._id === selectedId ? 'bg-purple-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    >
+                                        {u.firstName} {u.lastName}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+
+
+        {/* --- Main Content --- */}
+        <section className="flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 space-y-6 overflow-auto">
+          {/* Header stacks on mobile */}
+          <header className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Permissions</h1>
             <button
               type="submit"
               disabled={!selectedId}
-              className="px-6 py-2 bg-green-500 disabled:opacity-50 text-white rounded-full hover:bg-green-600 transition"
-            >Save Changes</button>
+              className="w-full sm:w-auto px-6 py-2 bg-green-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-full hover:bg-green-600 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+                Save Changes
+            </button>
           </header>
 
           {!selectedId ? (
-            <p className="text-gray-600 dark:text-gray-300">Select a user to manage permissions.</p>
+            <div className="flex items-center justify-center h-full min-h-[40vh]">
+                <p className="text-gray-600 dark:text-gray-300 text-center">
+                    Please select a user to manage their permissions.
+                </p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            // Responsive grid for permission cards
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {moduleList.map(mod => {
                 const cfg = perms[mod];
                 if (!cfg) return null;
                 const anyActive = cfg.modes.ReadOnly || cfg.modes.ReadWrite;
                 return (
-                  <div key={mod} className="bg-gray-100 dark:bg-gray-700 rounded-2xl shadow">
-                    <motion.button
+                  <div key={mod} className="bg-gray-100 dark:bg-gray-700 rounded-2xl shadow-sm overflow-hidden">
+                    <button
                       type="button"
                       onClick={() => toggleExpand(mod)}
-                      initial={false}
-                      animate={{ backgroundColor: cfg.expanded ? '#E0E7FF' : 'transparent' }}
-                      className="w-full px-4 py-3 flex justify-between items-center rounded-t-2xl"
+                      className={`w-full px-4 py-3 flex justify-between items-center transition-colors
+                        ${cfg.expanded ? 'bg-indigo-100 dark:bg-indigo-900/50' : ''}`}
                     >
-                      <span className="flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                      <span className="flex items-center gap-3 font-semibold text-gray-800 dark:text-gray-100">
                         {mod}
-                        {!cfg.expanded && anyActive && <span className="w-2 h-2 bg-green-500 rounded-full" />}
+                        {!cfg.expanded && anyActive && <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />}
                       </span>
-                      <svg
-                        className={`w-5 h-5 text-gray-500 transition-transform ${cfg.expanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </motion.button>
+                      <FaChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${cfg.expanded ? 'rotate-180' : ''}`} />
+                    </button>
 
                     <AnimatePresence initial={false}>
                       {cfg.expanded && (
@@ -230,20 +301,20 @@ export default function PermissionsPage() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ type: 'tween' }}
-                          className="px-4 py-4 space-y-4"
+                          transition={{ type: 'tween', duration: 0.2 }}
+                          className="px-4 pb-4 pt-2 space-y-4 border-t border-gray-200 dark:border-gray-600"
                         >
                           {(['ReadOnly', 'ReadWrite'] as const).map(mode => (
-                            <label key={mode} className="flex justify-between items-center">
-                              <span className="text-gray-700 dark:text-gray-300">{mode}</span>
+                            <label key={mode} className="flex justify-between items-center cursor-pointer">
+                              <span className="text-gray-700 dark:text-gray-300">{mode === 'ReadOnly' ? 'Read Only' : 'Read & Write'}</span>
                               <div
                                 onClick={() => toggleMode(mod, mode)}
-                                className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${
+                                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
                                   perms[mod].modes[mode] ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
                                 }`}
                               >
                                 <div
-                                  className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform ${
+                                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
                                     perms[mod].modes[mode] ? 'translate-x-6' : 'translate-x-0'
                                   }`}
                                 />

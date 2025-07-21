@@ -11,7 +11,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
-// Dynamic agencies will be extracted from API data
 
 // API Response Interfaces
 interface ApiBookingResponse {
@@ -154,20 +153,17 @@ const LedgerReport: React.FC = () => {
     const entries: LedgerEntry[] = [];
     let runningBalance = 0;
 
-    // Sort bookings by creation date to maintain chronological order
     const sortedBookings = [...apiData].sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
     sortedBookings.forEach((booking) => {
-      // Safely extract currency with fallbacks
       const currency =
         booking.priceDetails?.price?.currency ||
         booking.bookingData?.initialResponse?.price?.selling?.currency ||
         "USD";
 
-      // Safely extract price values
       const priceValue =
         booking.priceDetails?.price?.value ||
         booking.bookingData?.initialResponse?.price?.selling?.value ||
@@ -191,7 +187,6 @@ const LedgerReport: React.FC = () => {
           "pending",
       };
 
-      // Booking entry (debit)
       if (priceValue > 0) {
         runningBalance -= priceValue;
         entries.push({
@@ -206,7 +201,6 @@ const LedgerReport: React.FC = () => {
         });
       }
 
-      // Markup entry (credit) if markup is applied
       if (
         booking.priceDetails?.markupApplied &&
         priceValue > originalPriceValue
@@ -228,7 +222,6 @@ const LedgerReport: React.FC = () => {
         }
       }
 
-      // Payment entries if any
       if (
         booking.payments &&
         Array.isArray(booking.payments) &&
@@ -268,7 +261,6 @@ const LedgerReport: React.FC = () => {
         setError(null);
 
         const response = await fetch(
-          // use the env‑based URL instead of the hard‑coded one
           `${apiUrl}/booking/wholesaler/${wholesalerId}`
         );
 
@@ -278,13 +270,10 @@ const LedgerReport: React.FC = () => {
 
         const apiData: ApiBookingResponse[] = await response.json();
 
-        console.log("API Response:", apiData); // Debug log
-
         if (!Array.isArray(apiData)) {
           throw new Error("Invalid API response format");
         }
 
-        // Filter out invalid entries
         const validBookings = apiData.filter(
           (booking) =>
             booking &&
@@ -296,13 +285,17 @@ const LedgerReport: React.FC = () => {
         );
 
         if (validBookings.length === 0) {
-          throw new Error("No valid booking data found");
+          // Changed to show an empty state instead of an error
+          setLedgerEntries([]);
+          setFilteredEntries([]);
+          setAgencies([]);
+          setLoading(false);
+          return;
         }
 
         const transformedEntries =
           transformApiDataToLedgerEntries(validBookings);
 
-        // Extract unique agencies from API data
         const uniqueAgencies = Array.from(
           new Map(
             validBookings.map((booking) => [
@@ -328,7 +321,7 @@ const LedgerReport: React.FC = () => {
     };
 
     fetchLedgerData();
-  }, [wholesalerId]);
+  }, [wholesalerId, apiUrl]);
 
   // Filter and sort entries
   useEffect(() => {
@@ -356,7 +349,6 @@ const LedgerReport: React.FC = () => {
       return matchesSearch && matchesAgency && matchesType && matchesDate;
     });
 
-    // Sort by date
     filtered.sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
@@ -439,7 +431,7 @@ const LedgerReport: React.FC = () => {
       entry.bookingId,
       entry.agencyName,
       entry.transactionType,
-      entry.description,
+      `"${entry.description.replace(/"/g, '""')}"`, // Handle quotes in description
       entry.debit,
       entry.credit,
       entry.balance,
@@ -448,11 +440,10 @@ const LedgerReport: React.FC = () => {
       entry.status,
     ]);
 
-    const csvContent = [headers, ...csvData]
-      .map((row) => row.map((field) => `"${field}"`).join(","))
-      .join("\n");
+    const csvContent = [headers.join(","), ...csvData.map(row => row.join(","))].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -463,7 +454,7 @@ const LedgerReport: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
           <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
@@ -475,7 +466,7 @@ const LedgerReport: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <TrendingDown className="w-8 h-8 text-red-600" />
@@ -496,20 +487,20 @@ const LedgerReport: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Ledger Report
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Detailed transaction history and account movements
           </p>
         </div>
         <button
           onClick={exportToCSV}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full md:w-auto justify-center"
         >
           <Download className="w-4 h-4" />
           <span>Export CSV</span>
@@ -517,8 +508,8 @@ const LedgerReport: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
               <TrendingDown className="w-6 h-6 text-red-600" />
@@ -534,7 +525,7 @@ const LedgerReport: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <TrendingUp className="w-6 h-6 text-green-600" />
@@ -550,7 +541,7 @@ const LedgerReport: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center space-x-3">
             <div
               className={`p-2 rounded-lg ${
@@ -580,7 +571,7 @@ const LedgerReport: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <FileText className="w-6 h-6 text-blue-600" />
@@ -598,9 +589,9 @@ const LedgerReport: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="xl:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Search
             </label>
@@ -608,7 +599,7 @@ const LedgerReport: React.FC = () => {
               <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search transactions..."
+                placeholder="Search by ID, agency, description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -651,37 +642,34 @@ const LedgerReport: React.FC = () => {
               <option value="markup">Markup</option>
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Date From
-            </label>
-            <input
-              type="date"
-              value={dateRange.from}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, from: e.target.value }))
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Date To
-            </label>
-            <input
-              type="date"
-              value={dateRange.to}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, to: e.target.value }))
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
+           {/* Date filters are combined for better mobile layout */}
+          <div className="grid grid-cols-2 gap-4 sm:col-span-2 lg:col-span-1 xl:col-span-1">
+             <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   Date From
+                </label>
+                <input
+                   type="date"
+                   value={dateRange.from}
+                   onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
+                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+             </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   Date To
+                </label>
+                <input
+                   type="date"
+                   value={dateRange.to}
+                   onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
+                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex justify-between items-center">
+        <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <button
             onClick={() => {
               setSearchTerm("");
@@ -689,14 +677,14 @@ const LedgerReport: React.FC = () => {
               setTransactionTypeFilter("all");
               setDateRange({ from: "", to: "" });
             }}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           >
             Clear Filters
           </button>
 
           <button
             onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-            className="flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           >
             <ArrowUpDown className="w-4 h-4" />
             <span>
@@ -707,11 +695,12 @@ const LedgerReport: React.FC = () => {
         </div>
       </div>
 
-      {/* Ledger Entries Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+      {/* Ledger Entries */}
+      <div className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            {/* Desktop Table Header */}
+            <thead className="hidden md:table-header-group bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Date & Time
@@ -734,82 +723,98 @@ const LedgerReport: React.FC = () => {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Balance
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-transparent divide-y-0 md:divide-y md:divide-gray-200 md:dark:divide-gray-700">
               {filteredEntries.map((entry) => (
-                <tr
-                  key={entry.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {new Date(entry.date).toLocaleDateString()}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(entry.date).toLocaleTimeString()}
-                    </div>
+                <tr key={entry.id} className="block md:table-row mb-4 md:mb-0">
+                  {/* Mobile Card View */}
+                  <td className="block md:hidden p-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm" colSpan={8}>
+                     <div className="space-y-4">
+                        {/* Card Header */}
+                        <div className="flex justify-between items-start">
+                           <div>
+                              <p className="font-bold text-gray-900 dark:text-white">{entry.bookingId}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{entry.agencyName}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Ref: {entry.reference}</p>
+                           </div>
+                           <div className="text-right">
+                              <span
+                                 className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(entry.transactionType)}`}
+                              >
+                                 {getTransactionIcon(entry.transactionType)}
+                                 <span className="capitalize">{entry.transactionType}</span>
+                              </span>
+                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {new Date(entry.date).toLocaleDateString()}
+                              </p>
+                           </div>
+                        </div>
+                        {/* Card Body */}
+                        <p className="text-sm text-gray-500 dark:text-gray-300">{entry.description}</p>
+                        {/* Card Footer */}
+                        <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
+                           <div className="flex items-center gap-4">
+                              <div>
+                                 <p className="text-sm font-medium text-red-600 dark:text-red-400">-{entry.currency} {entry.debit > 0 ? entry.debit.toLocaleString() : '0'}</p>
+                                 <p className="text-sm font-medium text-green-600 dark:text-green-400">+{entry.currency} {entry.credit > 0 ? entry.credit.toLocaleString() : '0'}</p>
+                              </div>
+                              <div className="text-right">
+                                 <p className="text-xs text-gray-500">Balance</p>
+                                 <p className={`text-lg font-bold ${entry.balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                                    {entry.currency} {Math.abs(entry.balance).toLocaleString()}
+                                 </p>
+                              </div>
+                           </div>
+                           <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-2 rounded-full hover:bg-blue-100 dark:hover:bg-gray-700">
+                              <Eye className="w-5 h-5" />
+                           </button>
+                        </div>
+                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {entry.bookingId}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                      {entry.description}
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">
-                      Ref: {entry.reference}
-                    </div>
+
+                  {/* Desktop Table Row View */}
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900 dark:text-white">{new Date(entry.date).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(entry.date).toLocaleTimeString()}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {entry.agencyName}
-                    </div>
+                  <td className="hidden md:table-cell px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">{entry.bookingId}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{entry.description}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">Ref: {entry.reference}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">{entry.agencyName}</div>
+                  </td>
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(
-                        entry.transactionType
-                      )}`}
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(entry.transactionType)}`}
                     >
                       {getTransactionIcon(entry.transactionType)}
-                      <span className="capitalize">
-                        {entry.transactionType}
-                      </span>
+                      <span className="capitalize">{entry.transactionType}</span>
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
                     {entry.debit > 0 && (
-                      <div className="text-sm font-medium text-red-600 dark:text-red-400">
-                        -{entry.currency} {entry.debit.toLocaleString()}
-                      </div>
+                      <div className="text-sm font-medium text-red-600 dark:text-red-400">-{entry.currency} {entry.debit.toLocaleString()}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
                     {entry.credit > 0 && (
-                      <div className="text-sm font-medium text-green-600 dark:text-green-400">
-                        +{entry.currency} {entry.credit.toLocaleString()}
-                      </div>
+                      <div className="text-sm font-medium text-green-600 dark:text-green-400">+{entry.currency} {entry.credit.toLocaleString()}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div
-                      className={`text-sm font-medium ${
-                        entry.balance >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {entry.currency}{" "}
-                      {Math.abs(entry.balance).toLocaleString()}
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
+                    <div className={`text-sm font-medium ${entry.balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                      {entry.currency} {Math.abs(entry.balance).toLocaleString()}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-center">
                     <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-5 h-5" />
                     </button>
                   </td>
                 </tr>
@@ -818,8 +823,8 @@ const LedgerReport: React.FC = () => {
           </table>
         </div>
 
-        {filteredEntries.length === 0 && (
-          <div className="text-center py-12">
+        {filteredEntries.length === 0 && !loading && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               No ledger entries found

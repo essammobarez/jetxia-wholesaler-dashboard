@@ -96,16 +96,13 @@ const AdminApprove: NextPage = () => {
       );
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        // --- UPDATED MAPPING: Map all detailed fields from the API response ---
         const mapped: Registration[] = json.data.map((item: any) => ({
           id: item._id,
           agencyName: item.agencyName,
           contactName: `${item.firstName} ${item.lastName}`,
-          email: item.emailId || item.email, // Use primary contact email for the list view
+          email: item.emailId || item.email, 
           submittedAt: item.createdAt,
           status: item.status as "pending" | "approved" | "suspended",
-          
-          // All other fields for the detail modal
           slug: item.slug,
           country: item.country,
           city: item.city,
@@ -113,7 +110,7 @@ const AdminApprove: NextPage = () => {
           address: item.address,
           website: item.website,
           phoneNumber: item.phoneNumber,
-          agencyEmail: item.email, // a.k.a the general agency email
+          agencyEmail: item.email,
           businessCurrency: item.businessCurrency,
           vat: item.vat,
           licenseUrl: item.licenseUrl,
@@ -215,7 +212,7 @@ const AdminApprove: NextPage = () => {
   const doDelete = async () => {
     if (!pendingDelete) return;
     const { ids } = pendingDelete;
-    // NOTE: This assumes client-side deletion.
+    // NOTE: This assumes client-side deletion for now.
     // Replace with actual DELETE API call if available.
     setRegistrations(prev => prev.filter(r => !ids.includes(r.id)));
     toast.success(`Deleted ${ids.length} item(s)!`);
@@ -328,87 +325,71 @@ const AdminApprove: NextPage = () => {
         <h2 className="text-2xl font-semibold">{title} ({list.length})</h2>
         <input
           type="checkbox"
+          className="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500"
           checked={list.length > 0 && list.every(r => selected.has(r.id))}
           onChange={() => toggleAll(list)}
         />
       </div>
-      <div className="overflow-x-auto bg-white rounded-2xl shadow-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-6 py-3">Select</th>
-              <th className="px-6 py-3">Agency</th>
-              <th className="px-6 py-3">Contact</th>
-              <th className="px-6 py-3">Email</th>
-              {/* <th className="px-6 py-3">Submitted</th> */}
-              <th className="px-6 py-3">Status</th>
-              {/* Conditionally add Markup column for Approved section */}
-              {title === "Approved Registrations" && <th className="px-6 py-3">Markup</th>}
-              <th className="px-6 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {slice.map(r => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(r.id)}
-                    onChange={() => toggleSelect(r.id)}
-                  />
-                </td>
-                <td className="px-6 py-4 font-medium">{r.agencyName}</td>
-                <td className="px-6 py-4">{r.contactName}</td>
-                <td className="px-6 py-4">{r.email}</td>
-                {/* <td className="px-6 py-4 text-gray-500 text-sm">
-                  {format(new Date(r.submittedAt), "MMM dd, yyyy • hh:mm a")}
-                </td> */}
-                <td className="px-6 py-4">
-                  <span
-                    className={
-                      `px-2 py-1 text-xs font-medium rounded-full ` +
-                      (r.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-green-100 text-green-800")
-                    }
-                  >
-                    {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                  </span>
-                </td>
-                {/* Conditionally add markup data cell */}
-                {title === "Approved Registrations" && (
-                  <td className="px-6 py-4">
-                    {r.markupPlan?.name || 'N/A'}
-                  </td>
-                )}
-                <td className="px-6 py-4 flex space-x-3">
-                  <button
-                    onClick={() => setModalItem(r)}
-                    title="View"
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <FiFileText size={20} className="text-indigo-600" />
-                  </button>
-                  {r.status === "pending" && (
-                    <button
-                      onClick={() => requestAction("approve", [r.id])}
-                      title="Approve"
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <FiCheckCircle size={20} className="text-green-600" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => requestAction("delete", [r.id])}
-                    title="Delete"
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <FiTrash2 size={20} className="text-red-600" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
+      {/* The container below is no longer a simple div. For mobile, it's just a container.
+        For desktop, it's a table with a shadow and rounded corners.
+        This is why the `bg-white rounded-2xl shadow-lg` are prefixed with `md:`
+      */}
+      <div className="md:bg-white md:rounded-2xl md:shadow-lg">
+        <table className="min-w-full">
+            <thead className="hidden md:table-header-group md:bg-gray-100">
+                <tr>
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Select</th>
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Agency</th>
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Status</th>
+                    {title === "Approved Registrations" && <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Markup</th>}
+                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody className="bg-transparent">
+                {slice.map(r => (
+                    // --- RESPONSIVE CHANGE: Row is now a visually distinct card on mobile ---
+                    <tr key={r.id} className="block bg-white p-4 rounded-lg shadow-md border mb-4 md:table-row md:p-0 md:bg-transparent md:shadow-none md:border-none md:mb-0">
+                        <td data-label="Select" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                checked={selected.has(r.id)}
+                                onChange={() => toggleSelect(r.id)}
+                            />
+                        </td>
+                        <td data-label="Agency" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none font-medium text-gray-900">{r.agencyName}</td>
+                        <td data-label="Contact" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.contactName}</td>
+                        <td data-label="Email" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.email}</td>
+                        <td data-label="Status" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${r.status === "pending" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
+                                {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                            </span>
+                        </td>
+                        {title === "Approved Registrations" && (
+                            <td data-label="Markup" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                                {r.markupPlan?.name || 'N/A'}
+                            </td>
+                        )}
+                        <td data-label="Actions" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                            <div className="flex items-center justify-end md:justify-start space-x-3">
+                                <button onClick={() => setModalItem(r)} title="View" className="p-1 hover:bg-gray-100 rounded">
+                                    <FiFileText size={20} className="text-indigo-600" />
+                                </button>
+                                {r.status === "pending" && (
+                                    <button onClick={() => requestAction("approve", [r.id])} title="Approve" className="p-1 hover:bg-gray-100 rounded">
+                                        <FiCheckCircle size={20} className="text-green-600" />
+                                    </button>
+                                )}
+                                <button onClick={() => requestAction("delete", [r.id])} title="Delete" className="p-1 hover:bg-gray-100 rounded">
+                                    <FiTrash2 size={20} className="text-red-600" />
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
         </table>
       </div>
       {/* pagination */}
@@ -455,7 +436,7 @@ const AdminApprove: NextPage = () => {
           </div>
           <button
             onClick={exportPDF}
-            className="inline-flex items-center px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-lg"
+            className="inline-flex items-center px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition"
           >
             <FiFileText className="mr-2" /> Export PDF
           </button>
@@ -467,14 +448,14 @@ const AdminApprove: NextPage = () => {
         <button
           onClick={() => requestAction("approve", Array.from(selected))}
           disabled={!selected.size}
-          className="flex items-center px-4 py-2 bg-green-500 disabled:opacity-50 text-white rounded-lg"
+          className="flex items-center px-4 py-2 bg-green-500 disabled:opacity-50 text-white rounded-lg hover:bg-green-600 transition"
         >
           <FiCheckCircle className="mr-2" /> Approve Selected
         </button>
         <button
           onClick={() => requestAction("delete", Array.from(selected))}
           disabled={!selected.size}
-          className="flex items-center px-4 py-2 bg-red-500 disabled:opacity-50 text-white rounded-lg"
+          className="flex items-center px-4 py-2 bg-red-500 disabled:opacity-50 text-white rounded-lg hover:bg-red-600 transition"
         >
           <FiTrash2 className="mr-2" /> Delete Selected
         </button>

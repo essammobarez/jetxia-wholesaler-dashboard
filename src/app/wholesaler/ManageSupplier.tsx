@@ -286,7 +286,7 @@ export default function ManageSupplier() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-3">
           <button
             onClick={fetchAllProviders}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -295,13 +295,13 @@ export default function ManageSupplier() {
             Refresh
           </button>
 
-          <button
+          {/* <button
             onClick={handleAddProvider}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Provider
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -317,8 +317,8 @@ export default function ManageSupplier() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Search Providers
             </label>
@@ -381,7 +381,7 @@ export default function ManageSupplier() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -461,7 +461,7 @@ export default function ManageSupplier() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            <thead className="hidden md:table-header-group bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Provider Details
@@ -483,7 +483,8 @@ export default function ManageSupplier() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {/* START: MODIFIED SECTION */}
+            <tbody className="bg-white dark:bg-gray-800">
               {filteredProviders.offline.length === 0 &&
               filteredProviders.online.length === 0 ? (
                 <tr>
@@ -520,9 +521,72 @@ export default function ManageSupplier() {
                   {filteredProviders.offline.map((supplier) => (
                     <tr
                       key={`offline-${supplier._id}`}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="border-b border-gray-200 dark:border-gray-700 md:table-row"
                     >
-                      <td className="px-6 py-4">
+                      {/* Mobile Card View */}
+                      <td
+                        colSpan={6}
+                        className="block md:hidden p-4 space-y-3"
+                      >
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1">
+                            <p className="font-bold text-gray-900 dark:text-white">
+                              {supplier.name}
+                            </p>
+                            {supplier.notes && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {supplier.notes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-3 flex-shrink-0">
+                            <button
+                              onClick={() => handleViewProvider(supplier, "offline")}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="View Details"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleEditProvider(supplier, "offline")}
+                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                              title="Edit Provider"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProvider(supplier, "offline")}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                              title="Delete Provider"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status || "active")}`}>
+                              {getStatusIcon(supplier.status || "active")}
+                              <span className="capitalize">{supplier.status || "active"}</span>
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Type</p>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("offline")}`}>
+                              <Building2 className="w-4 h-4" />
+                              <span>Offline</span>
+                            </span>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
+                            <p className="text-gray-700 dark:text-gray-300">{formatDate(supplier.createdAt)}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Desktop Table View */}
+                      <td className="hidden md:table-cell px-6 py-4">
                         <div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {supplier.name}
@@ -532,75 +596,35 @@ export default function ManageSupplier() {
                               {supplier.notes}
                             </div>
                           )}
-                          {supplier.contactInfo?.email && (
-                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              {supplier.contactInfo.email}
-                            </div>
-                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
-                            "offline"
-                          )}`}
-                        >
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("offline")}`}>
                           <Building2 className="w-4 h-4" />
                           <span>Offline</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                            supplier.status || "active"
-                          )}`}
-                        >
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status || "active")}`}>
                           {getStatusIcon(supplier.status || "active")}
-                          <span className="capitalize">
-                            {supplier.status || "active"}
-                          </span>
+                          <span className="capitalize">{supplier.status || "active"}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4">
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center gap-1">
-                            <Server className="w-3 h-3" />
-                            <span>Manual</span>
-                          </div>
+                          Manual
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        {formatDate(supplier.createdAt)}
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {formatDate(supplier.createdAt)}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() =>
-                              handleViewProvider(supplier, "offline")
-                            }
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleEditProvider(supplier, "offline")
-                            }
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                            title="Edit Provider"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleDeleteProvider(supplier, "offline")
-                            }
-                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            title="Delete Provider"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <div className="flex items-center space-x-4">
+                          <button onClick={() => handleViewProvider(supplier, "offline")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
+                          <button onClick={() => handleEditProvider(supplier, "offline")} className="text-green-600 hover:text-green-900" title="Edit"><Edit className="w-5 h-5" /></button>
+                          <button onClick={() => handleDeleteProvider(supplier, "offline")} className="text-red-600 hover:text-red-900" title="Delete"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -610,9 +634,76 @@ export default function ManageSupplier() {
                   {filteredProviders.online.map((provider) => (
                     <tr
                       key={`online-${provider._id}`}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="border-b border-gray-200 dark:border-gray-700 md:table-row"
                     >
-                      <td className="px-6 py-4">
+                      {/* Mobile Card View */}
+                      <td
+                        colSpan={6}
+                        className="block md:hidden p-4 space-y-3"
+                      >
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1">
+                            <p className="font-bold text-gray-900 dark:text-white">
+                              {provider.name}
+                            </p>
+                            {provider.notes && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {provider.notes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-3 flex-shrink-0">
+                             <button
+                              onClick={() => handleViewProvider(provider, "online")}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="View Details"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleEditProvider(provider, "online")}
+                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                              title="Edit Provider"
+                            >
+                              <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProvider(provider, "online")}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                              title="Delete Provider"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(undefined, provider.isActive)}`}>
+                              {getStatusIcon(undefined, provider.isActive)}
+                              <span className="capitalize">{provider.isActive ? "active" : "inactive"}</span>
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Type</p>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("online")}`}>
+                              <Globe className="w-4 h-4" />
+                              <span>Online</span>
+                            </span>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">API URL</p>
+                            <p className="text-gray-700 dark:text-gray-300 break-all">{provider.apiBaseUrl}</p>
+                          </div>
+                           <div className="col-span-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
+                            <p className="text-gray-700 dark:text-gray-300">{formatDate(provider.createdAt)}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Desktop Table View */}
+                      <td className="hidden md:table-cell px-6 py-4">
                         <div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {provider.name}
@@ -624,73 +715,40 @@ export default function ManageSupplier() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
-                            "online"
-                          )}`}
-                        >
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("online")}`}>
                           <Globe className="w-4 h-4" />
                           <span>Online</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                            undefined,
-                            provider.isActive
-                          )}`}
-                        >
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(undefined, provider.isActive)}`}>
                           {getStatusIcon(undefined, provider.isActive)}
-                          <span className="capitalize">
-                            {provider.isActive ? "active" : "inactive"}
-                          </span>
+                          <span className="capitalize">{provider.isActive ? "active" : "inactive"}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 break-all">
                           <div className="flex items-center gap-1 mb-1">
-                            <Link className="w-3 h-3" />
+                            <Link className="w-3 h-3 flex-shrink-0" />
                             <span>{provider.apiBaseUrl}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Shield className="w-3 h-3" />
+                            <Shield className="w-3 h-3 flex-shrink-0" />
                             <span>{provider.authType}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        {formatDate(provider.createdAt)}
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {formatDate(provider.createdAt)}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() =>
-                              handleViewProvider(provider, "online")
-                            }
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleEditProvider(provider, "online")
-                            }
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                            title="Edit Provider"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleDeleteProvider(provider, "online")
-                            }
-                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            title="Delete Provider"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      <td className="hidden md:table-cell px-6 py-4">
+                        <div className="flex items-center space-x-4">
+                            <button onClick={() => handleViewProvider(provider, "online")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
+                            <button onClick={() => handleEditProvider(provider, "online")} className="text-green-600 hover:text-green-900" title="Edit"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteProvider(provider, "online")} className="text-red-600 hover:text-red-900" title="Delete"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -698,13 +756,14 @@ export default function ManageSupplier() {
                 </>
               )}
             </tbody>
+            {/* END: MODIFIED SECTION */}
           </table>
         </div>
       </div>
 
       {/* Modals */}
       {showViewModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -755,9 +814,7 @@ export default function ManageSupplier() {
                       )}`}
                     >
                       {getTypeIcon(selectedProvider.type)}
-                      <span className="capitalize">
-                        {selectedProvider.type}
-                      </span>
+                      <span className="capitalize">{selectedProvider.type}</span>
                     </span>
                   </div>
                   <div>
@@ -962,7 +1019,7 @@ export default function ManageSupplier() {
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Provider ID
                     </label>
-                    <p className="text-gray-900 dark:text-white font-mono text-sm">
+                    <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
                       {selectedProvider._id}
                     </p>
                   </div>
@@ -1004,7 +1061,7 @@ export default function ManageSupplier() {
       )}
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Add New Provider</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
@@ -1029,7 +1086,7 @@ export default function ManageSupplier() {
       )}
 
       {showEditModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Edit Provider</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
@@ -1055,7 +1112,7 @@ export default function ManageSupplier() {
       )}
 
       {showDeleteModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Delete Provider</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">

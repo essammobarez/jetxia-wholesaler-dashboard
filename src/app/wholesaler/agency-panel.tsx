@@ -1,12 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
-import { Eye, Edit2, Trash2, Tag } from 'lucide-react'; // Removed List import
+import { Eye, Edit2, Trash2, Tag } from 'lucide-react';
 import { Registration, Agency as BaseAgency, AgencyModal } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
 import { TbCreditCardPay } from 'react-icons/tb';
-import { Fragment } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 
 type Supplier = { id: string; name: string; enabled: boolean };
 
@@ -51,11 +49,13 @@ export default function AgencyAdminPanel() {
     markupPlanName: '',
     markupPercentage: 0,
   });
-  const [showSupplierModal, setShowSupplierModal] = useState(false); // Kept for now, but not used by a button
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [plans, setPlans] = useState<PlanType[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
+  
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
@@ -65,6 +65,26 @@ export default function AgencyAdminPanel() {
     const stored = localStorage.getItem('wholesalerId');
     if (stored) setWholesalerId(stored);
   }, []);
+  
+  // NEW: useEffect to handle clicks outside the active tooltip
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if the click is outside any element with the 'data-tooltip-area' attribute
+      if (event.target instanceof Element && !event.target.closest('[data-tooltip-area]')) {
+        setActiveTooltip(null);
+      }
+    };
+
+    // Add event listener only when a tooltip is active
+    if (activeTooltip) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    // Cleanup function to remove the event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeTooltip]); // Re-run this effect whenever the activeTooltip changes
 
   // Fetch markup plans
   const fetchPlans = async (wid: string): Promise<PlanType[]> => {
@@ -89,45 +109,13 @@ export default function AgencyAdminPanel() {
   const getPlanByName = (planName: string) =>
     plans.find((p) => p.name === planName);
 
-  // Component for rendering the markup details tooltip
-  const MarkupTooltip = ({ plan }: { plan: PlanType | undefined }) => {
-    if (!plan || !plan.markups || plan.markups.length === 0) {
-      return null;
-    }
-    return (
-      <div
-        className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
-                   invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity
-                   bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50"
-      >
-        <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
-          Providers & Markups
-        </h4>
-        <ul className="space-y-1">
-          {plan.markups.map((markup) => (
-            <li key={markup._id} className="flex justify-between items-center space-x-4">
-              <span>{markup.provider?.name ?? 'Default'}</span>
-              <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
-                {markup.value}%
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div
-          className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
-                       border-x-8 border-x-transparent border-t-8 border-t-gray-800"
-        />
-      </div>
-    );
-  };
-
   // Fetch agencies and plans
   useEffect(() => {
     if (!API_URL || !wholesalerId) return;
 
     const fetchData = async () => {
       try {
-        const fetchedPlans = await fetchPlans(wholesalerId); // Fetch plans first
+        await fetchPlans(wholesalerId); // Fetch plans first
 
         const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`);
         const json = await res.json();
@@ -182,7 +170,6 @@ export default function AgencyAdminPanel() {
     fetchData();
   }, [API_URL, wholesalerId]);
 
-  // Toggle agency status
   const toggleStatus = async (agency: AgencyWithState) => {
     const newStatus = agency.suspended ? 'approved' : 'suspended';
     try {
@@ -206,7 +193,6 @@ export default function AgencyAdminPanel() {
     }
   };
 
-  // Open modals with appropriate setup
   const openModal = (
     mode: 'view' | 'edit' | 'markup',
     agency: AgencyWithState
@@ -259,22 +245,14 @@ export default function AgencyAdminPanel() {
     }
 
     if (mode === 'markup') {
-      setProfileForm({
-        markupPlanId: '',
-        markupPlanName: agency.markupPlanName,
-        markupPercentage: agency.markupPercentage,
-      });
       if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
     }
   };
-
-  // Save basic agency edit
+  
   const saveEdit = async () => {
     if (!selected) return;
     try {
-      const payload = {
-        agencyName: formState.agencyName,
-      };
+      const payload = { agencyName: formState.agencyName };
       const res = await fetch(`${API_URL}agency/admin/agencies/${selected.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -297,7 +275,6 @@ export default function AgencyAdminPanel() {
     }
   };
 
-  // Assign markup plan
   const saveProfile = async () => {
     if (!selected || !profileForm.markupPlanId) return;
     const { markupPlanId } = profileForm;
@@ -329,7 +306,6 @@ export default function AgencyAdminPanel() {
     closeModal();
   };
 
-  // Delete agency
   const deleteAgency = (agency: BaseAgency) => {
     if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
       setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
@@ -339,9 +315,6 @@ export default function AgencyAdminPanel() {
 
   const closeModal = () => setModalMode(null);
 
-  // The openSupplierModal and related state (showSupplierModal, suppliers) are no longer tied to a button
-  // but I'm keeping them in case they're used elsewhere or intended for future use.
-  // If not needed at all, they can be entirely removed.
   const openSupplierModal = async (agency: AgencyWithState) => {
     try {
       const res = await fetch(`${API_URL}markup/agency/${agency.id}`);
@@ -365,7 +338,6 @@ export default function AgencyAdminPanel() {
     setShowSupplierModal(true);
   };
 
-  // Open add credit modal
   const openCreditModal = (id: string) => {
     setAgencyId(id);
     setShowCreditModal(true);
@@ -384,10 +356,12 @@ export default function AgencyAdminPanel() {
     );
   }
 
+  const headerTitles = ['Agency', 'Contact', 'Submitted', 'Markup Plan', 'Status', 'Actions'];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-blue-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-white to-blue-50 p-4 lg:p-8">
       <header className="mb-8 text-center">
-        <h1 className="text-4xl font-extrabold text-blue-800">
+        <h1 className="text-3xl lg:text-4xl font-extrabold text-blue-800">
           Agency Management
         </h1>
         <p className="mt-2 text-blue-600">
@@ -395,139 +369,136 @@ export default function AgencyAdminPanel() {
         </p>
       </header>
 
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-blue-100">
-            <tr>
-              {[
-                'Agency',
-                'Contact',
-                'Submitted',
-                'Markup Plan',
-                'Status',
-                'Actions',
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="px-6 py-4 text-left text-sm font-semibold text-blue-700 uppercase tracking-wider"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
-            {agencies.map((a) => (
-              <tr key={a.id} className="hover:bg-blue-50 transition-colors">
-                <td className="px-6 py-4">{a.agencyName}</td>
-                <td className="px-6 py-4">{a.contactName}</td>
-                <td className="px-6 py-4">
-                  {new Date(a.submittedAt).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </td>
-                <td className="px-6 py-4">
-                  {a.markupPlanName !== '—' ? (
-                    <div className="flex items-center space-x-2">
-                      <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                        {a.markupPlanName}
-                      </span>
-                      <div className="group relative">
-                        <Tag className="w-5 h-5 text-blue-500 cursor-pointer" />
-                        <MarkupTooltip plan={getPlanByName(a.markupPlanName)} />
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-gray-500">—</span>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      a.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : a.status === 'approved'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 flex items-center space-x-2">
-                  <button
-                    onClick={() => openCreditModal(a.id)}
-                    className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700"
-                  >
-                    <TbCreditCardPay className="w-5 h-5" />
-                  </button>
-                  <button
-                    title="View"
-                    onClick={() => openModal('view', a)}
-                    className="p-2 bg-blue-200 rounded-full hover:bg-blue-300 transition"
-                  >
-                    <Eye size={18} className="text-blue-700" />
-                  </button>
-                  <button
-                    title="Edit"
-                    onClick={() => openModal('edit', a)}
-                    className="p-2 bg-indigo-200 rounded-full hover:bg-indigo-300 transition"
-                  >
-                    <Edit2 size={18} className="text-indigo-700" />
-                  </button>
-                  <button
-                    title="Markup"
-                    onClick={() => openModal('markup', a)}
-                    className="p-2 bg-yellow-200 rounded-full hover:bg-yellow-300 transition"
-                  >
-                    <Tag size={18} className="text-yellow-700" />
-                  </button>
-                  <Switch
-                    checked={!a.suspended}
-                    onChange={() => toggleStatus(a)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      !a.suspended ? 'bg-green-400' : 'bg-red-300'
-                    }`}
-                  >
-                    <span className="sr-only">
-                      {a.suspended ? 'Unsuspend' : 'Suspend'}
-                    </span>
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        !a.suspended ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </Switch>
-                  <button
-                    title="Delete"
-                    onClick={() => deleteAgency(a)}
-                    className="p-2 bg-red-200 rounded-full hover:bg-red-300 transition"
-                  >
-                    <Trash2 size={18} className="text-red-700" />
-                  </button>
-                  {/* Removed the "Suppliers" button */}
-                </td>
-              </tr>
+      <div className="bg-white rounded-xl shadow-lg lg:p-6">
+        <div className="hidden lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] gap-4 px-4 py-3 bg-blue-100 rounded-t-lg">
+            {headerTitles.map(title => (
+                <div key={title} className="font-semibold text-sm text-blue-700 uppercase tracking-wider">{title}</div>
             ))}
-          </tbody>
-        </table>
-      </div>
+        </div>
+        
+        <div className="space-y-4 lg:space-y-0 p-4 lg:p-0">
+            {agencies.map((a) => (
+                <div key={a.id} className="lg:contents">
+                    <div className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] lg:gap-4 lg:items-center lg:border-b lg:border-gray-100 lg:py-4 lg:px-4 lg:hover:bg-blue-50">
+                        
+                        <div className="flex justify-between items-center lg:block">
+                            <strong className="lg:hidden text-gray-600">Agency</strong>
+                            <span>{a.agencyName}</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center lg:block">
+                            <strong className="lg:hidden text-gray-600">Contact</strong>
+                            <span className="text-right lg:text-left">{a.contactName}</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center lg:block">
+                            <strong className="lg:hidden text-gray-600">Submitted</strong>
+                            <span className="text-right lg:text-left">
+                                {new Date(a.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </span>
+                        </div>
 
+                        <div className="flex justify-between items-center lg:block">
+                             <strong className="lg:hidden text-gray-600">Markup Plan</strong>
+                             <div className="flex justify-end lg:justify-start">
+                                {a.markupPlanName !== '—' ? (
+                                    <div className="flex items-center space-x-2">
+                                    <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                        {a.markupPlanName}
+                                    </span>
+                                    {/* MODIFIED: Added data-tooltip-area for click-outside detection */}
+                                    <div className="group relative" data-tooltip-area={a.id}>
+                                        <Tag
+                                            className="w-5 h-5 text-blue-500 cursor-pointer"
+                                            onClick={() => setActiveTooltip(prev => prev === a.id ? null : a.id)}
+                                        />
+                                        <div
+                                            className={`
+                                                absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
+                                                bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
+                                                ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
+                                                lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
+                                            `}
+                                        >
+                                            <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
+                                                Providers & Markups
+                                            </h4>
+                                            <ul className="space-y-1">
+                                                {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
+                                                    <li key={markup._id} className="flex justify-between items-center space-x-4">
+                                                        <span>{markup.provider?.name ?? 'Default'}</span>
+                                                        <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
+                                                            {markup.value}%
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                            <div
+                                                className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
+                                                            border-x-8 border-x-transparent border-t-8 border-t-gray-800"
+                                            />
+                                        </div>
+                                    </div>
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500">—</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center lg:block">
+                            <strong className="lg:hidden text-gray-600">Status</strong>
+                            <span
+                            className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                a.status === 'pending' ? 'bg-yellow-100 text-yellow-800'
+                                : a.status === 'approved' ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                            >
+                            {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                            </span>
+                        </div>
+
+                        <div className="flex justify-end items-center pt-2 lg:pt-0">
+                            <div className="flex items-center justify-end flex-wrap lg:flex-nowrap gap-2">
+                                <button onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
+                                    <TbCreditCardPay className="w-5 h-5" />
+                                </button>
+                                <button title="View" onClick={() => openModal('view', a)} className="p-2 bg-blue-200 rounded-full hover:bg-blue-300 transition">
+                                    <Eye size={18} className="text-blue-700" />
+                                </button>
+                                <button title="Edit" onClick={() => openModal('edit', a)} className="p-2 bg-indigo-200 rounded-full hover:bg-indigo-300 transition">
+                                    <Edit2 size={18} className="text-indigo-700" />
+                                </button>
+                                <button title="Markup" onClick={() => openModal('markup', a)} className="p-2 bg-yellow-200 rounded-full hover:bg-yellow-300 transition">
+                                    <Tag size={18} className="text-yellow-700" />
+                                </button>
+                                <Switch
+                                    checked={!a.suspended}
+                                    onChange={() => toggleStatus(a)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!a.suspended ? 'bg-green-400' : 'bg-red-300'}`}
+                                >
+                                    <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!a.suspended ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </Switch>
+                                <button title="Delete" onClick={() => deleteAgency(a)} className="p-2 bg-red-200 rounded-full hover:bg-red-300 transition">
+                                    <Trash2 size={18} className="text-red-700" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+      </div>
+        
       <AgencyModal
         mode={modalMode}
         agency={selected}
         formState={formState}
         setFormState={setFormState}
         profileForm={profileForm}
-        setProfileForm={(vals) =>
-          setProfileForm({
-            markupPlanId: vals.markupPlanId,
-            markupPlanName: vals.markupPlanName,
-            markupPercentage: vals.markupPercentage,
-          })
-        }
+        setProfileForm={(vals) => setProfileForm(vals)}
         close={closeModal}
         onSave={saveEdit}
         onSaveProfile={saveProfile}
@@ -540,44 +511,27 @@ export default function AgencyAdminPanel() {
         <AddCreditModal onClose={closeCreditModal} agencyId={agencyId} />
       )}
 
-      {/* The supplier modal itself is still present if `showSupplierModal` is ever set to true by other means.
-          If it's not used anywhere else, you can remove this entire block. */}
       {showSupplierModal && (
-        <div className="fixed inset-0 bg-black/10 bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
             <h3 className="text-xl font-semibold mb-4">Provider List</h3>
-            <ul className="space-y-2">
+            <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {suppliers.map((s) => (
                 <li key={s.id} className="flex items-center justify-between">
                   <span>{s.name}</span>
                   <Switch
                     checked={s.enabled}
-                    onChange={() =>
-                      setSuppliers((prev) =>
-                        prev.map((x) =>
-                          x.id === s.id ? { ...x, enabled: !x.enabled } : x
-                        )
-                      )
-                    }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      s.enabled ? 'bg-green-500' : 'bg-red-300'
-                    }`}
+                    onChange={() => setSuppliers((prev) => prev.map((x) => x.id === s.id ? { ...x, enabled: !x.enabled } : x))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${s.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
                   >
                     <span className="sr-only">Toggle Provider</span>
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        s.enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${s.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </Switch>
                 </li>
               ))}
             </ul>
             <div className="text-right mt-6">
-              <button
-                onClick={() => setShowSupplierModal(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
+              <button onClick={() => setShowSupplierModal(false)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                 Close
               </button>
             </div>

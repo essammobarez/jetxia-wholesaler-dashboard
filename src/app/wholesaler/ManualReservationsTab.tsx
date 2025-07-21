@@ -22,53 +22,14 @@ const ManualReservation: NextPage = () => {
       <Head>
         <title>Manual reservations hotel</title>
       </Head>
+     <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 text-center md:text-left">
+  Manual Reservations
+</h1>
+
       <div className="min-h-screen bg-gray-50 py-10">
         <div className="max-w-7xl mx-auto flex space-x-8 px-4">
           {/* Sidebar */}
-{/* Sidebar */}
-<aside className="w-64 shrink-0">
-  {/* Header */}
-  <div className="bg-gray-200 inline-block px-4 py-2 rounded text-sm font-semibold mb-8">
-    Manual reservations hotel
-  </div>
-
-  {/* Steps with vertical line */}
-  <div className="relative pl-6">
-    {/* vertical connector */}
-    <div className="absolute top-5 bottom-0 left-3 w-px bg-blue-100"></div>
-
-    <ul className="space-y-6">
-      {[
-        'Reseller & Agent',
-        'Destination',
-        'External details',
-        'Travellers',
-        'Price information',
-        'Rate',
-        'Cancellation policy',
-        'Remarks',
-      ].map((item, i) => {
-        const isActive = i === 0;
-        return (
-          <li key={i} className="flex items-center">
-            {/* circle */}
-            <span
-              className={`
-                h-4 w-4 rounded-full flex-shrink-0
-                ${isActive ? 'bg-blue-500' : 'bg-blue-100'}
-                ${isActive ? '' : 'border border-blue-100'}
-              `}
-            />
-            {/* label */}
-            <span className={`ml-3 text-sm ${isActive ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>
-              {item}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  </div>
-</aside>
+         
 
 
           {/* Main */}

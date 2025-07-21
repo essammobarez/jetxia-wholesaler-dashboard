@@ -325,9 +325,9 @@ export default function RegistrationForm() {
           <div className="absolute left-0">
             <img src="/images/bdesk.jpg" alt="Logo" className="h-28 w-auto object-contain" />
           </div>
-          <h2 className="mx-auto text-2xl sm:text-3xl font-bold text-gray-800 text-center">
-            Registration Form
-          </h2>
+ <h2 className="w-full pr-4 text-2xl font-bold text-gray-800 text-right sm:text-3xl md:pr-0 md:text-center">
+    Registration Form
+  </h2>
         </div>
         {error && <div className="mt-4 text-red-600">{error}</div>}
         <form onSubmit={handleSubmit}>
