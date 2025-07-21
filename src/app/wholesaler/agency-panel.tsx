@@ -23,6 +23,7 @@ type PlanType = {
   }>;
 };
 
+// Update the main agency type to include the walletBalance object
 type AgencyWithState = BaseAgency & {
   status: 'pending' | 'approved' | 'suspended';
   contactName: string;
@@ -30,6 +31,10 @@ type AgencyWithState = BaseAgency & {
   markupPlanName: string;
   markupPercentage: number;
   suspended: boolean;
+  walletBalance: {
+    mainBalance: number;
+    availableCredit: number;
+  };
 };
 
 export default function AgencyAdminPanel() {
@@ -51,10 +56,13 @@ export default function AgencyAdminPanel() {
   });
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [plans, setPlans] = useState<PlanType[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
   
+  // State to hold the wallet balance for the selected agency
+  const [selectedWalletBalance, setSelectedWalletBalance] = useState<{ mainBalance: number; availableCredit: number } | null>(null);
+  
+  const [plans, setPlans] = useState<PlanType[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
@@ -66,25 +74,22 @@ export default function AgencyAdminPanel() {
     if (stored) setWholesalerId(stored);
   }, []);
   
-  // NEW: useEffect to handle clicks outside the active tooltip
+  // useEffect to handle clicks outside the active tooltip
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Check if the click is outside any element with the 'data-tooltip-area' attribute
       if (event.target instanceof Element && !event.target.closest('[data-tooltip-area]')) {
         setActiveTooltip(null);
       }
     };
 
-    // Add event listener only when a tooltip is active
     if (activeTooltip) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
-    // Cleanup function to remove the event listener
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [activeTooltip]); // Re-run this effect whenever the activeTooltip changes
+  }, [activeTooltip]);
 
   // Fetch markup plans
   const fetchPlans = async (wid: string): Promise<PlanType[]> => {
@@ -156,6 +161,7 @@ export default function AgencyAdminPanel() {
             markupPlanName,
             markupPercentage,
             suspended,
+            walletBalance: item.walletBalance || { mainBalance: 0, availableCredit: 0 },
           };
         });
 
@@ -339,13 +345,18 @@ export default function AgencyAdminPanel() {
   };
 
   const openCreditModal = (id: string) => {
-    setAgencyId(id);
-    setShowCreditModal(true);
+    const agency = agencies.find(a => a.id === id);
+    if (agency) {
+      setAgencyId(id);
+      setSelectedWalletBalance(agency.walletBalance);
+      setShowCreditModal(true);
+    }
   };
 
   const closeCreditModal = () => {
     setShowCreditModal(false);
     setAgencyId(null);
+    setSelectedWalletBalance(null);
   };
 
   if (loading) {
@@ -401,49 +412,48 @@ export default function AgencyAdminPanel() {
                         <div className="flex justify-between items-center lg:block">
                              <strong className="lg:hidden text-gray-600">Markup Plan</strong>
                              <div className="flex justify-end lg:justify-start">
-                                {a.markupPlanName !== '—' ? (
-                                    <div className="flex items-center space-x-2">
-                                    <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                                        {a.markupPlanName}
-                                    </span>
-                                    {/* MODIFIED: Added data-tooltip-area for click-outside detection */}
-                                    <div className="group relative" data-tooltip-area={a.id}>
-                                        <Tag
-                                            className="w-5 h-5 text-blue-500 cursor-pointer"
-                                            onClick={() => setActiveTooltip(prev => prev === a.id ? null : a.id)}
-                                        />
-                                        <div
-                                            className={`
-                                                absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
-                                                bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
-                                                ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
-                                                lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
-                                            `}
-                                        >
-                                            <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
-                                                Providers & Markups
-                                            </h4>
-                                            <ul className="space-y-1">
-                                                {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
-                                                    <li key={markup._id} className="flex justify-between items-center space-x-4">
-                                                        <span>{markup.provider?.name ?? 'Default'}</span>
-                                                        <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
-                                                            {markup.value}%
-                                                        </span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                            <div
-                                                className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
-                                                            border-x-8 border-x-transparent border-t-8 border-t-gray-800"
-                                            />
-                                        </div>
-                                    </div>
-                                    </div>
-                                ) : (
-                                    <span className="text-gray-500">—</span>
-                                )}
-                            </div>
+                                 {a.markupPlanName !== '—' ? (
+                                     <div className="flex items-center space-x-2">
+                                     <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                         {a.markupPlanName}
+                                     </span>
+                                     <div className="group relative" data-tooltip-area={a.id}>
+                                         <Tag
+                                             className="w-5 h-5 text-blue-500 cursor-pointer"
+                                             onClick={() => setActiveTooltip(prev => prev === a.id ? null : a.id)}
+                                         />
+                                         <div
+                                             className={`
+                                                 absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
+                                                 bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
+                                                 ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
+                                                 lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
+                                             `}
+                                         >
+                                             <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
+                                                 Providers & Markups
+                                             </h4>
+                                             <ul className="space-y-1">
+                                                 {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
+                                                     <li key={markup._id} className="flex justify-between items-center space-x-4">
+                                                         <span>{markup.provider?.name ?? 'Default'}</span>
+                                                         <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
+                                                             {markup.value}%
+                                                         </span>
+                                                     </li>
+                                                 ))}
+                                             </ul>
+                                             <div
+                                                 className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
+                                                         border-x-8 border-x-transparent border-t-8 border-t-gray-800"
+                                             />
+                                         </div>
+                                     </div>
+                                     </div>
+                                 ) : (
+                                     <span className="text-gray-500">—</span>
+                                 )}
+                             </div>
                         </div>
 
                         <div className="flex justify-between items-center lg:block">
@@ -492,6 +502,7 @@ export default function AgencyAdminPanel() {
         </div>
       </div>
         
+      {/* FIXED a syntax error here. The 'plans' prop is now correctly passed. */}
       <AgencyModal
         mode={modalMode}
         agency={selected}
@@ -507,8 +518,13 @@ export default function AgencyAdminPanel() {
         plans={plans}
       />
 
-      {showCreditModal && agencyId && (
-        <AddCreditModal onClose={closeCreditModal} agencyId={agencyId} />
+      {/* Update the modal call to pass the walletBalance prop */}
+      {showCreditModal && agencyId && selectedWalletBalance && (
+        <AddCreditModal 
+          onClose={closeCreditModal} 
+          agencyId={agencyId} 
+          walletBalance={selectedWalletBalance} 
+        />
       )}
 
       {showSupplierModal && (

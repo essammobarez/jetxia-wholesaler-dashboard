@@ -1,6 +1,16 @@
 import { useState } from 'react';
 
-const AddCreditModal = ({ onClose, agencyId }) => {
+// Define the props for the component, including the new walletBalance object
+interface AddCreditModalProps {
+  onClose: () => void;
+  agencyId: string;
+  walletBalance: {
+    mainBalance: number;
+    availableCredit: number;
+  };
+}
+
+const AddCreditModal = ({ onClose, agencyId, walletBalance }: AddCreditModalProps) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'MAIN' | 'CREDIT'>('MAIN');
@@ -139,6 +149,19 @@ const AddCreditModal = ({ onClose, agencyId }) => {
           >
             &times;
           </button>
+        </div>
+
+        {/* Display Wallet Balance Section */}
+        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <h4 className="text-md font-semibold text-gray-800 mb-2">Current Wallet Balance</h4>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Main Balance:</span>
+            <span className="font-bold text-green-600">${walletBalance.mainBalance.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-gray-600">Available Credit:</span>
+            <span className="font-bold text-blue-600">${walletBalance.availableCredit.toFixed(2)}</span>
+          </div>
         </div>
 
         {successMessage ? (
