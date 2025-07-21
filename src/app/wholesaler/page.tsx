@@ -26,6 +26,7 @@ import Metrics from './Metrics';
 import Payment from './Payment';
 import Permissions from './Permissions';
 import Users from './Users';
+import APIManagement from './APIManagement';
 // New imports for Markup submenu
 import CreateMarkup from './CreateMarkup';
 import AssignMarkup from './AssignMarkup';
@@ -71,7 +72,7 @@ const allMenuItems = [
   'Permissions',
   // 'Notifications',
   // 'Integrations',
-  // 'API Management',
+  'API Management',
   // 'Logs',
 ];
 
@@ -645,6 +646,8 @@ export default function WholesalerPage() {
           {/* ✨ Render the new SalesPerson component */}
           {activePage === 'Sales Person' && <SalesPerson />}
 
+           {activePage === 'API Management' && <APIManagement />}
+
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
           {activePage === 'Support Tickets' && <SupportTicketsPage />}
@@ -664,7 +667,7 @@ export default function WholesalerPage() {
             </div>
           )}
 
-          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings', 'Analytics', 'Notifications', 'Integrations', 'API Management', 'Logs'].includes(activePage) && (
+          {['Messages', 'Masters', 'Tools', 'Visa', 'Settings', 'Analytics', 'Notifications', 'Integrations', 'Logs'].includes(activePage) && (
             <div className="card-modern p-12 text-center animate-fade-scale">
               <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
                 <LayoutGrid className="w-10 h-10 text-gray-400" />

@@ -11,13 +11,23 @@ import {
   FaCheckCircle,
   FaClipboard,
   FaUserPlus,
+  FaEnvelope,
+  FaPercentage, // Added percentage icon
 } from "react-icons/fa";
 
+// Interface for the API payload
 interface SalesFormData {
   firstName: string;
   lastName: string;
+  email: string;
   password: string;
   phone: string;
+  commissionRate: number; // Type is number for the API
+}
+
+// Interface for the component's form state
+interface SalesFormState extends Omit<SalesFormData, "commissionRate"> {
+  commissionRate: string; // Type is string for the input field
 }
 
 interface ApiResponse {
@@ -30,11 +40,13 @@ interface ApiResponse {
 }
 
 const CreateSalesForm: React.FC = () => {
-  const [formData, setFormData] = useState<SalesFormData>({
+  const [formData, setFormData] = useState<SalesFormState>({
     firstName: "",
     lastName: "",
+    email: "",
     password: "",
     phone: "",
+    commissionRate: "", // Initialized as string with default value
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -77,6 +89,12 @@ const CreateSalesForm: React.FC = () => {
       setLoading(false);
       return;
     }
+    
+    // Prepare payload for the API, converting commissionRate to a number
+    const apiPayload: SalesFormData = {
+      ...formData,
+      commissionRate: parseFloat(formData.commissionRate) || 0,
+    };
 
     try {
       const res = await fetch(
@@ -87,14 +105,22 @@ const CreateSalesForm: React.FC = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(apiPayload), // Send the correctly typed payload
         }
       );
       const result: ApiResponse = await res.json();
 
       if (res.ok && result.data?.email) {
         setCredentials({ email: result.data.email, password: formData.password });
-        setFormData({ firstName: "", lastName: "", password: "", phone: "" });
+        // Reset form including the new fields
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          password: "",
+          phone: "",
+          commissionRate: "0.05",
+        });
       } else {
         setIsError(true);
         setMessage(result.message || "An unexpected error occurred.");
@@ -183,27 +209,34 @@ const CreateSalesForm: React.FC = () => {
             </div>
           </div>
 
+          <div className="relative">
+            <FaEnvelope className="absolute top-3 left-3 text-gray-400" />
+            <input
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              disabled={loading}
+              required
+              placeholder="Email Address"
+              className="pl-10 w-full py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          
           <div className="relative w-full">
-            <FaPhone className="absolute top-3 left-3 text-gray-400" />
+            <FaPhone className="absolute top-3 left-3 text-gray-400 z-10" />
             <PhoneInput
               country="us"
-              inputProps={{
-                name: "phone",
-                required: true,
-              }}
+              inputProps={{ name: "phone", required: true }}
               value={formData.phone}
               onChange={value => handleChange(value)}
               disabled={loading}
               containerClass="w-full"
-              flagClass="hidden"
               inputStyle={{
-                width: "100%",
-                height: "3rem",
-                paddingLeft: "3rem",
-                borderRadius: "0.5rem",
-                border: "1px solid #D1D5DB",
-                outline: "none",
+                width: "100%", height: "3rem", paddingLeft: "2.75rem",
+                borderRadius: "0.5rem", border: "1px solid #D1D5DB",
               }}
+              buttonStyle={{ borderTopLeftRadius: "0.5rem", borderBottomLeftRadius: "0.5rem" }}
             />
           </div>
 
@@ -217,6 +250,23 @@ const CreateSalesForm: React.FC = () => {
               disabled={loading}
               required
               placeholder="Password"
+              className="pl-10 w-full py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          
+          {/* Commission Rate Input Field */}
+          <div className="relative">
+            <FaPercentage className="absolute top-3 left-3 text-gray-400" />
+            <input
+              name="commissionRate"
+              type="number"
+              value={formData.commissionRate}
+              onChange={handleChange}
+              disabled={loading}
+              required
+              placeholder="Commission Rate (e.g., 0.05)"
+              step="0.01"
+              min="0"
               className="pl-10 w-full py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
           </div>
