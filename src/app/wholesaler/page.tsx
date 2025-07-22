@@ -41,6 +41,11 @@ import SupportTicketsPage from './SupportTicketsPage';
 // ✨ New import for Sales Person
 import SalesPerson from './SalesPerson';
 
+// ✨ New import for Sales Agency
+import SalesAgencyPage from './salesAgency';
+import GetSalesAgencyPage from './GetsalesAgency';
+
+
 // New imports for Reports submenu
 import OutstandingReport from './OutstandingReport';
 import LedgerReport from './LedgerReport';
@@ -95,6 +100,8 @@ export default function WholesalerPage() {
   const [userType, setUserType] = useState<string | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [visibleMenuItems, setVisibleMenuItems] = useState<string[]>(allMenuItems);
+  // ✨ New state for user role
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     // 🔧 DEVELOPMENT BYPASS - Remove this section when authentication is needed
@@ -159,6 +166,10 @@ export default function WholesalerPage() {
         if (payload.permissions && Array.isArray(payload.permissions)) {
             setUserPermissions(payload.permissions);
         }
+        // ✨ New: Decode user role from token
+        if (payload.role) {
+            setUserRole(payload.role);
+        }
 
         // Ensure token is in localStorage and cookie for persistence
         localStorage.setItem('authToken', authToken);
@@ -180,7 +191,15 @@ export default function WholesalerPage() {
   
   // Effect to filter menu items based on permissions
   useEffect(() => {
-    if (userType === 'subuser' && userPermissions.length > 0) {
+    // ✨ New: Check for 'sales' role first to give limited access
+    if (userRole === 'sales') {
+        const salesMenuItems = ['Dashboard', 'Booking', 'Customers', 'Markup'];
+        setVisibleMenuItems(salesMenuItems);
+        // Set a default page if the current one isn't allowed
+        if (salesMenuItems.length > 0 && !salesMenuItems.includes(activePage)) {
+            setActivePage(salesMenuItems[0]);
+        }
+    } else if (userType === 'subuser' && userPermissions.length > 0) {
       // Create a Set of unique menu names from permissions (e.g., "Dashboard:Read" -> "Dashboard")
       const allowedMenuSet = new Set(
         userPermissions.map(p => p.split(':')[0])
@@ -196,7 +215,7 @@ export default function WholesalerPage() {
       // If user is not a subuser or has no permissions, show all menu items
       setVisibleMenuItems(allMenuItems);
     }
-  }, [userType, userPermissions, activePage]);
+  }, [userType, userPermissions, userRole, activePage]);
 
 
   // Sync dark mode class on <html>
@@ -277,7 +296,11 @@ export default function WholesalerPage() {
             </span>
             {/* ✨ Dynamically display user role */}
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {userType === 'subuser' ? 'Subuser Panel' : 'Wholesaler Admin'}
+              {userRole === 'sales' 
+                ? 'Sales Person' 
+                : userType === 'subuser' 
+                ? 'Subuser Panel' 
+                : 'Wholesaler Admin'}
             </span>
           </div>
           <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors duration-300" />
@@ -380,7 +403,10 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Customers' && item === 'Customers' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['CreateAgent', 'ManageAgent', 'ManageRequest'].map((tab) => (
+                  {(userRole === 'sales'
+                    ? ['SalesAgency', 'GetSalesAgency', 'ManageAgent', 'ManageRequest']
+                    : ['CreateAgent', 'ManageAgent', 'ManageRequest']
+                  ).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -396,6 +422,9 @@ export default function WholesalerPage() {
                       <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
                       <span className="text-sm">
                         {tab === 'CreateAgent' && 'Create Agency'}
+                        {/* ✨ New sub-menu for sales role */}
+                        {tab === 'SalesAgency' && 'Sales Agency'}
+                         {tab === 'GetSalesAgency' && 'Get Sales Agency'}
                         {tab === 'ManageAgent' && 'Manage Agency'}
                         {tab === 'ManageRequest' && 'Manage Request'}
                       </span>
@@ -594,6 +623,9 @@ export default function WholesalerPage() {
 
           {activePage === 'Customers' && (
             <div className="animate-fade-scale">
+              {/* ✨ Render SalesAgencyPage for sales role */}
+              {activeTab === 'SalesAgency' && <SalesAgencyPage />}
+                {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
               {activeTab === 'ManageRequest' && <ManageRequestPage />}
