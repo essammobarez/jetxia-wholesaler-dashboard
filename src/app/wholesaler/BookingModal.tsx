@@ -109,21 +109,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
 
   if (!isOpen || !modalRoot) return null;
 
-  // Format helpers
-  const fmtDate = (d: string, opts?: Intl.DateTimeFormatOptions) => {
+  // Format helper for DD/MM/YYYY
+  const formatDate = (d: string) => {
     if (!d) return 'N/A';
     const dt = new Date(d);
     if (isNaN(dt.getTime())) return 'N/A';
-    return dt.toLocaleDateString(undefined, opts);
+
+    const day = String(dt.getDate()).padStart(2, '0');
+    const month = String(dt.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const year = dt.getFullYear();
+    
+    return `${day}/${month}/${year}`;
   };
-  const fmtDateTime = (d: string) => {
-    if (!d) return 'N/A';
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return 'N/A';
-    return dt.toLocaleString(undefined, {
-      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-  };
+
+  // Aliases to match existing function calls in the JSX
+  const fmtDate = formatDate;
+  const fmtDateTime = formatDate;
 
   // Guest name
   const passengers = r.passengers || [];

@@ -148,6 +148,15 @@ interface PaymentRecord {
   sequenceNumber: number;
 }
 
+// Interface for the new summary data from reports/payment-report
+interface SummaryData {
+  totalAmount: number;
+  completedAmount: number;
+  pendingAmount: number;
+  cancelledAmount: number;
+}
+
+
 // ====================================================================
 // Helper function to convert number to words (Robust Version)
 // ====================================================================
@@ -255,6 +264,10 @@ const numberToWords = (num: number): string => {
 const PaymentReport: React.FC = () => {
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<PaymentRecord[]>([]);
+  
+  // State for the new summary data
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [agencies, setAgencies] = useState<
@@ -734,29 +747,72 @@ const PaymentReport: React.FC = () => {
     });
   };
 
-  // Fetch real data from API
+  // Fetch data from both APIs
   useEffect(() => {
-    const fetchPaymentData = async () => {
+    // New function to fetch summary data
+    const fetchPaymentSummary = async (): Promise<SummaryData> => {
+      const token =
+        document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
+        localStorage.getItem("authToken");
+
+      if (!token) {
+        throw new Error("Authorization failed. Please log in again.");
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/reports/payment-report`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Summary API request failed: ${response.statusText}`);
+      }
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || "An unknown API error occurred while fetching summary.");
+      }
+      return result.data;
+    };
+
+    // Original function to fetch detailed records
+    const fetchDetailedRecords = async (id: string): Promise<ApiBookingResponse[]> => {
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
+      const response = await fetch(
+        `${apiUrl}booking/wholesaler/${id}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const apiData: ApiBookingResponse[] = await response.json();
+      if (!Array.isArray(apiData)) {
+        throw new Error("Invalid API response format for detailed records");
+      }
+      return apiData;
+    };
+
+
+    const fetchAllData = async () => {
       if (!wholesalerId) {
         setLoading(false);
         return;
       }
-
+      
+      setLoading(true);
+      setError(null);
+      
       try {
-        setLoading(true);
-        setError(null);
-        const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
-        const response = await fetch(
-          `${apiUrl}booking/wholesaler/${wholesalerId}`
-        );
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const apiData: ApiBookingResponse[] = await response.json();
-        if (!Array.isArray(apiData)) {
-          throw new Error("Invalid API response format");
-        }
-        const validBookings = apiData.filter(
+        // Fetch both summary and detailed data concurrently
+        const [summary, detailedData] = await Promise.all([
+          fetchPaymentSummary(),
+          fetchDetailedRecords(wholesalerId),
+        ]);
+
+        // Set summary data state
+        setSummaryData(summary);
+        
+        // Process and set detailed records state (existing logic)
+        const validBookings = detailedData.filter(
           (booking) =>
             booking &&
             booking._id &&
@@ -765,6 +821,7 @@ const PaymentReport: React.FC = () => {
             booking.agency._id &&
             booking.agency.agencyName
         );
+
         if (validBookings.length === 0) {
           setPaymentRecords([]);
           setFilteredRecords([]);
@@ -786,18 +843,21 @@ const PaymentReport: React.FC = () => {
           setPaymentRecords(transformedRecords);
           setFilteredRecords(transformedRecords);
         }
+
       } catch (error) {
         console.error("Error fetching payment data:", error);
         setError(
           error instanceof Error ? error.message : "Failed to fetch data"
         );
+        setSummaryData(null);
         setPaymentRecords([]);
         setFilteredRecords([]);
       } finally {
         setLoading(false);
       }
     };
-    fetchPaymentData();
+
+    fetchAllData();
   }, [wholesalerId]);
 
   // Filter records based on search and filters
@@ -898,20 +958,6 @@ const PaymentReport: React.FC = () => {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
   };
-
-  const totalAmount = filteredRecords.reduce(
-    (sum, record) => sum + record.amount,
-    0
-  );
-  const completedAmount = filteredRecords
-    .filter((r) => r.paymentStatus === "completed")
-    .reduce((sum, record) => sum + record.amount, 0);
-  const pendingAmount = filteredRecords
-    .filter((r) => r.paymentStatus === "pending")
-    .reduce((sum, record) => sum + record.amount, 0);
-  const failedAmount = filteredRecords
-    .filter((r) => r.paymentStatus === "failed")
-    .reduce((sum, record) => sum + record.amount, 0);
 
   const exportToCSV = () => {
     const headers = [
@@ -1098,7 +1144,7 @@ const PaymentReport: React.FC = () => {
           </button>
         </div>
 
-        {/* Summary Cards */}
+        {/* Summary Cards - UPDATED TO USE NEW API DATA */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
             <div className="flex items-center space-x-3">
@@ -1110,7 +1156,7 @@ const PaymentReport: React.FC = () => {
                   Total Amount
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  ${totalAmount.toLocaleString()}
+                  ${(summaryData?.totalAmount ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -1125,7 +1171,7 @@ const PaymentReport: React.FC = () => {
                   Completed
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  ${completedAmount.toLocaleString()}
+                  ${(summaryData?.completedAmount ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -1140,7 +1186,7 @@ const PaymentReport: React.FC = () => {
                   Pending
                 </p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  ${pendingAmount.toLocaleString()}
+                  ${(summaryData?.pendingAmount ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -1152,10 +1198,10 @@ const PaymentReport: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Failed
+                  Cancelled Amount
                 </p>
                 <p className="text-2xl font-bold text-red-600">
-                  ${failedAmount.toLocaleString()}
+                  ${(summaryData?.cancelledAmount ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -1234,7 +1280,7 @@ const PaymentReport: React.FC = () => {
           </div>
           <div className="mt-4 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-        
+      
             </div>
             <button
               onClick={() => {

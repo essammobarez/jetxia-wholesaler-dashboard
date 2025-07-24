@@ -54,11 +54,12 @@ interface AgencyStatementData {
   businessCurrency?: string;
 }
 
+// Updated interface to match API response fields
 interface AgencyData {
-  _id: string;
+  _id: string; // Corresponds to agencyId
   agencyName: string;
   totalOutstanding: number;
-  itemCount: number;
+  itemCount: number; // Corresponds to totalItems
   contactPerson?: string;
   email?: string;
   phone?: string;
@@ -81,9 +82,9 @@ const AgencyOutstandingStatement: React.FC = () => {
   const [selectedAgency, setSelectedAgency] = useState<string>("");
   const [statementData, setStatementData] =
     useState<AgencyStatementData | null>(null);
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [apiData, setApiData] = useState<any[]>([]);
+  const [apiData, setApiData] = useState<any[]>([]); // To store detailed booking items for statement generation
   const [agenciesData, setAgenciesData] = useState<AgencyData[]>([]);
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
@@ -93,70 +94,101 @@ const AgencyOutstandingStatement: React.FC = () => {
   }, []);
 
   const loadAgencyData = async (isRetry = false) => {
-    if (!wholesalerId) {
-      if (!isRetry) setLoading(false);
-      return;
+    if (!wholesalerId && !isRetry) {
+        setLoading(false);
+        return;
     }
 
     setLoading(true);
     setError(null);
-    try {
-      const [bookingData, agencyData] = await Promise.all([
-        fetchRealBookingData(wholesalerId),
-        fetchAgencyDataFromAPI(wholesalerId),
-      ]);
 
+    // 1. Get the authorization token
+    const token =
+      document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
+      localStorage.getItem("authToken");
+
+    if (!token) {
+      setError("Authorization failed. Please log in again.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 2. Fetch all necessary data in parallel
+      const agencyOutstandingPromise = fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/reports/agency-outstanding`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const [agencyOutstandingResponse, bookingData, agencyDetails] =
+        await Promise.all([
+          agencyOutstandingPromise,
+          fetchRealBookingData(wholesalerId), // Kept for generating detailed statement items
+          fetchAgencyDataFromAPI(wholesalerId), // Kept for enriching agency contact details
+        ]);
+
+      // Handle response from the new endpoint
+      if (!agencyOutstandingResponse.ok) {
+        throw new Error(`HTTP error! status: ${agencyOutstandingResponse.status}`);
+      }
+      const summaryData = await agencyOutstandingResponse.json();
+      if (!summaryData.success) {
+        throw new Error(
+          summaryData.message || "Failed to fetch agency outstanding summary"
+        );
+      }
+
+      // Store detailed booking data for later use in generateStatement
       setApiData(bookingData);
 
-      const allOutstanding = transformApiDataToOutstandingItems(bookingData);
-      const agencyMap = new Map<string, AgencyData>();
+      // Create a map for quick lookup of agency details
+      const agencyDetailsMap = new Map(
+        agencyDetails.map((ad: any) => [ad._id, ad])
+      );
 
-      allOutstanding.forEach((item) => {
-        const agencyId = item.agencyId;
-        const agencyName = item.agencyName;
-
-        if (!agencyMap.has(agencyId)) {
-          agencyMap.set(agencyId, {
-            _id: agencyId,
-            agencyName: agencyName,
-            totalOutstanding: 0,
-            itemCount: 0,
-          });
-        }
-
-        const agency = agencyMap.get(agencyId)!;
-        agency.totalOutstanding += item.amount;
-        agency.itemCount += 1;
+      // 3. Combine summary data with detailed contact info
+      const combinedAgencies = summaryData.data.map((summary: any) => {
+        const details = agencyDetailsMap.get(summary.agencyId);
+        return {
+          _id: summary.agencyId,
+          agencyName: summary.agencyName,
+          totalOutstanding: summary.totalOutstanding,
+          itemCount: summary.totalItems,
+          // Enrich with details if available
+          contactPerson: details
+            ? `${details.title || ""} ${details.firstName || ""} ${
+                details.lastName || ""
+              }`.trim()
+            : "N/A",
+          email: details ? details.emailId || details.email || "N/A" : "N/A",
+          phone: details
+            ? details.mobileNumber || details.phoneNumber || "N/A"
+            : "N/A",
+          address: details
+            ? `${details.address || ""}, ${details.city || ""}, ${
+                details.country || ""
+              } ${details.postCode || ""}`.trim()
+            : "N/A",
+          website: details?.website,
+          vat: details?.vat,
+          businessCurrency: details?.businessCurrency,
+        };
       });
 
-      agencyData.forEach((apiAgency: any) => {
-        const existingAgency = agencyMap.get(apiAgency._id);
-        if (existingAgency) {
-          existingAgency.contactPerson = `${apiAgency.title || ""} ${
-            apiAgency.firstName || ""
-          } ${apiAgency.lastName || ""}`.trim();
-          existingAgency.email = apiAgency.emailId || apiAgency.email || "N/A";
-          existingAgency.phone =
-            apiAgency.mobileNumber || apiAgency.phoneNumber || "N/A";
-          existingAgency.address = `${apiAgency.address || ""}, ${
-            apiAgency.city || ""
-          }, ${apiAgency.country || ""} ${apiAgency.postCode || ""}`.trim();
-          existingAgency.website = apiAgency.website;
-          existingAgency.vat = apiAgency.vat;
-          existingAgency.businessCurrency = apiAgency.businessCurrency;
-        }
-      });
-
-      const agencies = Array.from(agencyMap.values());
-      setAgenciesData(agencies);
+      setAgenciesData(combinedAgencies);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      setError(`Failed to fetch agency data: ${errorMessage}`);
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setError(`Failed to fetch data: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     loadAgencyData();
@@ -173,10 +205,11 @@ const AgencyOutstandingStatement: React.FC = () => {
 
     if (apiData.length === 0) {
       setLoading(false);
-      setError("No data available. Please refresh.");
+      setError("No booking data available to generate statement. Please refresh.");
       return;
     }
 
+    // This part remains the same, using the detailed data fetched earlier
     const allOutstanding = transformApiDataToOutstandingItems(apiData);
     const agencyOutstanding = allOutstanding.filter(
       (item) => item.agencyId === agencyId
@@ -215,13 +248,11 @@ const AgencyOutstandingStatement: React.FC = () => {
 
   const exportToPDF = () => {
     if (!statementData) return;
-    // Your existing export logic can be placed here
     alert("Export functionality placeholder.");
   };
 
   const printStatement = () => {
     if (!statementData) return;
-    // Your existing print logic can be placed here
     alert("Print functionality placeholder.");
   };
 

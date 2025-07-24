@@ -1,9 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
-import { Eye, Edit2, Trash2, Tag } from 'lucide-react';
+import { Eye, Edit2, Trash2, Tag, UserPlus } from 'lucide-react'; // Added UserPlus icon
 import { Registration, Agency as BaseAgency, AgencyModal } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
+import AssignModal from './AssignModal'; // Import the new modal component
 import { TbCreditCardPay } from 'react-icons/tb';
 
 type Supplier = { id: string; name: string; enabled: boolean };
@@ -58,10 +59,15 @@ export default function AgencyAdminPanel() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
-  
+
+  // State for the new Assign Modal
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedAgencyIdForAssign, setSelectedAgencyIdForAssign] = useState<string | null>(null);
+  const [selectedAgencyNameForAssign, setSelectedAgencyNameForAssign] = useState<string | null>(null); // Added state for name
+
   // State to hold the wallet balance for the selected agency
   const [selectedWalletBalance, setSelectedWalletBalance] = useState<{ mainBalance: number; availableCredit: number } | null>(null);
-  
+
   const [plans, setPlans] = useState<PlanType[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
@@ -73,7 +79,7 @@ export default function AgencyAdminPanel() {
     const stored = localStorage.getItem('wholesalerId');
     if (stored) setWholesalerId(stored);
   }, []);
-  
+
   // useEffect to handle clicks outside the active tooltip
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -254,7 +260,7 @@ export default function AgencyAdminPanel() {
       if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
     }
   };
-  
+
   const saveEdit = async () => {
     if (!selected) return;
     try {
@@ -359,6 +365,19 @@ export default function AgencyAdminPanel() {
     setSelectedWalletBalance(null);
   };
 
+  // Handlers for the new Assign modal
+  const openAssignModal = (id: string, name: string) => {
+    setSelectedAgencyIdForAssign(id);
+    setSelectedAgencyNameForAssign(name); // Set the name
+    setIsAssignModalOpen(true);
+  };
+
+  const closeAssignModal = () => {
+    setIsAssignModalOpen(false);
+    setSelectedAgencyIdForAssign(null);
+    setSelectedAgencyNameForAssign(null); // Reset the name
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -386,22 +405,22 @@ export default function AgencyAdminPanel() {
                 <div key={title} className="font-semibold text-sm text-blue-700 uppercase tracking-wider">{title}</div>
             ))}
         </div>
-        
+
         <div className="space-y-4 lg:space-y-0 p-4 lg:p-0">
             {agencies.map((a) => (
                 <div key={a.id} className="lg:contents">
                     <div className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] lg:gap-4 lg:items-center lg:border-b lg:border-gray-100 lg:py-4 lg:px-4 lg:hover:bg-blue-50">
-                        
+
                         <div className="flex justify-between items-center lg:block">
                             <strong className="lg:hidden text-gray-600">Agency</strong>
                             <span>{a.agencyName}</span>
                         </div>
-                        
+
                         <div className="flex justify-between items-center lg:block">
                             <strong className="lg:hidden text-gray-600">Contact</strong>
                             <span className="text-right lg:text-left">{a.contactName}</span>
                         </div>
-                        
+
                         <div className="flex justify-between items-center lg:block">
                             <strong className="lg:hidden text-gray-600">Submitted</strong>
                             <span className="text-right lg:text-left">
@@ -471,7 +490,7 @@ export default function AgencyAdminPanel() {
 
                         <div className="flex justify-end items-center pt-2 lg:pt-0">
                             <div className="flex items-center justify-end flex-wrap lg:flex-nowrap gap-2">
-                                <button onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
+                                <button title="Add Credit" onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
                                     <TbCreditCardPay className="w-5 h-5" />
                                 </button>
                                 <button title="View" onClick={() => openModal('view', a)} className="p-2 bg-blue-200 rounded-full hover:bg-blue-300 transition">
@@ -482,6 +501,10 @@ export default function AgencyAdminPanel() {
                                 </button>
                                 <button title="Markup" onClick={() => openModal('markup', a)} className="p-2 bg-yellow-200 rounded-full hover:bg-yellow-300 transition">
                                     <Tag size={18} className="text-yellow-700" />
+                                </button>
+                                {/* UPDATED ASSIGN BUTTON ONCLICK */}
+                                <button title="Assign" onClick={() => openAssignModal(a.id, a.agencyName)} className="p-2 bg-purple-200 rounded-full hover:bg-purple-300 transition">
+                                    <UserPlus size={18} className="text-purple-700" />
                                 </button>
                                 <Switch
                                     checked={!a.suspended}
@@ -501,8 +524,7 @@ export default function AgencyAdminPanel() {
             ))}
         </div>
       </div>
-        
-      {/* FIXED a syntax error here. The 'plans' prop is now correctly passed. */}
+
       <AgencyModal
         mode={modalMode}
         agency={selected}
@@ -518,14 +540,21 @@ export default function AgencyAdminPanel() {
         plans={plans}
       />
 
-      {/* Update the modal call to pass the walletBalance prop */}
       {showCreditModal && agencyId && selectedWalletBalance && (
-        <AddCreditModal 
-          onClose={closeCreditModal} 
-          agencyId={agencyId} 
-          walletBalance={selectedWalletBalance} 
+        <AddCreditModal
+          onClose={closeCreditModal}
+          agencyId={agencyId}
+          walletBalance={selectedWalletBalance}
         />
       )}
+
+      {/* RENDER THE NEW ASSIGN MODAL WITH NAME PROP */}
+      <AssignModal
+        isOpen={isAssignModalOpen}
+        onClose={closeAssignModal}
+        agencyId={selectedAgencyIdForAssign}
+        agencyName={selectedAgencyNameForAssign}
+      />
 
       {showSupplierModal && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">

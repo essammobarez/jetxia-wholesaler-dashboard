@@ -63,7 +63,7 @@ const CancellationConfirmationModal: React.FC<CancellationConfirmationModalProps
             <li><span className="font-semibold">Check-in:</span> {booking.checkIn}</li>
             <li><span className="font-semibold">Check-out:</span> {booking.checkOut}</li>
             {booking.cancelUntil && booking.paymentStatus !== 'Canceled' && (
-              <li><span className="font-semibold text-green-600 dark:text-green-400">Free Cancellation Until:</span> {format(new Date(booking.cancelUntil), 'MMM dd,yyyy')}</li>
+              <li><span className="font-semibold text-green-600 dark:text-green-400">Free Cancellation Until:</span> {format(new Date(booking.cancelUntil), 'dd/MM/yyyy')}</li>
             )}
             {/* {booking.paymentStatus === 'PR' && (
               <li className="text-purple-600 dark:text-purple-400"><span className="font-semibold">Payment Status:</span> Awaiting Payment</li>

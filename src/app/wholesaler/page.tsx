@@ -27,6 +27,7 @@ import Payment from './Payment';
 import Permissions from './Permissions';
 import Users from './Users';
 import APIManagement from './APIManagement';
+import MappedHotels from './MappedHotels';
 // New imports for Markup submenu
 import CreateMarkup from './CreateMarkup';
 import AssignMarkup from './AssignMarkup';
@@ -77,7 +78,9 @@ const allMenuItems = [
   'Permissions',
   // 'Notifications',
   // 'Integrations',
+  'Mapped Hotels',
   'API Management',
+
   // 'Logs',
 ];
 
@@ -679,6 +682,7 @@ export default function WholesalerPage() {
           {activePage === 'Sales Person' && <SalesPerson />}
 
            {activePage === 'API Management' && <APIManagement />}
+           {activePage === 'Mapped Hotels' && <MappedHotels />}
 
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}

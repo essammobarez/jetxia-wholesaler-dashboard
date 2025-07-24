@@ -3,22 +3,20 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "**",
+        protocol: "http", // Update to "http" instead of "https"
+        hostname: "cdn.smyrooms.com", // Specific hostname
+      },
+      {
+        protocol: "https", // Optional: Use for other domains that require HTTPS
+        hostname: "**", // Wildcard for other domains if needed
       },
     ],
   },
   reactStrictMode: true,
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
     ignoreBuildErrors: true,
   },
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
 };

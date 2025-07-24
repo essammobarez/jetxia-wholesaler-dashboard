@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { BarChart2, TrendingUp, TrendingDown, DollarSign, Users, Activity, Target } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -11,81 +12,164 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
-  Brush,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 
+// Define interfaces for our data structures for type safety
+interface KpiData {
+  title: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down' | 'neutral';
+  icon: React.ElementType;
+  gradient: string;
+  description: string;
+}
+
+interface RevenueData {
+  month: string;
+  revenue: number;
+  // Target is not in the API, so we can make it optional or remove it
+  // For this example, let's remove it to match the API data.
+  cumulative: number;
+}
+
 export default function Metrics() {
-  const darkMode = document.documentElement.classList.contains('dark');
+  // State for dark mode detection
+  const [darkMode, setDarkMode] = useState(false);
+  
+  // State for API data
+  const [kpiData, setKpiData] = useState<KpiData[]>([]);
+  const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
+  
+  // State for loading and error handling
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const revenueData = [
-    { month: 'Jan', revenue: 4000, target: 4500 },
-    { month: 'Feb', revenue: 3500, target: 4200 },
-    { month: 'Mar', revenue: 5000, target: 4800 },
-    { month: 'Apr', revenue: 4500, target: 5000 },
-    { month: 'May', revenue: 6000, target: 5500 },
-    { month: 'Jun', revenue: 5500, target: 6000 },
-    { month: 'Jul', revenue: 6500, target: 6200 },
-    { month: 'Aug', revenue: 7000, target: 6800 },
-    { month: 'Sep', revenue: 6200, target: 6500 },
-    { month: 'Oct', revenue: 5800, target: 6000 },
-    { month: 'Nov', revenue: 6300, target: 6200 },
-    { month: 'Dec', revenue: 7200, target: 7000 },
-  ].reduce<{ month: string; revenue: number; target: number; cumulative: number }[]>((acc, cur) => {
-    const prev = acc.length ? acc[acc.length - 1].cumulative : 0;
-    acc.push({ ...cur, cumulative: prev + cur.revenue });
-    return acc;
-  }, []);
+  useEffect(() => {
+    // Check for dark mode on mount
+    setDarkMode(document.documentElement.classList.contains('dark'));
 
-  const conversionData = [
-    { name: 'Direct Bookings', value: 45, color: '#3b82f6' },
-    { name: 'Agent Bookings', value: 30, color: '#8b5cf6' },
-    { name: 'Online Platform', value: 15, color: '#06b6d4' },
-    { name: 'Other Sources', value: 10, color: '#10b981' },
-  ];
+    // Function to fetch data from APIs
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
 
-  const kpiData = [
-    {
-      title: 'Total Revenue',
-      value: '$124,580',
-      change: '+12.5%',
-      trend: 'up',
-      icon: DollarSign,
-      gradient: 'gradient-success',
-      description: 'Monthly revenue growth'
-    },
-    {
-      title: 'Active Customers',
-      value: '2,847',
-      change: '+8.2%',
-      trend: 'up',
-      icon: Users,
-      gradient: 'gradient-blue',
-      description: 'Engaged customer base'
-    },
-    {
-      title: 'Conversion Rate',
-      value: '3.24%',
-      change: '-0.3%',
-      trend: 'down',
-      icon: Target,
-      gradient: 'gradient-purple',
-      description: 'Visitor to customer ratio'
-    },
-    {
-      title: 'Avg. Order Value',
-      value: '$186',
-      change: '+15.7%',
-      trend: 'up',
-      icon: Activity,
-      gradient: 'gradient-pink',
-      description: 'Average transaction amount'
-    },
-  ];
+      try {
+        // --- Token Retrieval ---
+        const token =
+          document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
+          localStorage.getItem("authToken");
+
+        if (!token) {
+          throw new Error("Authorization failed. Please log in again.");
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+
+        // --- API Calls ---
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || ''; // Fallback to empty string if not set
+        const revenuePromise = fetch(`${baseUrl}/metrics/revenue`, { headers });
+        const monthlyRevenuePromise = fetch(`${baseUrl}/metrics/revenue-by-month`, { headers });
+
+        const [revenueRes, monthlyRevenueRes] = await Promise.all([revenuePromise, monthlyRevenuePromise]);
+
+        if (!revenueRes.ok || !monthlyRevenueRes.ok) {
+          throw new Error('Failed to fetch metrics data.');
+        }
+
+        const revenueJson = await revenueRes.json();
+        const monthlyRevenueJson = await monthlyRevenueRes.json();
+
+        // --- Process KPI Data ---
+        const totalRevenue = revenueJson.data?.totalRevenue || 0;
+        const avgOrderValue = revenueJson.data?.averageOrderValue || 0;
+
+        const initialKpiData: KpiData[] = [
+          {
+            title: 'Total Revenue',
+            value: `$${totalRevenue.toFixed(2)}`,
+            change: '', // API doesn't provide change, so it's left empty
+            trend: 'neutral',
+            icon: DollarSign,
+            gradient: 'gradient-success',
+            description: 'Total revenue generated'
+          },
+          {
+            title: 'Active Customers',
+            value: 'No data',
+            change: '',
+            trend: 'neutral',
+            icon: Users,
+            gradient: 'gradient-blue',
+            description: 'Data not available'
+          },
+          {
+            title: 'Conversion Rate',
+            value: 'No data',
+            change: '',
+            trend: 'neutral',
+            icon: Target,
+            gradient: 'gradient-purple',
+            description: 'Data not available'
+          },
+          {
+            title: 'Avg. Order Value',
+            value: `$${avgOrderValue.toFixed(2)}`,
+            change: '', // API doesn't provide change, so it's left empty
+            trend: 'neutral',
+            icon: Activity,
+            gradient: 'gradient-pink',
+            description: 'Average transaction amount'
+          },
+        ];
+        setKpiData(initialKpiData);
+
+        // --- Process Chart Data ---
+        let cumulativeRevenue = 0;
+        const formattedRevenueData = monthlyRevenueJson.data.map((item: { month: string; totalRevenue: number }) => {
+          cumulativeRevenue += item.totalRevenue;
+          return {
+            month: item.month.substring(0, 3), // e.g., "January" -> "Jan"
+            revenue: item.totalRevenue,
+            cumulative: cumulativeRevenue
+          };
+        });
+        setRevenueData(formattedRevenueData);
+
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred.');
+        // Set empty data on error to clear the view
+        setKpiData([]);
+        setRevenueData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []); // Empty dependency array means this effect runs once on mount
+
+  // Render a loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Render an error state
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen text-center">
+        <h2 className="text-2xl font-semibold text-red-600 mb-4">An Error Occurred</h2>
+        <p className="text-gray-700 dark:text-gray-300">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-scale">
@@ -118,23 +202,22 @@ export default function Metrics() {
             className="card-modern p-6 relative overflow-hidden animate-slide-up"
             style={{ animationDelay: `${index * 0.1}s` }}
           >
-            {/* Background Pattern */}
             <div className={`absolute top-0 right-0 w-20 h-20 ${gradient} opacity-10 rounded-full -mr-6 -mt-6`}></div>
             
-            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className={`p-3 ${gradient} bg-opacity-20 rounded-xl`}>
                 <Icon className="w-6 h-6 text-white" />
               </div>
-              <div className={`flex items-center space-x-1 text-sm font-medium ${
-                trend === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}>
-                {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                <span>{change}</span>
-              </div>
+              {change && (
+                <div className={`flex items-center space-x-1 text-sm font-medium ${
+                  trend === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  <span>{change}</span>
+                </div>
+              )}
             </div>
             
-            {/* Content */}
             <div className="space-y-2">
               <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{value}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{title}</p>
@@ -147,14 +230,14 @@ export default function Metrics() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Revenue Chart */}
-        <div className="lg:col-span-2 card-modern p-6 animate-slide-right">
+        <div className="lg:col-span-3 card-modern p-6 animate-slide-right">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
                 <BarChart2 className="mr-3 text-blue-600" />
                 Revenue Analytics
-      </h2>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Monthly performance vs targets</p>
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Monthly performance overview</p>
             </div>
             <div className="flex space-x-2">
               <button className="px-3 py-1 text-sm bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 rounded-lg">Monthly</button>
@@ -164,30 +247,26 @@ export default function Metrics() {
           
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart data={revenueData} margin={{ top: 20, right: 40, left: 20, bottom: 20 }}>
-          <defs>
+              <defs>
                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-            </linearGradient>
-                <linearGradient id="targetGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
-            </linearGradient>
-          </defs>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} opacity={0.5} />
               <XAxis 
                 dataKey="month" 
                 stroke={darkMode ? '#9ca3af' : '#6b7280'} 
                 fontSize={12}
                 tickLine={false}
-          />
-          <YAxis
+              />
+              <YAxis
                 stroke={darkMode ? '#9ca3af' : '#6b7280'}
                 fontSize={12}
                 tickLine={false}
-            tickFormatter={(v) => `$${v / 1000}k`}
-          />
-          <Tooltip
+                tickFormatter={(v) => `$${v >= 1000 ? `${v / 1000}k` : v}`}
+              />
+              <Tooltip
                 contentStyle={{ 
                   background: darkMode ? '#1f2937' : '#ffffff', 
                   border: 'none',
@@ -195,6 +274,7 @@ export default function Metrics() {
                   boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
                 }}
                 labelStyle={{ color: darkMode ? '#f3f4f6' : '#111827', fontWeight: 'bold' }}
+                formatter={(value: number) => `$${value.toFixed(2)}`}
               />
               <Legend 
                 verticalAlign="top" 
@@ -205,149 +285,21 @@ export default function Metrics() {
               <Bar 
                 dataKey="revenue" 
                 fill="url(#revenueGradient)" 
-                name="Actual Revenue" 
+                name="Monthly Revenue" 
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
               />
-              <Bar 
-                dataKey="target" 
-                fill="url(#targetGradient)" 
-                name="Target Revenue" 
-                radius={[4, 4, 0, 0]}
-                maxBarSize={40}
-                opacity={0.7}
-              />
-          <Line
-            type="monotone"
-            dataKey="cumulative"
+              <Line
+                type="monotone"
+                dataKey="cumulative"
                 stroke="#f59e0b"
-            strokeWidth={3}
+                strokeWidth={3}
                 dot={{ r: 5, fill: '#f59e0b' }}
                 activeDot={{ r: 7, stroke: '#f59e0b', strokeWidth: 2, fill: '#ffffff' }}
-            name="Cumulative"
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-        </div>
-
-        {/* Conversion Pie Chart */}
-        <div className="card-modern p-6 animate-slide-right" style={{ animationDelay: '0.2s' }}>
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-              Revenue Sources
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Distribution breakdown</p>
-          </div>
-          
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={conversionData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {conversionData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: darkMode ? '#1f2937' : '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                }}
+                name="Cumulative Revenue"
               />
-            </PieChart>
+            </ComposedChart>
           </ResponsiveContainer>
-          
-          <div className="space-y-3 mt-4">
-            {conversionData.map((item, index) => (
-              <div key={item.name} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: item.color }}
-                  ></div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{item.name}</span>
-                </div>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{item.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Performance Indicators */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* System Performance */}
-        <div className="card-modern p-6 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
-            <Activity className="w-5 h-5 mr-2 text-green-600" />
-            System Performance
-          </h3>
-          <div className="space-y-4">
-            {[
-              { label: 'Server Uptime', value: '99.9%', status: 'excellent', progress: 99.9 },
-              { label: 'API Response Time', value: '125ms', status: 'excellent', progress: 95 },
-              { label: 'Database Performance', value: '98.5%', status: 'good', progress: 98.5 },
-              { label: 'Cache Hit Rate', value: '94.2%', status: 'good', progress: 94.2 },
-            ].map(({ label, value, status, progress }, index) => (
-              <div key={label} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{value}</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-1000 ease-out ${
-                      status === 'excellent' ? 'bg-green-500' : 
-                      status === 'good' ? 'bg-blue-500' : 'bg-yellow-500'
-                    }`}
-                    style={{ 
-                      width: `${progress}%`,
-                      animationDelay: `${index * 0.2}s`
-                    }}
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Growth Metrics */}
-        <div className="card-modern p-6 animate-slide-up" style={{ animationDelay: '0.6s' }}>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
-            <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
-            Growth Metrics
-          </h3>
-          <div className="space-y-6">
-            {[
-              { metric: 'Monthly Recurring Revenue', current: '$45,230', growth: '+18.5%', trend: 'up' },
-              { metric: 'Customer Acquisition Cost', current: '$24', growth: '-12.3%', trend: 'down' },
-              { metric: 'Customer Lifetime Value', current: '$1,250', growth: '+8.7%', trend: 'up' },
-              { metric: 'Churn Rate', current: '2.1%', growth: '-0.8%', trend: 'down' },
-            ].map(({ metric, current, growth, trend }) => (
-              <div key={metric} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{metric}</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{current}</p>
-                </div>
-                <div className={`flex items-center space-x-1 text-sm font-medium ${
-                  (trend === 'up' && metric !== 'Churn Rate') || (trend === 'down' && metric === 'Churn Rate') || (trend === 'down' && metric === 'Customer Acquisition Cost')
-                    ? 'text-green-600 dark:text-green-400' 
-                    : 'text-red-600 dark:text-red-400'
-                }`}>
-                  {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  <span>{growth}</span>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>

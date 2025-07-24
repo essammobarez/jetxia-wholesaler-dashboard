@@ -12,114 +12,43 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-// API Response Interfaces
-interface ApiBookingResponse {
-  modificationDetails?: {
-    modifiedAt: string;
-  };
+// API Response Interface for ledger/report
+interface ApiLedgerEntry {
   _id: string;
-  bookingId: string;
-  sequenceNumber: number;
-  reservationId: number;
-  bookingData: {
-    initialResponse?: {
-      id: number;
-      clientRef: string;
-      type: string;
-      status: string;
-      reference: {
-        external: string;
-        confirmation: string | null;
-      };
-      price: {
-        selling: {
-          value: number;
-          currency: string;
-        };
-      };
-      added: {
-        time: string;
-        user: {
-          module: string;
-          id: number;
-          username: string;
-          name: string;
-          email: string;
-          telephone: string;
-        };
-        module: string;
-      };
-    };
-    detailedInfo?: {
-      id: number;
-      clientRef: string;
-      service: {
-        type: string;
-        status: string;
-        prices: {
-          total: {
-            selling: {
-              value: number;
-              currency: string;
-            };
-          };
-        };
-      };
-      hotel?: {
-        name: string;
-      };
-      added: {
-        time: string;
-      };
-    };
-  };
-  provider: {
-    _id: string;
-    name: string;
-  };
-  agency: {
-    _id: string;
-    agencyName: string;
-  };
+  agency: string; // Agency ID
   wholesaler: string;
-  status: string;
-  bookingType: string;
-  paymentMethod: string | null;
-  priceDetails?: {
-    price: {
-      value: number;
-      currency: string;
-    };
-    originalPrice: {
-      value: number;
-      currency: string;
-    };
-    markupApplied?: {
-      type: string;
-      value: number;
-      description: string;
-    };
-  };
-  modified: boolean;
-  createdAt: string;
-  payments: any[];
-  __v: number;
+  type: "DEBIT" | "CREDIT";
+  amount: number;
+  currency: string;
+  date: string;
+  referenceType?: string; // Made optional to handle missing data
+  ledgerStatus?: string; // Made optional to handle missing data
+  referencId: string;
+  description?: string; // Made optional to handle missing data
+  dueDate: string | null;
 }
 
+// Interface for agency details (used for the filter dropdown)
+interface AgencyInfo {
+  id: string;
+  agencyName: string;
+}
+
+// Interface for the data structure used by the component's UI
 interface LedgerEntry {
   id: string;
   date: string;
   bookingId: string;
   agencyName: string;
   agencyId: string;
-  transactionType: "booking" | "payment" | "refund" | "commission" | "markup";
+  transactionType: string;
   description: string;
   debit: number;
   credit: number;
   balance: number;
   currency: string;
   reference: string;
-  status: "confirmed" | "pending" | "cancelled";
+  status: string;
 }
 
 const LedgerReport: React.FC = () => {
@@ -133,181 +62,137 @@ const LedgerReport: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [error, setError] = useState<string | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
-  const [agencies, setAgencies] = useState<
-    Array<{ id: string; agencyName: string }>
-  >([]);
-
-  // Dynamic wholesalerId from localStorage
+  const [agencies, setAgencies] = useState<AgencyInfo[]>([]);
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
-  // Load stored wholesaler ID on mount
   useEffect(() => {
     const stored = localStorage.getItem("wholesalerId");
     setWholesalerId(stored);
   }, []);
 
-  // Transform API data to LedgerEntry format
-  const transformApiDataToLedgerEntries = (
-    apiData: ApiBookingResponse[]
+  // --- CORRECTED --- Transform API data defensively
+  const transformLedgerApiData = (
+    apiData: ApiLedgerEntry[],
+    agencyMap: Map<string, string>
   ): LedgerEntry[] => {
-    const entries: LedgerEntry[] = [];
-    let runningBalance = 0;
-
-    const sortedBookings = [...apiData].sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-
-    sortedBookings.forEach((booking) => {
-      const currency =
-        booking.priceDetails?.price?.currency ||
-        booking.bookingData?.initialResponse?.price?.selling?.currency ||
-        "USD";
-
-      const priceValue =
-        booking.priceDetails?.price?.value ||
-        booking.bookingData?.initialResponse?.price?.selling?.value ||
-        0;
-
-      const originalPriceValue =
-        booking.priceDetails?.originalPrice?.value || priceValue;
-
-      const baseEntry = {
-        id: booking._id,
-        date: booking.createdAt,
-        bookingId: booking.bookingId,
-        agencyName: booking.agency?.agencyName || "Unknown Agency",
-        agencyId: booking.agency?._id || "unknown",
-        currency: currency,
-        reference:
-          booking.bookingData?.initialResponse?.reference?.external ||
-          booking.bookingId,
-        status:
-          (booking.status as "confirmed" | "pending" | "cancelled") ||
-          "pending",
-      };
-
-      if (priceValue > 0) {
-        runningBalance -= priceValue;
-        entries.push({
-          ...baseEntry,
-          transactionType: "booking",
-          description: `Hotel booking - ${
-            booking.bookingData?.detailedInfo?.hotel?.name || "Unknown Hotel"
-          }`,
-          debit: priceValue,
-          credit: 0,
-          balance: runningBalance,
-        });
-      }
-
-      if (
-        booking.priceDetails?.markupApplied &&
-        priceValue > originalPriceValue
-      ) {
-        const markupAmount = priceValue - originalPriceValue;
-        if (markupAmount > 0) {
-          runningBalance += markupAmount;
-          entries.push({
-            ...baseEntry,
-            id: `${booking._id}-markup`,
-            transactionType: "markup",
-            description: `Markup applied - ${
-              booking.priceDetails.markupApplied.description || "Markup"
-            }`,
-            debit: 0,
-            credit: markupAmount,
-            balance: runningBalance,
-          });
-        }
-      }
-
-      if (
-        booking.payments &&
-        Array.isArray(booking.payments) &&
-        booking.payments.length > 0
-      ) {
-        booking.payments.forEach((payment: any, index: number) => {
-          const paymentAmount = payment?.amount || 0;
-          if (paymentAmount > 0) {
-            runningBalance += paymentAmount;
-            entries.push({
-              ...baseEntry,
-              id: `${booking._id}-payment-${index}`,
-              transactionType: "payment",
-              description: `Payment received for booking ${booking.bookingId}`,
-              debit: 0,
-              credit: paymentAmount,
-              balance: runningBalance,
-            });
-          }
-        });
-      }
-    });
-
-    return entries;
+    return apiData.map((item) => ({
+      id: item._id,
+      date: item.date,
+      bookingId: item.referencId ?? "", // Fallback to empty string
+      agencyId: item.agency,
+      agencyName: agencyMap.get(item.agency) || "Unknown Agency",
+      // Safely call toLowerCase with a fallback
+      transactionType: item.referenceType?.toLowerCase() ?? "unknown",
+      description: item.description ?? "", // Fallback to empty string
+      debit: item.type === "DEBIT" ? item.amount : 0,
+      credit: item.type === "CREDIT" ? item.amount : 0,
+      balance: 0, // Calculated later
+      currency: item.currency,
+      reference: item.referencId ?? "", // Fallback to empty string
+      // Safely call toLowerCase with a fallback
+      status: item.ledgerStatus?.toLowerCase() ?? "unknown",
+    }));
   };
 
-  // Fetch real data from API
+  // --- UPDATED --- Fetch real data from the new ledger/report API
   useEffect(() => {
     const fetchLedgerData = async () => {
       if (!wholesalerId) {
         setLoading(false);
         return;
       }
+      setLoading(true);
+      setError(null);
+
+      // Get the authorization token
+      const token =
+        document.cookie
+          .split("; ")
+          .find((r) => r.startsWith("authToken="))
+          ?.split("=")[1] || localStorage.getItem("authToken");
+
+      if (!token) {
+        setError("Authorization failed. Please log in again.");
+        setLoading(false);
+        return;
+      }
 
       try {
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch(
-          `${apiUrl}/booking/wholesaler/${wholesalerId}`
+        // Fetch both ledger data and booking data (for agency names) in parallel
+        const ledgerPromise = fetch(`${apiUrl}/ledger/report`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const bookingsPromise = fetch(
+          `${apiUrl}/booking/wholesaler/${wholesalerId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        const [ledgerResponse, bookingsResponse] = await Promise.all([
+          ledgerPromise,
+          bookingsPromise,
+        ]);
+
+        if (!ledgerResponse.ok) {
+          throw new Error(`Ledger API error! status: ${ledgerResponse.status}`);
+        }
+        if (!bookingsResponse.ok) {
+          throw new Error(
+            `Bookings API error! status: ${bookingsResponse.status}`
+          );
         }
 
-        const apiData: ApiBookingResponse[] = await response.json();
+        const ledgerResult = await ledgerResponse.json();
+        const bookingsResult = await bookingsResponse.json();
 
-        if (!Array.isArray(apiData)) {
-          throw new Error("Invalid API response format");
+        if (!ledgerResult.success || !Array.isArray(ledgerResult.data)) {
+          throw new Error("Invalid ledger API response format");
         }
 
-        const validBookings = apiData.filter(
-          (booking) =>
-            booking &&
-            booking._id &&
-            booking.bookingId &&
-            booking.agency &&
-            booking.agency._id &&
-            booking.agency.agencyName
-        );
-
-        if (validBookings.length === 0) {
-          // Changed to show an empty state instead of an error
-          setLedgerEntries([]);
-          setFilteredEntries([]);
-          setAgencies([]);
-          setLoading(false);
-          return;
+        // Create a map of Agency ID -> Agency Name from the booking data
+        const agencyMap = new Map<string, string>();
+        if (Array.isArray(bookingsResult)) {
+          bookingsResult.forEach((booking: any) => {
+            if (
+              booking.agency &&
+              booking.agency._id &&
+              booking.agency.agencyName
+            ) {
+              agencyMap.set(booking.agency._id, booking.agency.agencyName);
+            }
+          });
         }
 
-        const transformedEntries =
-          transformApiDataToLedgerEntries(validBookings);
-
-        const uniqueAgencies = Array.from(
-          new Map(
-            validBookings.map((booking) => [
-              booking.agency._id,
-              { id: booking.agency._id, agencyName: booking.agency.agencyName },
-            ])
-          ).values()
-        );
+        const uniqueAgencies: AgencyInfo[] = Array.from(
+          agencyMap.entries()
+        ).map(([id, agencyName]) => ({ id, agencyName }));
         setAgencies(uniqueAgencies);
 
-        setLedgerEntries(transformedEntries);
-        setFilteredEntries(transformedEntries);
+        // Transform the raw API data into the format the UI uses
+        const transformedEntries = transformLedgerApiData(
+          ledgerResult.data,
+          agencyMap
+        );
+
+        // Sort entries by date to calculate running balance correctly
+        transformedEntries.sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+        // Calculate running balance
+        let runningBalance = 0;
+        const finalEntries = transformedEntries.map((entry) => {
+          runningBalance += entry.credit - entry.debit;
+          return { ...entry, balance: runningBalance };
+        });
+
+        setLedgerEntries(finalEntries);
+        setFilteredEntries(finalEntries);
       } catch (error) {
         console.error("Error fetching ledger data:", error);
         setError(
@@ -323,7 +208,7 @@ const LedgerReport: React.FC = () => {
     fetchLedgerData();
   }, [wholesalerId, apiUrl]);
 
-  // Filter and sort entries
+  // Filter and sort entries (No changes needed here)
   useEffect(() => {
     let filtered = ledgerEntries.filter((entry) => {
       const matchesSearch =
@@ -440,8 +325,10 @@ const LedgerReport: React.FC = () => {
       entry.status,
     ]);
 
-    const csvContent = [headers.join(","), ...csvData.map(row => row.join(","))].join("\n");
-
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) => row.join(",")),
+    ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
@@ -642,30 +529,34 @@ const LedgerReport: React.FC = () => {
               <option value="markup">Markup</option>
             </select>
           </div>
-           {/* Date filters are combined for better mobile layout */}
+          {/* Date filters are combined for better mobile layout */}
           <div className="grid grid-cols-2 gap-4 sm:col-span-2 lg:col-span-1 xl:col-span-1">
-             <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                   Date From
-                </label>
-                <input
-                   type="date"
-                   value={dateRange.from}
-                   onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
-                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                />
-             </div>
-             <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                   Date To
-                </label>
-                <input
-                   type="date"
-                   value={dateRange.to}
-                   onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
-                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                />
-             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Date From
+              </label>
+              <input
+                type="date"
+                value={dateRange.from}
+                onChange={(e) =>
+                  setDateRange((prev) => ({ ...prev, from: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Date To
+              </label>
+              <input
+                type="date"
+                value={dateRange.to}
+                onChange={(e) =>
+                  setDateRange((prev) => ({ ...prev, to: e.target.value }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
           </div>
         </div>
 
@@ -732,84 +623,143 @@ const LedgerReport: React.FC = () => {
               {filteredEntries.map((entry) => (
                 <tr key={entry.id} className="block md:table-row mb-4 md:mb-0">
                   {/* Mobile Card View */}
-                  <td className="block md:hidden p-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm" colSpan={8}>
-                     <div className="space-y-4">
-                        {/* Card Header */}
-                        <div className="flex justify-between items-start">
-                           <div>
-                              <p className="font-bold text-gray-900 dark:text-white">{entry.bookingId}</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{entry.agencyName}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Ref: {entry.reference}</p>
-                           </div>
-                           <div className="text-right">
-                              <span
-                                 className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(entry.transactionType)}`}
-                              >
-                                 {getTransactionIcon(entry.transactionType)}
-                                 <span className="capitalize">{entry.transactionType}</span>
-                              </span>
-                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {new Date(entry.date).toLocaleDateString()}
-                              </p>
-                           </div>
+                  <td
+                    className="block md:hidden p-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
+                    colSpan={8}
+                  >
+                    <div className="space-y-4">
+                      {/* Card Header */}
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-gray-900 dark:text-white">
+                            {entry.bookingId}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {entry.agencyName}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            Ref: {entry.reference}
+                          </p>
                         </div>
-                        {/* Card Body */}
-                        <p className="text-sm text-gray-500 dark:text-gray-300">{entry.description}</p>
-                        {/* Card Footer */}
-                        <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
-                           <div className="flex items-center gap-4">
-                              <div>
-                                 <p className="text-sm font-medium text-red-600 dark:text-red-400">-{entry.currency} {entry.debit > 0 ? entry.debit.toLocaleString() : '0'}</p>
-                                 <p className="text-sm font-medium text-green-600 dark:text-green-400">+{entry.currency} {entry.credit > 0 ? entry.credit.toLocaleString() : '0'}</p>
-                              </div>
-                              <div className="text-right">
-                                 <p className="text-xs text-gray-500">Balance</p>
-                                 <p className={`text-lg font-bold ${entry.balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                                    {entry.currency} {Math.abs(entry.balance).toLocaleString()}
-                                 </p>
-                              </div>
-                           </div>
-                           <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-2 rounded-full hover:bg-blue-100 dark:hover:bg-gray-700">
-                              <Eye className="w-5 h-5" />
-                           </button>
+                        <div className="text-right">
+                          <span
+                            className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(
+                              entry.transactionType
+                            )}`}
+                          >
+                            {getTransactionIcon(entry.transactionType)}
+                            <span className="capitalize">
+                              {entry.transactionType}
+                            </span>
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {new Date(entry.date).toLocaleDateString()}
+                          </p>
                         </div>
-                     </div>
+                      </div>
+                      {/* Card Body */}
+                      <p className="text-sm text-gray-500 dark:text-gray-300">
+                        {entry.description}
+                      </p>
+                      {/* Card Footer */}
+                      <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                              -{entry.currency}{" "}
+                              {entry.debit > 0
+                                ? entry.debit.toLocaleString()
+                                : "0"}
+                            </p>
+                            <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                              +{entry.currency}{" "}
+                              {entry.credit > 0
+                                ? entry.credit.toLocaleString()
+                                : "0"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Balance</p>
+                            <p
+                              className={`text-lg font-bold ${
+                                entry.balance >= 0
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }`}
+                            >
+                              {entry.currency}{" "}
+                              {Math.abs(entry.balance).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-2 rounded-full hover:bg-blue-100 dark:hover:bg-gray-700">
+                          <Eye className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
                   </td>
 
                   {/* Desktop Table Row View */}
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-white">{new Date(entry.date).toLocaleDateString()}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(entry.date).toLocaleTimeString()}</div>
+                    <div className="text-sm text-gray-900 dark:text-white">
+                      {new Date(entry.date).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(entry.date).toLocaleTimeString()}
+                    </div>
                   </td>
                   <td className="hidden md:table-cell px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{entry.bookingId}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{entry.description}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">Ref: {entry.reference}</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {entry.bookingId}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                      {entry.description}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">
+                      Ref: {entry.reference}
+                    </div>
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{entry.agencyName}</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {entry.agencyName}
+                    </div>
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(entry.transactionType)}`}
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTransactionTypeColor(
+                        entry.transactionType
+                      )}`}
                     >
                       {getTransactionIcon(entry.transactionType)}
-                      <span className="capitalize">{entry.transactionType}</span>
+                      <span className="capitalize">
+                        {entry.transactionType}
+                      </span>
                     </span>
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
                     {entry.debit > 0 && (
-                      <div className="text-sm font-medium text-red-600 dark:text-red-400">-{entry.currency} {entry.debit.toLocaleString()}</div>
+                      <div className="text-sm font-medium text-red-600 dark:text-red-400">
+                        -{entry.currency} {entry.debit.toLocaleString()}
+                      </div>
                     )}
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
                     {entry.credit > 0 && (
-                      <div className="text-sm font-medium text-green-600 dark:text-green-400">+{entry.currency} {entry.credit.toLocaleString()}</div>
+                      <div className="text-sm font-medium text-green-600 dark:text-green-400">
+                        +{entry.currency} {entry.credit.toLocaleString()}
+                      </div>
                     )}
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right">
-                    <div className={`text-sm font-medium ${entry.balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                      {entry.currency} {Math.abs(entry.balance).toLocaleString()}
+                    <div
+                      className={`text-sm font-medium ${
+                        entry.balance >= 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {entry.currency}{" "}
+                      {Math.abs(entry.balance).toLocaleString()}
                     </div>
                   </td>
                   <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-center">

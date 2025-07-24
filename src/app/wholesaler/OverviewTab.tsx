@@ -12,7 +12,7 @@ import {
   FaTimesCircle,
   FaTrain,
 } from "react-icons/fa";
-import { FiLayout, FiMoreVertical } from "react-icons/fi";
+import { FiLayout } from "react-icons/fi";
 import { RiPlaneLine } from "react-icons/ri";
 import BookingActions from "./BookingActions";
 import { BookingModal, Reservation } from "./BookingModal";
@@ -46,6 +46,7 @@ const BookingsPage: NextPage = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedNav, setSelectedNav] = useState(0);
   const [activeTab, setActiveTab] = useState<
     "All" | "Upcoming" | "Active" | "Completed" | "Cancelled"
@@ -75,195 +76,258 @@ const BookingsPage: NextPage = () => {
     setWholesalerId(stored);
   }, []);
 
-  const BOOKING_ENDPOINT = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/wholesaler/${wholesalerId}`;
   const CANCELLATION_BASE_ENDPOINT = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/cancellations`;
 
   const fetchReservations = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
+    const token =
+      document.cookie
+        .split("; ")
+        .find((r) => r.startsWith("authToken="))
+        ?.split("=")[1] || localStorage.getItem("authToken");
+
+    let userRole: string | null = null;
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        userRole = payload.role;
+      } catch (e) {
+        console.error("Failed to decode token:", e);
+        setError("Your session is invalid. Please log in again.");
+        setLoading(false);
+        return;
+      }
+    }
+
+    let endpoint = "";
+    const options: RequestInit = {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+
+    if (userRole === "sales") {
+      if (!token) {
+        setError("Authorization failed. Please log in again.");
+        setLoading(false);
+        return;
+      }
+      endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}sales/agency-bookings`;
+      options.headers = {
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+      };
+    } else {
+      // Original logic for non-sales roles
+      if (wholesalerId) {
+        endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/wholesaler/${wholesalerId}`;
+      } else {
+        setReservations([]);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      if (wholesalerId && BOOKING_ENDPOINT) {
-        const res = await fetch(BOOKING_ENDPOINT);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const mapped: Reservation[] = data.map((item: any) => {
-              const priceDetails = item.priceDetails || {};
-              const bookingData = item.bookingData || {};
-              const init = bookingData.initialResponse || {};
-              const det = bookingData.detailedInfo?.service || {};
-              const bookingId = String(item.bookingId ?? "");
-              const sequenceNumber = Number(item.sequenceNumber ?? 0);
-              const reservationId = Number(item.reservationId ?? 0);
-              const topStatus = String(item.status ?? "").toLowerCase();
-              const createdAt = String(item.createdAt ?? "");
-              const dbId = String(item._id ?? "");
-              const agencyName = item.agency?.agencyName ?? "N/A";
-              const wholesaler = item.wholesaler ?? "N/A";
-              const wholesalerName = item.wholesaler ?? "N/A";
-              const providerId = item.provider?._id ?? "N/A";
-              const providerName = item.provider?.name ?? "N/A";
-              const clientRef = String(init.clientRef ?? "");
-              const serviceType = String(init.type ?? "");
-              const initStatus = String(init.status ?? "").toLowerCase();
-              const addedTime = String(init.added?.time ?? "");
-              const addedUser = String(init.added?.user?.name ?? "");
-              const paymentType = String(det.payment?.type ?? "");
-              const paymentStatus = String(det.payment?.status ?? "");
-              const rateDescription = String(
-                det.rateDetails?.description ?? ""
-              );
-              const priceIssueSelling = Number(
-                priceDetails.price?.value ??
-                  det.prices?.issue?.selling?.value ??
-                  0
-              );
-              const priceIssueNet = Number(
-                priceDetails.originalPrice?.value ??
-                  det.prices?.issue?.net?.value ??
-                  0
-              );
-              const priceIssueCommission = Number(
-                det.prices?.issue?.commission?.value ?? 0
-              );
-              const price =
-                priceIssueSelling > 0
-                  ? priceIssueSelling
-                  : Number(init.price?.selling?.value ?? 0);
-              const currency = String(
-                priceDetails.price?.currency ||
-                  det.prices?.issue?.selling?.currency ||
-                  init.price?.selling?.currency ||
-                  "USD"
-              );
-              const cancellationDate = String(
-                det.cancellationPolicy?.date ?? ""
-              );
-              const checkIn = String(det.serviceDates?.startDate ?? "");
-              const checkOut = String(det.serviceDates?.endDate ?? "");
-              let durationNights = Number(det.serviceDates?.duration ?? 0);
-              let nights = durationNights;
-              if ((!nights || nights <= 0) && checkIn && checkOut) {
-                const d1 = new Date(checkIn);
-                const d2 = new Date(checkOut);
-                const diffMs = d2.getTime() - d1.getTime();
-                nights =
-                  diffMs > 0 ? Math.round(diffMs / (1000 * 60 * 60 * 24)) : 0;
-              }
-              const destinationCity = det.destination?.city?.name ?? "";
-              const destinationCountry = det.destination?.country?.name ?? "";
-              const nationality = det.nationality?.name ?? "";
-              const passengers = Array.isArray(det.passengers)
-                ? det.passengers.map((p: any) => ({
-                    paxId: Number(p.paxId ?? 0),
-                    type: String(p.type ?? ""),
-                    lead: !!p.lead,
-                    title: String(p.title ?? ""),
-                    firstName: String(p.firstName ?? ""),
-                    lastName: String(p.lastName ?? ""),
-                    email: p.email ?? null,
-                    phone: p.phone ?? null,
-                    phonePrefix: p.phonePrefix ?? null,
-                  }))
-                : [];
-              const remarks: {
-                code: string;
-                name: string;
-                list: string[];
-              }[] = Array.isArray(det.remarks)
-                ? det.remarks.map((r: any) => ({
-                    code: String(r.code ?? ""),
-                    name: String(r.name ?? ""),
-                    list: Array.isArray(r.list)
-                      ? r.list.map((s: any) => String(s))
-                      : [],
-                  }))
-                : [];
-              const hotelInfo = {
-                id: String(det.hotel?.id ?? ""),
-                name: String(det.hotel?.name ?? "N/A"),
-                stars: Number(det.hotel?.stars ?? 0),
-                lastUpdated: String(det.hotel?.lastUpdated ?? ""),
-                cityId: String(det.hotel?.cityId ?? ""),
-                countryId: String(det.hotel?.countryId ?? ""),
-              };
-              const rooms: {
-                id: string;
-                name: string;
-                board: string;
-                boardBasis: string;
-                info: string;
-                passengerIds: number[];
-              }[] = Array.isArray(det.rooms)
-                ? det.rooms.map((rm: any) => ({
-                    id: String(rm.id ?? ""),
-                    name: String(rm.name ?? ""),
-                    board: String(rm.board ?? ""),
-                    boardBasis: String(rm.boardBasis ?? ""),
-                    info: String(rm.info ?? ""),
-                    passengerIds: Array.isArray(rm.passengers)
-                      ? rm.passengers.map((pid: any) => Number(pid))
-                      : [],
-                  }))
-                : [];
-              const freeCancellation = cancellationDate;
-              return {
-                dbId,
-                bookingId,
-                sequenceNumber,
-                reservationId,
-                topStatus,
-                createdAt,
-                agencyName,
-                wholesaler,
-                wholesalerName,
-                providerId,
-                providerName,
-                clientRef,
-                serviceType,
-                initStatus,
-                price,
-                currency,
-                addedTime,
-                addedUser,
-                paymentType,
-                paymentStatus,
-                rateDescription,
-                priceIssueNet,
-                priceIssueCommission,
-                priceIssueSelling,
-                cancellationDate,
-                checkIn,
-                checkOut,
-                nights,
-                destinationCity,
-                destinationCountry,
-                nationality,
-                passengers,
-                remarks,
-                hotelInfo,
-                rooms,
-                freeCancellation,
-                priceDetails: item.priceDetails,
-              };
-            });
-            setReservations(mapped);
-          } else {
-            setReservations([]);
-          }
+      const res = await fetch(endpoint, options);
+      if (res.ok) {
+        const responseData = await res.json();
+
+        // **MODIFIED**: Handle both direct array and nested { data: [...] } structures
+        let bookingsArray: any[] = [];
+        if (responseData && Array.isArray(responseData.data)) {
+          bookingsArray = responseData.data; // For "sales" role
+        } else if (Array.isArray(responseData)) {
+          bookingsArray = responseData; // For other roles
+        }
+
+        if (bookingsArray.length > 0) {
+          const mapped: Reservation[] = bookingsArray.map((item: any) => {
+            const priceDetails = item.priceDetails || {};
+            const bookingData = item.bookingData || {};
+            const init = bookingData.initialResponse || {};
+            const det = bookingData.detailedInfo?.service || {};
+            const bookingId = String(item.bookingId ?? "");
+            const sequenceNumber = Number(item.sequenceNumber ?? 0);
+            const reservationId = Number(item.reservationId ?? 0);
+            const topStatus = String(item.status ?? "").toLowerCase();
+            const createdAt = String(item.createdAt ?? "");
+            const dbId = String(item._id ?? "");
+            const agencyName = item.agency?.agencyName ?? "N/A";
+            
+            // **MODIFIED**: Handle different data structures for wholesaler and provider
+            const wholesaler = item.wholesaler;
+            const wholesalerName = wholesaler?.wholesalerName ?? (typeof wholesaler === 'string' ? wholesaler : "N/A");
+            const provider = item.provider;
+            const providerId = typeof provider === 'string' ? provider : provider?._id ?? "N/A";
+            const providerName = typeof provider === 'object' && provider !== null ? provider.name ?? "N/A" : "N/A";
+
+            const clientRef = String(init.clientRef ?? "");
+            const serviceType = String(init.type ?? "");
+            const initStatus = String(init.status ?? "").toLowerCase();
+            const addedTime = String(init.added?.time ?? "");
+            const addedUser = String(init.added?.user?.name ?? "");
+            const paymentType = String(det.payment?.type ?? "");
+            const paymentStatus = String(det.payment?.status ?? "");
+            const rateDescription = String(
+              det.rateDetails?.description ?? ""
+            );
+            const priceIssueSelling = Number(
+              priceDetails.price?.value ??
+                det.prices?.issue?.selling?.value ??
+                0
+            );
+            const priceIssueNet = Number(
+              priceDetails.originalPrice?.value ??
+                det.prices?.issue?.net?.value ??
+                0
+            );
+            const priceIssueCommission = Number(
+              det.prices?.issue?.commission?.value ?? 0
+            );
+            const price =
+              priceIssueSelling > 0
+                ? priceIssueSelling
+                : Number(init.price?.selling?.value ?? 0);
+            const currency = String(
+              priceDetails.price?.currency ||
+                det.prices?.issue?.selling?.currency ||
+                init.price?.selling?.currency ||
+                "USD"
+            );
+            const cancellationDate = String(
+              det.cancellationPolicy?.date ?? ""
+            );
+            const checkIn = String(det.serviceDates?.startDate ?? "");
+            const checkOut = String(det.serviceDates?.endDate ?? "");
+            let durationNights = Number(det.serviceDates?.duration ?? 0);
+            let nights = durationNights;
+            if ((!nights || nights <= 0) && checkIn && checkOut) {
+              const d1 = new Date(checkIn);
+              const d2 = new Date(checkOut);
+              const diffMs = d2.getTime() - d1.getTime();
+              nights =
+                diffMs > 0 ? Math.round(diffMs / (1000 * 60 * 60 * 24)) : 0;
+            }
+            const destinationCity = det.destination?.city?.name ?? "";
+            const destinationCountry = det.destination?.country?.name ?? "";
+            const nationality = det.nationality?.name ?? "";
+            const passengers = Array.isArray(det.passengers)
+              ? det.passengers.map((p: any) => ({
+                  paxId: Number(p.paxId ?? 0),
+                  type: String(p.type ?? ""),
+                  lead: !!p.lead,
+                  title: String(p.title ?? ""),
+                  firstName: String(p.firstName ?? ""),
+                  lastName: String(p.lastName ?? ""),
+                  email: p.email ?? null,
+                  phone: p.phone ?? null,
+                  phonePrefix: p.phonePrefix ?? null,
+                }))
+              : [];
+            const remarks: {
+              code: string;
+              name: string;
+              list: string[];
+            }[] = Array.isArray(det.remarks)
+              ? det.remarks.map((r: any) => ({
+                  code: String(r.code ?? ""),
+                  name: String(r.name ?? ""),
+                  list: Array.isArray(r.list)
+                    ? r.list.map((s: any) => String(s))
+                    : [],
+                }))
+              : [];
+            const hotelInfo = {
+              id: String(det.hotel?.id ?? ""),
+              name: String(det.hotel?.name ?? "N/A"),
+              stars: Number(det.hotel?.stars ?? 0),
+              lastUpdated: String(det.hotel?.lastUpdated ?? ""),
+              cityId: String(det.hotel?.cityId ?? ""),
+              countryId: String(det.hotel?.countryId ?? ""),
+            };
+            const rooms: {
+              id: string;
+              name: string;
+              board: string;
+              boardBasis: string;
+              info: string;
+              passengerIds: number[];
+            }[] = Array.isArray(det.rooms)
+              ? det.rooms.map((rm: any) => ({
+                  id: String(rm.id ?? ""),
+                  name: String(rm.name ?? ""),
+                  board: String(rm.board ?? ""),
+                  boardBasis: String(rm.boardBasis ?? ""),
+                  info: String(rm.info ?? ""),
+                  passengerIds: Array.isArray(rm.passengers)
+                    ? rm.passengers.map((pid: any) => Number(pid))
+                    : [],
+                }))
+              : [];
+            const freeCancellation = cancellationDate;
+            return {
+              dbId,
+              bookingId,
+              sequenceNumber,
+              reservationId,
+              topStatus,
+              createdAt,
+              agencyName,
+              wholesaler,
+              wholesalerName,
+              providerId,
+              providerName,
+              clientRef,
+              serviceType,
+              initStatus,
+              price,
+              currency,
+              addedTime,
+              addedUser,
+              paymentType,
+              paymentStatus,
+              rateDescription,
+              priceIssueNet,
+              priceIssueCommission,
+              priceIssueSelling,
+              cancellationDate,
+              checkIn,
+              checkOut,
+              nights,
+              destinationCity,
+              destinationCountry,
+              nationality,
+              passengers,
+              remarks,
+              hotelInfo,
+              rooms,
+              freeCancellation,
+              priceDetails: item.priceDetails,
+            };
+          });
+          setReservations(mapped);
         } else {
-          console.error(`API request failed with status: ${res.status}`);
           setReservations([]);
         }
       } else {
+        const errorData = await res.json().catch(() => ({}));
+        setError(
+          errorData.message || `API request failed with status: ${res.status}`
+        );
+        console.error(`API request failed with status: ${res.status}`);
         setReservations([]);
       }
     } catch (err) {
       console.error("Error fetching bookings from API:", err);
+      setError("An unexpected error occurred while fetching bookings.");
       setReservations([]);
     } finally {
       setLoading(false);
     }
-  }, [BOOKING_ENDPOINT, wholesalerId]);
+  }, [wholesalerId]);
 
   useEffect(() => {
     fetchReservations();
@@ -295,7 +359,7 @@ const BookingsPage: NextPage = () => {
             errorData.message || `HTTP error! status: ${response.status}`
           );
         }
-        const result = await response.json();
+        await response.json();
         toast.success("Booking successfully cancelled!");
         setCancelModalRes(null);
         fetchReservations();
@@ -341,6 +405,38 @@ const BookingsPage: NextPage = () => {
   const editModalCalculatedPrices = editModalRes
     ? calculatePricesForEditModal()
     : null;
+
+  // Helper function to format dates to DD/MM/YYYY
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return "—";
+    try {
+      const date = new Date(dateString);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return "—";
+      }
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error("Error formatting date:", dateString, error);
+      return "—";
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center dark:bg-gray-900">
+        <div className="text-center p-8 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <h2 className="text-xl font-bold text-red-600 dark:text-red-400">
+            An Error Occurred
+          </h2>
+          <p className="text-red-500 dark:text-red-400 mt-2">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -550,7 +646,7 @@ const BookingsPage: NextPage = () => {
                   ${isExpanded ? "max-h-[1500px] opacity-100" : "max-h-0 opacity-0"}
                   overflow-hidden
                   lg:max-h-full lg:opacity-100
-                  lg:grid lg:grid-cols-7 
+                  lg:grid lg:grid-cols-7  
                 `}
               >
                 {/* Main Content Area */}
@@ -568,7 +664,7 @@ const BookingsPage: NextPage = () => {
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Created On</p>
                       <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+                        {formatDate(r.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -587,8 +683,8 @@ const BookingsPage: NextPage = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
-                      <div><p className="text-xs text-gray-500 dark:text-gray-400">Check In</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.checkIn ? new Date(r.checkIn).toLocaleDateString() : "—"}</p></div>
-                      <div><p className="text-xs text-gray-500 dark:text-gray-400">Check Out</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.checkOut ? new Date(r.checkOut).toLocaleDateString() : "—"}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400">Check In</p><p className="font-semibold text-gray-900 dark:text-gray-100">{formatDate(r.checkIn)}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400">Check Out</p><p className="font-semibold text-gray-900 dark:text-gray-100">{formatDate(r.checkOut)}</p></div>
                       <div><p className="text-xs text-gray-500 dark:text-gray-400">Nights</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.nights || "—"}</p></div>
                       <div><p className="text-xs text-gray-500 dark:text-gray-400">Payment</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.paymentType || "—"}</p></div>
                     </div>
@@ -598,7 +694,7 @@ const BookingsPage: NextPage = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-4 border-t border-gray-200 dark:border-gray-700">
                     <div><p className="text-xs text-gray-500 dark:text-gray-400">Destination</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.destinationCity && r.destinationCountry ? `${r.destinationCity}, ${r.destinationCountry}` : "—"}</p></div>
                     <div><p className="text-xs text-gray-500 dark:text-gray-400">Nationality</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.nationality || "—"}</p></div>
-                    <div><p className="text-xs text-gray-500 dark:text-gray-400">Cancel By</p><p className="font-semibold text-gray-900 dark:text-gray-100">{r.cancellationDate ? new Date(r.cancellationDate).toLocaleDateString() : "—"}</p></div>
+                    <div><p className="text-xs text-gray-500 dark:text-gray-400">Cancel By</p><p className="font-semibold text-gray-900 dark:text-gray-100">{formatDate(r.cancellationDate)}</p></div>
                   </div>
                 </div>
 
@@ -662,12 +758,8 @@ const BookingsPage: NextPage = () => {
               cancelModalRes.passengers.find((p) => p.lead)?.firstName +
                 " " +
                 cancelModalRes.passengers.find((p) => p.lead)?.lastName || "N/A",
-            checkIn: cancelModalRes.checkIn
-              ? new Date(cancelModalRes.checkIn).toLocaleDateString()
-              : "—",
-            checkOut: cancelModalRes.checkOut
-              ? new Date(cancelModalRes.checkOut).toLocaleDateString()
-              : "—",
+            checkIn: formatDate(cancelModalRes.checkIn),
+            checkOut: formatDate(cancelModalRes.checkOut),
             cancelUntil: cancelModalRes.cancellationDate,
             paymentStatus: cancelModalRes.paymentStatus,
           }}
