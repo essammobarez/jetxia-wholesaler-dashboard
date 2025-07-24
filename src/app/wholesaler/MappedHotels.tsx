@@ -61,7 +61,7 @@ type SupplierHotelDetails = {
   facilites: string[];
 };
 
-// === Component: Inline Supplier Detail Display (UPDATED) ===
+// === Component: Inline Supplier Detail Display (Unchanged) ===
 const SupplierDataDisplay = ({ supplierId, hotelId }: { supplierId: string; hotelId: string }) => {
   const [details, setDetails] = useState<SupplierHotelDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,7 +132,6 @@ const SupplierDataDisplay = ({ supplierId, hotelId }: { supplierId: string; hote
         <p className="text-gray-600">📧 {details.contact?.email || 'Email not available'}</p>
       </div>
 
-      {/* Facilities section re-added */}
       {details.facilites && details.facilites.length > 0 && (
         <div className="mt-2 pt-2 border-t border-gray-200">
           <p className="font-medium text-gray-700 mb-1">Facilities:</p>
@@ -158,7 +157,7 @@ const SupplierDataDisplay = ({ supplierId, hotelId }: { supplierId: string; hote
 };
 
 
-// === Modal: Hotel Detail (Unchanged) ===
+// === Modal: Hotel Detail (UPDATED) ===
 const HotelDetailModal = ({
   hotel,
   onClose,
@@ -203,93 +202,102 @@ const HotelDetailModal = ({
             <IoClose />
           </button>
         </div>
-        <div className="p-6">
-          <h2 className="text-3xl font-bold text-gray-900">{hotel.name}</h2>
-          <p className="text-sm text-gray-500 mt-2 font-mono">
-            ID: <code className="bg-gray-200 px-1.5 py-0.5 rounded">{hotel._id}</code>
-          </p>
-          <div className="flex items-center mt-1">
-            <span className="text-yellow-500">{'⭐'.repeat(Math.round(hotel.stars))}</span>
-            <span className="ml-2 text-sm text-gray-500">({hotel.stars.toFixed(1)}-Star Hotel)</span>
-          </div>
-          <p className="text-md text-gray-700 mt-2">
-            📍 {hotel.address}, {hotel.city.name}, {hotel.country.name}, {hotel.zipCode}
-          </p>
-          <p className="text-md text-gray-700 mt-1">📞 {hotel.telephone}</p>
 
-          <div className="mt-6">
-            <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Facilities</h3>
-            <div className="flex flex-wrap gap-2">
-              {hotel.facilities.map((facility) => (
-                <span
-                  key={facility._id}
-                  className="text-sm font-medium bg-green-100 text-green-800 px-3 py-1 rounded-full"
-                >
-                  {facility.name}
-                </span>
-              ))}
+        {/* This div wraps the content sections, allowing for the sticky header below */}
+        <div>
+          {/* Sticky Header Section: This part scrolls up and sticks to the top */}
+          <div className="sticky top-0 z-10 bg-white px-6 pt-6 pb-4 border-b border-gray-200">
+            <h2 className="text-3xl font-bold text-gray-900">{hotel.name}</h2>
+            <p className="text-sm text-gray-500 mt-2 font-mono">
+              ID: <code className="bg-gray-200 px-1.5 py-0.5 rounded">{hotel._id}</code>
+            </p>
+            <div className="flex items-center mt-1">
+              <span className="text-yellow-500">{'⭐'.repeat(Math.round(hotel.stars))}</span>
+              <span className="ml-2 text-sm text-gray-500">({hotel.stars.toFixed(1)}-Star Hotel)</span>
             </div>
           </div>
 
-          <div className="mt-6">
-            <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Board Basis</h3>
-            <div className="flex flex-wrap gap-2">
-              {hotel.boardBasis.map((basis, index) => (
-                <span
-                  key={index}
-                  className="text-sm font-medium bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full"
-                >
-                  {basis}
-                </span>
-              ))}
-            </div>
-          </div>
+          {/* Remainder of the Scrolling Content */}
+          <div className="px-6 pb-6">
+            <p className="text-md text-gray-700 mt-2">
+              📍 {hotel.address}, {hotel.city.name}, {hotel.country.name}, {hotel.zipCode}
+            </p>
+            <p className="text-md text-gray-700 mt-1">📞 {hotel.telephone}</p>
 
-          {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Mapped Suppliers</h3>
-              <div className="space-y-3">
-                {hotel.mappedSuppliers.map((supplier) => (
-                  <div
-                    key={supplier._id}
-                    className="bg-gray-100 p-3 rounded-lg border border-gray-200"
+              <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Facilities</h3>
+              <div className="flex flex-wrap gap-2">
+                {hotel.facilities.map((facility) => (
+                  <span
+                    key={facility._id}
+                    className="text-sm font-medium bg-green-100 text-green-800 px-3 py-1 rounded-full"
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-md font-semibold text-blue-700 capitalize">
-                          Source: <span className="font-normal">{supplier.source}</span>
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Supplier Hotel ID:{' '}
-                          <code className="bg-gray-200 px-1 rounded">{supplier.supplierHotelId}</code>
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Supplier: <code className="bg-gray-200 px-1 rounded">{supplier.supplier}</code>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => onRemoveSupplier(hotel._id, supplier._id)}
-                        className="bg-red-600 text-white p-2 rounded-md hover:bg-red-700 transition-colors flex-shrink-0"
-                        aria-label="Remove supplier"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                    {/* Data is now fetched and displayed here automatically */}
-                    <SupplierDataDisplay
-                      supplierId={supplier.supplier}
-                      hotelId={supplier.supplierHotelId}
-                    />
-                  </div>
+                    {facility.name}
+                  </span>
                 ))}
               </div>
             </div>
-          )}
+
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Board Basis</h3>
+              <div className="flex flex-wrap gap-2">
+                {hotel.boardBasis.map((basis, index) => (
+                  <span
+                    key={index}
+                    className="text-sm font-medium bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full"
+                  >
+                    {basis}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-3">Mapped Suppliers</h3>
+                <div className="space-y-3">
+                  {hotel.mappedSuppliers.map((supplier) => (
+                    <div
+                      key={supplier._id}
+                      className="bg-gray-100 p-3 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-md font-semibold text-blue-700 capitalize">
+                            Source: <span className="font-normal">{supplier.source}</span>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Supplier Hotel ID:{' '}
+                            <code className="bg-gray-200 px-1 rounded">{supplier.supplierHotelId}</code>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Supplier: <code className="bg-gray-200 px-1 rounded">{supplier.supplier}</code>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => onRemoveSupplier(hotel._id, supplier._id)}
+                          className="bg-red-600 text-white p-2 rounded-md hover:bg-red-700 transition-colors flex-shrink-0"
+                          aria-label="Remove supplier"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                      <SupplierDataDisplay
+                        supplierId={supplier.supplier}
+                        hotelId={supplier.supplierHotelId}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
 
 // === Modal: All Facilities (Unchanged) ===
 const FacilitiesModal = ({
