@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { NextPage } from 'next';
 import {
   Plus,
@@ -14,18 +14,21 @@ import {
   Building,
   Copy,
   ChevronDown,
+  Edit,
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS --- //
 
 type CredentialStatus = 'Active' | 'Inactive';
 type TestStatus = 'Success' | 'Failed' | 'Untested';
+type TestModalStatus = 'Pending' | 'Success' | 'Failed';
 
 interface Credential {
-  id: string;
+  id: string; // This is the connectionId
   name: string;
-  apiKey: string;
-  apiSecret: string;
+  apiKey: string; // Corresponds to client_id
+  apiSecret: string; // Corresponds to client_secret
+  scope: string;
   status: CredentialStatus;
   lastTest: {
     status: TestStatus;
@@ -44,6 +47,25 @@ interface ApiProvider {
   _id: string;
   name: string;
   logoUrl: string;
+}
+
+interface SupplierConnection {
+    _id: string;
+    supplier: string; // This is the supplier ID
+    credentials: {
+        client_id: string;
+        client_secret: string;
+        scope: string;
+    };
+    active: boolean;
+    valid: boolean;
+    updatedAt: string;
+}
+
+interface TestResultInfo {
+    status: TestModalStatus;
+    endpoint: string;
+    response: any;
 }
 
 
@@ -70,7 +92,7 @@ const TestStatusIndicator: React.FC<{ lastTest: Credential['lastTest'] }> = ({ l
             <Icon className={`h-5 w-5 ${color}`} />
             <div className="text-sm">
                 <p className="font-medium text-gray-900 dark:text-white">{text}</p>
-                {lastTest.timestamp && <p className="text-xs text-gray-500 dark:text-gray-400">Last tested: {new Date(lastTest.timestamp).toLocaleString()}</p>}
+                {lastTest.timestamp && <p className="text-xs text-gray-500 dark:text-gray-400">Last updated: {new Date(lastTest.timestamp).toLocaleString()}</p>}
             </div>
         </div>
     );
@@ -81,112 +103,288 @@ const TestStatusIndicator: React.FC<{ lastTest: Credential['lastTest'] }> = ({ l
 
 const APIManagement: NextPage = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [allProviders, setAllProviders] = useState<ApiProvider[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // --- UPDATED --- State to track progress percentage
-  const [testingProgress, setTestingProgress] = useState<{ [key: string]: number | null }>({});
-  
-  const [selectedProviderId, setSelectedProviderId] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
-  
   const [activeSupplierId, setActiveSupplierId] = useState<string | null>(null);
 
-  const generateMockCredentials = (providerId: string, providerName: string): Credential[] => {
-    const nameSlug = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return [
-      {
-        id: `cred-${providerId}-prod`,
-        name: 'Production Account',
-        apiKey: `key_live_${nameSlug}_${Math.random().toString(36).slice(8)}`,
-        apiSecret: `secret_live_${nameSlug}_${Math.random().toString(36).slice(2)}`,
-        status: 'Active',
-        lastTest: { status: 'Untested', timestamp: null },
-      },
-    ];
-  };
+  // --- Modal States ---
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isTestResultModalOpen, setIsTestResultModalOpen] = useState(false);
 
+  // --- Add Credential State ---
+  const [selectedProviderId, setSelectedProviderId] = useState('');
+  const [addClientId, setAddClientId] = useState('');
+  const [addClientSecret, setAddClientSecret] = useState('');
+  const [addScope, setAddScope] = useState('read:hotels-search write:hotels-book');
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [addModalError, setAddModalError] = useState<string | null>(null);
+
+  // --- Update Credential State ---
+  const [editingCredential, setEditingCredential] = useState<Credential | null>(null);
+  const [updateClientId, setUpdateClientId] = useState('');
+  const [updateClientSecret, setUpdateClientSecret] = useState('');
+  const [updateScope, setUpdateScope] = useState('');
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
+  const [updateModalError, setUpdateModalError] = useState<string | null>(null);
+
+  // --- Test Connectivity State ---
+  const [testResultInfo, setTestResultInfo] = useState<TestResultInfo | null>(null);
+
+
+  // --- Helpers ---
+  const getAuthToken = useCallback(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("authToken") || "";
+    return "";
+  }, []);
+
+  const getWholesalerId = useCallback(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("wholesalerId") || "";
+    return "";
+  }, []);
+
+
+  // --- Data Fetching Logic ---
   useEffect(() => {
-    const fetchAndBuildSuppliers = async () => {
+    const fetchInitialData = async () => {
       setPageLoading(true);
       setPageError(null);
+      const wholesalerId = getWholesalerId();
+      const authToken = getAuthToken();
+
+      if (!wholesalerId || !authToken) {
+        setPageError("Authentication details missing. Please log in again.");
+        setPageLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`);
-        if (!response.ok) throw new Error('Failed to fetch providers');
-        const result = await response.json();
-        
-        if (result.success && Array.isArray(result.data)) {
-          const suppliersFromApi = result.data.map((provider: ApiProvider) => ({
-            id: provider._id,
-            name: provider.name,
-            logo: provider.logoUrl,
-            credentials: generateMockCredentials(provider._id, provider.name),
-          }));
-          setSuppliers(suppliersFromApi);
-        } else {
-          throw new Error('Invalid API response format');
+        const [providerResponse, connectionResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/wholesaler/${wholesalerId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          })
+        ]);
+
+        if (!providerResponse.ok) throw new Error('Failed to fetch the list of available suppliers.');
+        if (!connectionResponse.ok) throw new Error('Failed to fetch your supplier connections.');
+
+        const providerResult = await providerResponse.json();
+        const connectionResult = await connectionResponse.json();
+
+        if (!providerResult.success || !Array.isArray(providerResult.data)) throw new Error('Invalid format for supplier list.');
+        if (!connectionResult.success || !Array.isArray(connectionResult.data)) throw new Error('Invalid format for connections data.');
+
+        setAllProviders(providerResult.data);
+        const providerDetailsMap = new Map<string, {name: string, logo: string}>(
+          providerResult.data.map((p: ApiProvider) => [p._id, { name: p.name, logo: p.logoUrl }])
+        );
+
+        const suppliersMap = new Map<string, Supplier>();
+        for (const connection of connectionResult.data as SupplierConnection[]) {
+          const supplierId = connection.supplier;
+          const providerInfo = providerDetailsMap.get(supplierId) || { name: 'E Booking', logo: '' };
+
+          const newCredential: Credential = {
+            id: connection._id,
+            name: `${providerInfo.name} Credential`,
+            apiKey: connection.credentials.client_id,
+            apiSecret: connection.credentials.client_secret,
+            scope: connection.credentials.scope || '',
+            status: connection.active ? 'Active' : 'Inactive',
+            lastTest: {
+              status: connection.valid ? 'Success' : 'Failed',
+              timestamp: connection.updatedAt,
+            },
+          };
+
+          if (!suppliersMap.has(supplierId)) {
+            suppliersMap.set(supplierId, { id: supplierId, name: providerInfo.name, logo: providerInfo.logo, credentials: [] });
+          }
+          suppliersMap.get(supplierId)!.credentials.push(newCredential);
         }
+        
+        setSuppliers(Array.from(suppliersMap.values()));
+
       } catch (error) {
         setPageError(error instanceof Error ? error.message : 'An unknown error occurred');
       } finally {
         setPageLoading(false);
       }
     };
-    fetchAndBuildSuppliers();
-  }, []);
 
-  const handleProviderChange = (providerId: string) => {
-    setSelectedProviderId(providerId);
-    if (providerId) {
-      const provider = suppliers.find(p => p.id === providerId);
-      if (provider) {
-        const providerName = provider.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        setApiKey(`key_live_${providerName}_${Date.now().toString(36)}`);
-        setApiSecret(`secret_live_${providerName}_${Math.random().toString(36).slice(2)}`);
-      }
-    } else {
-      setApiKey('');
-      setApiSecret('');
+    fetchInitialData();
+  }, [getWholesalerId, getAuthToken]);
+
+  // --- Add Credential Logic ---
+  const handleAddNewCredential = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSubmittingAdd(true);
+    setAddModalError(null);
+
+    const wholesalerId = getWholesalerId();
+    if (!wholesalerId) {
+        setAddModalError("Authentication error: Could not identify wholesaler.");
+        setIsSubmittingAdd(false);
+        return;
+    }
+
+    if (!selectedProviderId || !addClientId || !addClientSecret) {
+        setAddModalError("Please fill all required fields.");
+        setIsSubmittingAdd(false);
+        return;
+    }
+
+    const payload = {
+      wholesalerId,
+      supplierId: selectedProviderId,
+      credentials: { client_id: addClientId, client_secret: addClientSecret, scope: addScope }
+    };
+
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Failed to save credential.');
+        
+        const supplierName = allProviders.find(p => p._id === selectedProviderId)?.name || "E Booking";
+        const newCredentialForState: Credential = {
+            id: result.data._id, 
+            name: `${supplierName} Credential`,
+            apiKey: addClientId, apiSecret: addClientSecret, scope: addScope,
+            status: 'Active',
+            lastTest: { status: 'Untested', timestamp: null }
+        };
+
+        setSuppliers(prevSuppliers => {
+            const newSuppliers = new Map(prevSuppliers.map(s => [s.id, { ...s }]));
+            if (newSuppliers.has(selectedProviderId)) {
+                newSuppliers.get(selectedProviderId)!.credentials.push(newCredentialForState);
+            } else {
+                const providerDetails = allProviders.find(p => p._id === selectedProviderId);
+                newSuppliers.set(selectedProviderId, {
+                    id: selectedProviderId,
+                    name: providerDetails?.name || 'E Booking',
+                    logo: providerDetails?.logoUrl || '',
+                    credentials: [newCredentialForState],
+                });
+            }
+            return Array.from(newSuppliers.values());
+        });
+        
+        setIsAddModalOpen(false);
+        setSelectedProviderId('');
+        setAddClientId('');
+        setAddClientSecret('');
+        setAddScope('read:hotels-search write:hotels-book');
+
+    } catch (error) {
+        setAddModalError(error instanceof Error ? error.message : 'An unknown error occurred.');
+    } finally {
+        setIsSubmittingAdd(false);
     }
   };
-  
-  // --- UPDATED --- Test connectivity with progress bar simulation
-  const handleTestConnectivity = (credentialId: string) => {
-    setTestingProgress(prev => ({ ...prev, [credentialId]: 0 }));
 
-    const interval = setInterval(() => {
-      setTestingProgress(prev => {
-        const currentProgress = prev[credentialId] ?? 0;
-        const nextProgress = currentProgress + 20; // Increment progress
-
-        if (nextProgress >= 100) {
-          clearInterval(interval);
-          // --- Finalize the test ---
-          setSuppliers(prevSuppliers => prevSuppliers.map(supplier => ({
-            ...supplier,
-            credentials: supplier.credentials.map(cred => {
-              if (cred.id === credentialId) {
-                return {
-                  ...cred,
-                  lastTest: {
-                    status: Math.random() > 0.3 ? 'Success' : 'Failed',
-                    timestamp: new Date().toISOString(),
-                  },
-                };
-              }
-              return cred;
-            }),
-          })));
-          // Reset progress state
-          return { ...prev, [credentialId]: null };
-        }
-        return { ...prev, [credentialId]: nextProgress };
-      });
-    }, 300); // Update every 300ms
+  // --- Update Credential Logic ---
+  const openUpdateModal = (credential: Credential) => {
+    setEditingCredential(credential);
+    setUpdateClientId(credential.apiKey);
+    setUpdateScope(credential.scope);
+    setUpdateClientSecret('');
+    setUpdateModalError(null);
+    setIsUpdateModalOpen(true);
   };
 
+  const handleUpdateCredential = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingCredential) return;
+
+    setIsSubmittingUpdate(true);
+    setUpdateModalError(null);
+
+    const payload: { credentials: { client_id: string; scope: string; client_secret?: string } } = {
+        credentials: { client_id: updateClientId, scope: updateScope }
+    };
+    if (updateClientSecret) {
+        payload.credentials.client_secret = updateClientSecret;
+    }
+
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/update/${editingCredential.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Failed to update credential.');
+
+        setSuppliers(prevSuppliers => prevSuppliers.map(supplier => ({
+            ...supplier,
+            credentials: supplier.credentials.map(cred => {
+                if (cred.id === editingCredential.id) {
+                    return { ...cred, apiKey: updateClientId, scope: updateScope };
+                }
+                return cred;
+            })
+        })));
+
+        setIsUpdateModalOpen(false);
+        setEditingCredential(null);
+
+    } catch (error) {
+        setUpdateModalError(error instanceof Error ? error.message : 'An unknown error occurred.');
+    } finally {
+        setIsSubmittingUpdate(false);
+    }
+  };
+
+  // --- Test Connectivity Logic ---
+  const handleTestConnectivity = async (credentialId: string, supplierId: string) => {
+    const fullEndpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}connectivityTest/ebooking/token-test`;
+    const displayEndpoint = `connectivityTest/ebooking/token-test`;
+    
+    setTestResultInfo({ status: 'Pending', endpoint: displayEndpoint, response: null });
+    setIsTestResultModalOpen(true);
+
+    const wholesalerId = getWholesalerId();
+    const authToken = getAuthToken();
+    let finalTestStatus: TestStatus = 'Failed';
+
+    try {
+        const payload = { wholesalerId, supplierId };
+        const response = await fetch(fullEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+        if (response.ok && result.success) {
+            finalTestStatus = 'Success';
+            setTestResultInfo({ status: 'Success', endpoint: displayEndpoint, response: result });
+        } else {
+            setTestResultInfo({ status: 'Failed', endpoint: displayEndpoint, response: result });
+        }
+    } catch (error) {
+        setTestResultInfo({ status: 'Failed', endpoint: displayEndpoint, response: error instanceof Error ? { error: error.message } : { error: 'An unknown client-side error occurred.' } });
+    } finally {
+        setSuppliers(prevSuppliers => prevSuppliers.map(supplier => ({
+            ...supplier,
+            credentials: supplier.credentials.map(cred => {
+                if (cred.id === credentialId) {
+                    return { ...cred, lastTest: { status: finalTestStatus, timestamp: new Date().toISOString() } };
+                }
+                return cred;
+            }),
+        })));
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -196,35 +394,24 @@ const APIManagement: NextPage = () => {
     setActiveSupplierId(prevId => (prevId === supplierId ? null : supplierId));
   };
   
-  if (pageLoading) {
-    return (
-        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-600"/>
-        </div>
-    );
-  }
+  if (pageLoading) return <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900"><Loader2 className="h-12 w-12 animate-spin text-blue-600"/></div>;
   
-  if (pageError) {
-      return (
-          <div className="flex h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-900">
-              <div className="text-center">
-                  <XCircle className="mx-auto h-12 w-12 text-red-500"/>
-                  <h3 className="mt-2 text-lg font-medium text-red-600">Failed to Load Data</h3>
-                  <p className="mt-1 text-sm text-gray-500">{pageError}</p>
-              </div>
+  if (pageError) return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-900">
+          <div className="text-center">
+              <XCircle className="mx-auto h-12 w-12 text-red-500"/>
+              <h3 className="mt-2 text-lg font-medium text-red-600">Failed to Load Data</h3>
+              <p className="mt-1 text-sm text-gray-500">{pageError}</p>
           </div>
-      );
-  }
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 text-gray-900 dark:bg-gray-900 dark:text-white sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
           <h1 className="text-3xl font-bold tracking-tight">API Management</h1>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-          >
+          <button onClick={() => setIsAddModalOpen(true)} className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900">
             <Plus className="h-5 w-5" />
             <span>Add New Credential</span>
           </button>
@@ -233,14 +420,11 @@ const APIManagement: NextPage = () => {
         <div className="space-y-4">
           {suppliers.map(supplier => (
             <div key={supplier.id} className="overflow-hidden rounded-xl bg-white shadow-lg dark:bg-gray-800">
-              <div
-                onClick={() => handleToggleSupplier(supplier.id)}
-                className="flex cursor-pointer items-center justify-between p-6 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
-              >
+              <div onClick={() => handleToggleSupplier(supplier.id)} className="flex cursor-pointer items-center justify-between p-6 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <div className="flex items-center space-x-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-                    <Building className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-                  </div>
+                  {/* <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                     {supplier.logo ? <img src={supplier.logo} alt={`${supplier.name} logo`} className="h-8 w-8 object-contain" /> : <Building className="h-6 w-6 text-gray-500 dark:text-gray-400" />}
+                  </div> */}
                   <h2 className="text-xl font-bold">{supplier.name}</h2>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -258,62 +442,27 @@ const APIManagement: NextPage = () => {
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{cred.name}</h3>
                                     <StatusBadge status={cred.status} />
                                 </div>
-                                <div className="w-full sm:w-48">
-                                    {typeof testingProgress[cred.id] === 'number' ? (
-                                        // --- NEW --- Progress Bar UI
-                                        <div>
-                                            <div className="mb-1 flex justify-between">
-                                                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Connecting...</span>
-                                                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">{testingProgress[cred.id]}%</span>
-                                            </div>
-                                            <div className="w-full rounded-full bg-gray-200 dark:bg-gray-700 h-2.5">
-                                                <div className="h-2.5 rounded-full bg-blue-600 transition-all duration-300" style={{width: `${testingProgress[cred.id]}%`}}></div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        // Original Button
-                                        <button
-                                            onClick={() => handleTestConnectivity(cred.id)}
-                                            className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                                        >
-                                            <Wifi className="h-4 w-4" />
-                                            <span>Test Connectivity</span>
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => openUpdateModal(cred)} className="flex items-center justify-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                        <Edit className="h-4 w-4" /><span>Edit</span>
+                                    </button>
+                                    <button onClick={() => handleTestConnectivity(cred.id, supplier.id)} className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:w-auto">
+                                        <Wifi className="h-4 w-4" /><span>Test</span>
+                                    </button>
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-gray-200 pt-4 dark:border-gray-700 md:grid-cols-2">
+                            <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-gray-200 pt-4 dark:border-gray-700">
                                 <div className="space-y-3">
-                                  <div className="flex items-center gap-3">
-                                      <KeyRound className="h-5 w-5 text-gray-400"/>
-                                      <label className="font-medium">API Key</label>
-                                  </div>
-                                  <div className="flex items-center gap-2 rounded-md bg-white p-2 dark:bg-gray-900">
-                                      <span className="truncate font-mono text-sm text-gray-600 dark:text-gray-400">{cred.apiKey}</span>
-                                      <button onClick={() => copyToClipboard(cred.apiKey)} className="ml-auto p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
-                                          <Copy className="h-4 w-4"/>
-                                      </button>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-3">
-                                      <Shield className="h-5 w-5 text-gray-400"/>
-                                      <label className="font-medium">API Secret</label>
-                                  </div>
-                                  <div className="flex items-center gap-2 rounded-md bg-white p-2 dark:bg-gray-900">
-                                      <span className="font-mono text-sm text-gray-600 dark:text-gray-400">••••••••••••••••••••••••</span>
-                                      <button onClick={() => copyToClipboard(cred.apiSecret)} className="ml-auto p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
-                                          <Copy className="h-4 w-4"/>
-                                      </button>
-                                  </div>
-                                </div>
-                                <div className="flex items-center rounded-lg bg-white p-4 dark:bg-gray-900/50">
-                                    <TestStatusIndicator lastTest={cred.lastTest} />
+                                  <div className="flex items-center gap-3"><KeyRound className="h-5 w-5 text-gray-400"/><label className="font-medium">API Key (Client ID)</label></div>
+                                  <div className="flex items-center gap-2 rounded-md bg-white p-2 dark:bg-gray-900"><span className="truncate font-mono text-sm text-gray-600 dark:text-gray-400">{cred.apiKey}</span><button onClick={() => copyToClipboard(cred.apiKey)} className="ml-auto p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"><Copy className="h-4 w-4"/></button></div>
+                                  <div className="flex items-center gap-3"><Shield className="h-5 w-5 text-gray-400"/><label className="font-medium">API Secret</label></div>
+                                  <div className="flex items-center gap-2 rounded-md bg-white p-2 dark:bg-gray-900"><span className="font-mono text-sm text-gray-600 dark:text-gray-400">••••••••••••••••••••••••</span><button onClick={() => copyToClipboard(cred.apiSecret)} className="ml-auto p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"><Copy className="h-4 w-4"/></button></div>
                                 </div>
                             </div>
                         </div>
                     ))}
-                 </div>
+                  </div>
               )}
             </div>
           ))}
@@ -321,61 +470,71 @@ const APIManagement: NextPage = () => {
       </div>
 
       {/* Add New Credential Modal */}
-      {isModalOpen && (
+      {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
           <div className="m-4 w-full max-w-lg rounded-xl bg-white shadow-2xl dark:bg-gray-800">
-            <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700">
-              <h2 className="text-xl font-bold">Add New Supplier Credential</h2>
-              <button onClick={() => setIsModalOpen(false)} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <X className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-              </button>
-            </div>
-            <form className="space-y-4 p-6" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <label htmlFor="supplier" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Supplier</label>
-                <select 
-                  id="supplier" 
-                  value={selectedProviderId}
-                  onChange={(e) => handleProviderChange(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">Select a supplier...</option>
-                  {suppliers.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="credName" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Credential Name</label>
-                <input type="text" id="credName" placeholder="e.g., Production Account" className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-              </div>
-              <div>
-                <label htmlFor="apiKey" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>
-                <input 
-                  type="text" 
-                  id="apiKey" 
-                  placeholder="Auto-filled on supplier selection" 
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-              </div>
-              <div>
-                <label htmlFor="apiSecret" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">API Secret</label>
-                <input 
-                  type="password" 
-                  id="apiSecret" 
-                  placeholder="Auto-filled on supplier selection" 
-                  value={apiSecret}
-                  onChange={(e) => setApiSecret(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                 <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
-                    Cancel
-                 </button>
-                 <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
-                    Save and Connect
-                 </button>
-              </div>
+            <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700"><h2 className="text-xl font-bold">Add New Supplier Credential</h2><button onClick={() => setIsAddModalOpen(false)} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700"><X className="h-6 w-6 text-gray-600 dark:text-gray-300" /></button></div>
+            <form className="space-y-4 p-6" onSubmit={handleAddNewCredential}>
+              <div><label htmlFor="supplier" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Supplier</label><select id="supplier" value={selectedProviderId} onChange={(e) => setSelectedProviderId(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required><option value="">Select a supplier...</option>{allProviders.map(provider => <option key={provider._id} value={provider._id}>{provider.name}</option>)}</select></div>
+              <div><label htmlFor="addClientId" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label><input type="text" id="addClientId" placeholder="Enter the client ID" value={addClientId} onChange={(e) => setAddClientId(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required /></div>
+              <div><label htmlFor="addClientSecret" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label><input type="password" id="addClientSecret" placeholder="Enter the client secret" value={addClientSecret} onChange={(e) => setAddClientSecret(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required /></div>
+              <div><label htmlFor="addScope" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Scope</label><input type="text" id="addScope" placeholder="e.g., read:hotels-search write:hotels-book" value={addScope} onChange={(e) => setAddScope(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div>
+              {addModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{addModalError}</p></div></div></div>)}
+              <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-700"><button type="button" onClick={() => setIsAddModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">Cancel</button><button type="submit" className="flex w-36 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isSubmittingAdd}>{isSubmittingAdd ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save Credential"}</button></div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update Credential Modal */}
+      {isUpdateModalOpen && editingCredential && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+          <div className="m-4 w-full max-w-lg rounded-xl bg-white shadow-2xl dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700"><h2 className="text-xl font-bold">Update Credential</h2><button onClick={() => setIsUpdateModalOpen(false)} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700"><X className="h-6 w-6 text-gray-600 dark:text-gray-300" /></button></div>
+            <form className="space-y-4 p-6" onSubmit={handleUpdateCredential}>
+              <div><label htmlFor="updateClientId" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label><input type="text" id="updateClientId" placeholder="Enter the client ID" value={updateClientId} onChange={(e) => setUpdateClientId(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required /></div>
+              <div><label htmlFor="updateClientSecret" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret (Optional)</label><input type="password" id="updateClientSecret" placeholder="Enter new secret to update" value={updateClientSecret} onChange={(e) => setUpdateClientSecret(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div>
+              <div><label htmlFor="updateScope" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Scope</label><input type="text" id="updateScope" placeholder="e.g., read:hotels-search write:hotels-book" value={updateScope} onChange={(e) => setUpdateScope(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></div>
+              {updateModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{updateModalError}</p></div></div></div>)}
+              <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-700"><button type="button" onClick={() => setIsUpdateModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">Cancel</button><button type="submit" className="flex w-36 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isSubmittingUpdate}>{isSubmittingUpdate ? <Loader2 className="h-5 w-5 animate-spin" /> : "Update Credential"}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Test Result Modal */}
+      {isTestResultModalOpen && testResultInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+          <div className="m-4 w-full max-w-2xl rounded-xl bg-white shadow-2xl dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700">
+              <h2 className="text-xl font-bold">Connectivity Test Result</h2>
+              <button onClick={() => setIsTestResultModalOpen(false)} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700"><X className="h-6 w-6 text-gray-600 dark:text-gray-300" /></button>
+            </div>
+            <div className="space-y-4 p-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Endpoint</label>
+                    <p className="mt-1 font-mono text-sm text-gray-900 dark:text-gray-200">{testResultInfo.endpoint}</p>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>
+                    <div className="mt-1 flex items-center gap-2">
+                        {testResultInfo.status === 'Pending' && <><Loader2 className="h-5 w-5 animate-spin text-blue-500" /> <span className="text-blue-500">Testing...</span></>}
+                        {testResultInfo.status === 'Success' && <><CheckCircle2 className="h-5 w-5 text-green-500" /> <span className="font-semibold text-green-500">Success</span></>}
+                        {testResultInfo.status === 'Failed' && <><XCircle className="h-5 w-5 text-red-500" /> <span className="font-semibold text-red-500">Failed</span></>}
+                    </div>
+                </div>
+                {testResultInfo.response && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">API Response</label>
+                        <pre className={`mt-1 max-h-60 overflow-y-auto rounded-lg p-4 text-sm ${testResultInfo.status === 'Success' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                            {JSON.stringify(testResultInfo.response, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-gray-200 p-4 dark:border-gray-700">
+                <button type="button" onClick={() => setIsTestResultModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">Close</button>
+            </div>
           </div>
         </div>
       )}

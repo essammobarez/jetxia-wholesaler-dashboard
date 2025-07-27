@@ -12,7 +12,7 @@ import {
   Menu,
 } from 'lucide-react';
 
-// Page imports (add the new submenu components here)
+// Page imports
 import DashboardPage from './DashboardPage';
 import OverviewTab from './OverviewTab';
 import HistoryTab from './HistoryTab';
@@ -39,13 +39,13 @@ import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
 import SupportTicketsPage from './SupportTicketsPage';
 
-// ✨ New import for Sales Person
-import SalesPerson from './SalesPerson';
+// ✨ UPDATED: Imports for the new "Sales Person" sub-menus
+import SalesPersonPage from './SalesPersonPage';
+import AgencyListPage from './AgencyListPage';
 
-// ✨ New import for Sales Agency
+// Existing sales-related imports for 'Customers' menu
 import SalesAgencyPage from './salesAgency';
 import GetSalesAgencyPage from './GetsalesAgency';
-
 
 // New imports for Reports submenu
 import OutstandingReport from './OutstandingReport';
@@ -103,7 +103,6 @@ export default function WholesalerPage() {
   const [userType, setUserType] = useState<string | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [visibleMenuItems, setVisibleMenuItems] = useState<string[]>(allMenuItems);
-  // ✨ New state for user role
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,7 +168,6 @@ export default function WholesalerPage() {
         if (payload.permissions && Array.isArray(payload.permissions)) {
             setUserPermissions(payload.permissions);
         }
-        // ✨ New: Decode user role from token
         if (payload.role) {
             setUserRole(payload.role);
         }
@@ -194,7 +192,6 @@ export default function WholesalerPage() {
   
   // Effect to filter menu items based on permissions
   useEffect(() => {
-    // ✨ New: Check for 'sales' role first to give limited access
     if (userRole === 'sales') {
         const salesMenuItems = ['Dashboard', 'Booking', 'Customers', 'Markup'];
         setVisibleMenuItems(salesMenuItems);
@@ -297,7 +294,6 @@ export default function WholesalerPage() {
             <span className="font-semibold text-gray-800 dark:text-gray-100 block">
               {userName}
             </span>
-            {/* ✨ Dynamically display user role */}
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {userRole === 'sales' 
                 ? 'Sales Person' 
@@ -367,7 +363,8 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Markup', 'Supplier', 'Reports'].includes(item) && (
+                {/* ✨ UPDATED: Added 'Sales Person' to the list of expandable menus */}
+                {['Booking', 'Customers', 'Markup', 'Supplier', 'Reports', 'Sales Person'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -376,7 +373,8 @@ export default function WholesalerPage() {
                 )}
               </button>
 
-              {/* Enhanced Sub-menus */}
+              {/* --- SUB-MENUS --- */}
+
               {expandedMenu === 'Booking' && item === 'Booking' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
                   {['Overview', 'History', 'Company', 'ManualReservations'].map((tab) => (
@@ -425,7 +423,6 @@ export default function WholesalerPage() {
                       <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
                       <span className="text-sm">
                         {tab === 'CreateAgent' && 'Create Agency'}
-                        {/* ✨ New sub-menu for sales role */}
                         {tab === 'SalesAgency' && 'Sales Agency'}
                          {tab === 'GetSalesAgency' && 'Get Sales Agency'}
                         {tab === 'ManageAgent' && 'Manage Agency'}
@@ -485,6 +482,33 @@ export default function WholesalerPage() {
                   ))}
                 </div>
               )}
+                
+              {/* ✨ NEW: Sales Person Sub-menu */}
+              {expandedMenu === 'Sales Person' && item === 'Sales Person' && (
+                  <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                    {['SalesPerson', 'AgencyList'].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => {
+                          setActivePage('Sales Person');
+                          setActiveTab(tab);
+                        }}
+                        className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                          activeTab === tab
+                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                      >
+                        <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                        <span className="text-sm">
+                          {tab === 'SalesPerson' && 'Sales Person'}
+                          {tab === 'AgencyList' && 'Agency List'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
 
               {expandedMenu === 'Reports' && item === 'Reports' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
@@ -626,7 +650,6 @@ export default function WholesalerPage() {
 
           {activePage === 'Customers' && (
             <div className="animate-fade-scale">
-              {/* ✨ Render SalesAgencyPage for sales role */}
               {activeTab === 'SalesAgency' && <SalesAgencyPage />}
                 {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
@@ -678,8 +701,22 @@ export default function WholesalerPage() {
             </div>
           )}
           
-          {/* ✨ Render the new SalesPerson component */}
-          {activePage === 'Sales Person' && <SalesPerson />}
+          {/* ✨ UPDATED: Logic to render the correct sub-menu page */}
+          {activePage === 'Sales Person' && (
+            <div className="animate-fade-scale">
+                {activeTab === 'SalesPerson' && <SalesPersonPage />}
+                {activeTab === 'AgencyList' && <AgencyListPage />}
+                {!activeTab && (
+                    <div className="card-modern p-12 text-center">
+                    <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <LayoutGrid className="w-8 h-8 text-red-600 dark:text-red-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Sales Management</h3>
+                    <p className="text-gray-500 dark:text-gray-400">Choose a sales management option from the sidebar.</p>
+                    </div>
+                )}
+            </div>
+          )}
 
            {activePage === 'API Management' && <APIManagement />}
            {activePage === 'Mapped Hotels' && <MappedHotels />}

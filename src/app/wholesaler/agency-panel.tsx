@@ -407,121 +407,133 @@ export default function AgencyAdminPanel() {
         </div>
 
         <div className="space-y-4 lg:space-y-0 p-4 lg:p-0">
-            {agencies.map((a) => (
-                <div key={a.id} className="lg:contents">
-                    <div className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] lg:gap-4 lg:items-center lg:border-b lg:border-gray-100 lg:py-4 lg:px-4 lg:hover:bg-blue-50">
+            {agencies.map((a) => {
+                // --- MODIFICATION START ---
+                // Logic to truncate the markup plan name
+                const words = a.markupPlanName.split(' ');
+                const isPlanNameTruncated = words.length > 2;
+                const planNameDisplayText = isPlanNameTruncated ? `${words.slice(0, 2).join(' ')}...` : a.markupPlanName;
+                // --- MODIFICATION END ---
 
-                        <div className="flex justify-between items-center lg:block">
-                            <strong className="lg:hidden text-gray-600">Agency</strong>
-                            <span>{a.agencyName}</span>
-                        </div>
+                return (
+                    <div key={a.id} className="lg:contents">
+                        <div className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] lg:gap-4 lg:items-center lg:border-b lg:border-gray-100 lg:py-4 lg:px-4 lg:hover:bg-blue-50">
 
-                        <div className="flex justify-between items-center lg:block">
-                            <strong className="lg:hidden text-gray-600">Contact</strong>
-                            <span className="text-right lg:text-left">{a.contactName}</span>
-                        </div>
+                            <div className="flex justify-between items-center lg:block">
+                                <strong className="lg:hidden text-gray-600">Agency</strong>
+                                <span>{a.agencyName}</span>
+                            </div>
 
-                        <div className="flex justify-between items-center lg:block">
-                            <strong className="lg:hidden text-gray-600">Submitted</strong>
-                            <span className="text-right lg:text-left">
-                                {new Date(a.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                            </span>
-                        </div>
+                            <div className="flex justify-between items-center lg:block">
+                                <strong className="lg:hidden text-gray-600">Contact</strong>
+                                <span className="text-right lg:text-left">{a.contactName}</span>
+                            </div>
 
-                        <div className="flex justify-between items-center lg:block">
-                             <strong className="lg:hidden text-gray-600">Markup Plan</strong>
-                             <div className="flex justify-end lg:justify-start">
-                                 {a.markupPlanName !== '—' ? (
-                                     <div className="flex items-center space-x-2">
-                                     <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                                         {a.markupPlanName}
-                                     </span>
-                                     <div className="group relative" data-tooltip-area={a.id}>
-                                         <Tag
-                                             className="w-5 h-5 text-blue-500 cursor-pointer"
-                                             onClick={() => setActiveTooltip(prev => prev === a.id ? null : a.id)}
-                                         />
-                                         <div
-                                             className={`
-                                                 absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
-                                                 bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
-                                                 ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
-                                                 lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
-                                             `}
-                                         >
-                                             <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
-                                                 Providers & Markups
-                                             </h4>
-                                             <ul className="space-y-1">
-                                                 {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
-                                                     <li key={markup._id} className="flex justify-between items-center space-x-4">
-                                                         <span>{markup.provider?.name ?? 'Default'}</span>
-                                                         <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
-                                                             {markup.value}%
-                                                         </span>
-                                                     </li>
-                                                 ))}
-                                             </ul>
-                                             <div
-                                                 className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
-                                                         border-x-8 border-x-transparent border-t-8 border-t-gray-800"
-                                             />
-                                         </div>
-                                     </div>
-                                     </div>
-                                 ) : (
-                                     <span className="text-gray-500">—</span>
-                                 )}
-                             </div>
-                        </div>
+                            <div className="flex justify-between items-center lg:block">
+                                <strong className="lg:hidden text-gray-600">Submitted</strong>
+                                <span className="text-right lg:text-left">
+                                    {new Date(a.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                </span>
+                            </div>
 
-                        <div className="flex justify-between items-center lg:block">
-                            <strong className="lg:hidden text-gray-600">Status</strong>
-                            <span
-                            className={`px-3 py-1 text-xs font-medium rounded-full ${
-                                a.status === 'pending' ? 'bg-yellow-100 text-yellow-800'
-                                : a.status === 'approved' ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}
-                            >
-                            {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                            </span>
-                        </div>
+                            {/* --- MODIFIED MARKUP COLUMN --- */}
+                            <div className="flex justify-between items-center lg:block">
+                                <strong className="lg:hidden text-gray-600">Markup Plan</strong>
+                                <div className="flex justify-end lg:justify-start">
+                                    {a.markupPlanName !== '—' ? (
+                                        <div className="flex items-center space-x-2">
+                                        <span
+                                            className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded"
+                                            title={isPlanNameTruncated ? a.markupPlanName : undefined}
+                                        >
+                                            {planNameDisplayText}
+                                        </span>
+                                        <div className="group relative" data-tooltip-area={a.id}>
+                                            <Tag
+                                                className="w-5 h-5 text-blue-500 cursor-pointer"
+                                                onClick={() => setActiveTooltip(prev => prev === a.id ? null : a.id)}
+                                            />
+                                            <div
+                                                className={`
+                                                    absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs
+                                                    bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
+                                                    ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
+                                                    lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
+                                                `}
+                                            >
+                                                <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
+                                                    Providers & Markups
+                                                </h4>
+                                                <ul className="space-y-1">
+                                                    {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
+                                                        <li key={markup._id} className="flex justify-between items-center space-x-4">
+                                                            <span>{markup.provider?.name ?? 'Default'}</span>
+                                                            <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
+                                                                {markup.value}%
+                                                            </span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                                <div
+                                                    className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
+                                                            border-x-8 border-x-transparent border-t-8 border-t-gray-800"
+                                                />
+                                            </div>
+                                        </div>
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-500">—</span>
+                                    )}
+                                </div>
+                            </div>
 
-                        <div className="flex justify-end items-center pt-2 lg:pt-0">
-                            <div className="flex items-center justify-end flex-wrap lg:flex-nowrap gap-2">
-                                <button title="Add Credit" onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
-                                    <TbCreditCardPay className="w-5 h-5" />
-                                </button>
-                                <button title="View" onClick={() => openModal('view', a)} className="p-2 bg-blue-200 rounded-full hover:bg-blue-300 transition">
-                                    <Eye size={18} className="text-blue-700" />
-                                </button>
-                                <button title="Edit" onClick={() => openModal('edit', a)} className="p-2 bg-indigo-200 rounded-full hover:bg-indigo-300 transition">
-                                    <Edit2 size={18} className="text-indigo-700" />
-                                </button>
-                                <button title="Markup" onClick={() => openModal('markup', a)} className="p-2 bg-yellow-200 rounded-full hover:bg-yellow-300 transition">
-                                    <Tag size={18} className="text-yellow-700" />
-                                </button>
-                                {/* UPDATED ASSIGN BUTTON ONCLICK */}
-                                <button title="Assign" onClick={() => openAssignModal(a.id, a.agencyName)} className="p-2 bg-purple-200 rounded-full hover:bg-purple-300 transition">
-                                    <UserPlus size={18} className="text-purple-700" />
-                                </button>
-                                <Switch
-                                    checked={!a.suspended}
-                                    onChange={() => toggleStatus(a)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!a.suspended ? 'bg-green-400' : 'bg-red-300'}`}
+                            <div className="flex justify-between items-center lg:block">
+                                <strong className="lg:hidden text-gray-600">Status</strong>
+                                <span
+                                className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                    a.status === 'pending' ? 'bg-yellow-100 text-yellow-800'
+                                    : a.status === 'approved' ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
                                 >
-                                    <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!a.suspended ? 'translate-x-6' : 'translate-x-1'}`} />
-                                </Switch>
-                                <button title="Delete" onClick={() => deleteAgency(a)} className="p-2 bg-red-200 rounded-full hover:bg-red-300 transition">
-                                    <Trash2 size={18} className="text-red-700" />
-                                </button>
+                                {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-end items-center pt-2 lg:pt-0">
+                                <div className="flex items-center justify-end flex-wrap lg:flex-nowrap gap-2">
+                                    <button title="Add Credit" onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
+                                        <TbCreditCardPay className="w-5 h-5" />
+                                    </button>
+                                    <button title="View" onClick={() => openModal('view', a)} className="p-2 bg-blue-200 rounded-full hover:bg-blue-300 transition">
+                                        <Eye size={18} className="text-blue-700" />
+                                    </button>
+                                    <button title="Edit" onClick={() => openModal('edit', a)} className="p-2 bg-indigo-200 rounded-full hover:bg-indigo-300 transition">
+                                        <Edit2 size={18} className="text-indigo-700" />
+                                    </button>
+                                    <button title="Markup" onClick={() => openModal('markup', a)} className="p-2 bg-yellow-200 rounded-full hover:bg-yellow-300 transition">
+                                        <Tag size={18} className="text-yellow-700" />
+                                    </button>
+                                    <button title="Assign" onClick={() => openAssignModal(a.id, a.agencyName)} className="p-2 bg-purple-200 rounded-full hover:bg-purple-300 transition">
+                                        <UserPlus size={18} className="text-purple-700" />
+                                    </button>
+                                    <Switch
+                                        checked={!a.suspended}
+                                        onChange={() => toggleStatus(a)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!a.suspended ? 'bg-green-400' : 'bg-red-300'}`}
+                                    >
+                                        <span className="sr-only">{a.suspended ? 'Unsuspend' : 'Suspend'}</span>
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!a.suspended ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </Switch>
+                                    <button title="Delete" onClick={() => deleteAgency(a)} className="p-2 bg-red-200 rounded-full hover:bg-red-300 transition">
+                                        <Trash2 size={18} className="text-red-700" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
       </div>
 
@@ -548,7 +560,6 @@ export default function AgencyAdminPanel() {
         />
       )}
 
-      {/* RENDER THE NEW ASSIGN MODAL WITH NAME PROP */}
       <AssignModal
         isOpen={isAssignModalOpen}
         onClose={closeAssignModal}
