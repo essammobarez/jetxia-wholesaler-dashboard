@@ -98,8 +98,6 @@ const AddCreditModal = ({ onClose, agencyId, walletBalance }: AddCreditModalProp
       ...(type === 'CREDIT' && { expireDate }),
     };
 
-    console.log(payload)
-
     try {
       const response = await fetch(`${API_URL}wallet/manual-credit`, {
         method: 'POST',
