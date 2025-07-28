@@ -392,8 +392,10 @@ const AdvancedAnalytics: React.FC = () => {
           booking.agency.agencyName
       );
 
+      // If there's no data, set state to null and return to show the 'No Data' message
       if (validBookings.length === 0) {
-        throw new Error("No valid booking data found");
+        setAnalyticsData(null);
+        return;
       }
 
       const transformedData = transformApiDataToAnalytics(validBookings);
