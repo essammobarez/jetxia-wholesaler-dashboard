@@ -13,18 +13,49 @@ import {
   CheckCircle, 
   Clock, 
   XCircle,
-  MoreVertical,
   Eye,
   Plus,
   X
 } from 'lucide-react'
 
 type Payment = {
-  id: string
-  date: string
-  amount: number
+  _id: string
+  paymentId: string
+  agencyId: {
+    _id: string
+    slug: string
+  }
+  wholesalerId: string
+  ledgerEntryId: {
+    _id: string
+    referenceType: string
+    referenceId: string
+    description: string
+  }
+  fullAmount: number
+  paidAmount: number
   status: string
-  paymentMethod: string
+  remainingAmount: number
+  createdAt: string
+  updatedAt: string
+  createdBy?: string
+}
+
+type PaymentResponse = {
+  statusCode: number
+  success: boolean
+  message: string
+  data: {
+    payments: Payment[]
+    pagination: {
+      currentPage: number
+      totalPages: number
+      totalCount: number
+      limit: number
+      hasNextPage: boolean
+      hasPrevPage: boolean
+    }
+  }
 }
 
 type Agency = {
@@ -69,13 +100,13 @@ const getAuthToken = () => {
   return "";
 }
 
-const fetchPayments = async (wholesalerId: string): Promise<Payment[]> => {
+const fetchPayments = async (wholesalerId: string, page: number = 1, limit: number = 10): Promise<PaymentResponse> => {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Auth token missing. Please login again.");
   }
 
-  const res = await fetch(`${API_URL}paymentHistory/${wholesalerId}/payments`, {
+  const res = await fetch(`${API_URL}paymentHistory/wholesaler/payments?page=${page}&limit=${limit}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -90,54 +121,11 @@ const fetchPayments = async (wholesalerId: string): Promise<Payment[]> => {
     throw new Error(`API error: ${res.status}`)
   }
 
-  const data: any[] = await res.json()
-
-  return data.map(item => {
-    return {
-      id: item.paymentId || item.id || 'Unknown',
-      date: format(new Date(item.createdAt || item.paymentDate || item.date), 'yyyy-MM-dd'),
-      amount: item.amount || item.paymentAmount || 0,
-      status: item.status
-        ? item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()
-        : 'Unknown',
-      paymentMethod: item.paymentMethod || item.paymentType || item.method
-        ? (item.paymentMethod || item.paymentType || item.method).charAt(0).toUpperCase() + 
-          (item.paymentMethod || item.paymentType || item.method).slice(1).toLowerCase()
-        : 'Unknown'
-    }
-  })
+  const data: PaymentResponse = await res.json()
+  return data
 }
 
-// Function to handle payment actions (view details, download receipt, etc.)
-const handlePaymentAction = async (paymentId: string, action: string) => {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error("Auth token missing. Please login again.");
-  }
 
-  try {
-    const response = await fetch(`${API_URL}payments/${paymentId}/${action}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error("Unauthorized. Please login again.");
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error(`Error performing payment action ${action}:`, error);
-    throw error;
-  }
-}
 
 // Function to export payment report
 const exportPaymentReport = async (wholesalerId: string, filters?: any) => {
@@ -254,7 +242,16 @@ const PaymentLogPage: FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [wholesalerId, setWholesalerId] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalCount: 0,
+    limit: 10,
+    hasNextPage: false,
+    hasPrevPage: false
+  })
   
   // Payment Modal States
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -298,47 +295,36 @@ const PaymentLogPage: FC = () => {
     loadAgencies()
   }, [wholesalerId])
 
-  // Fetch payments once we have the ID with mock data fallback
+  // Fetch payments once we have the wholesaler ID
   useEffect(() => {
     const loadPayments = async () => {
+      if (!wholesalerId || !API_URL) {
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       console.log("wholesalerId", wholesalerId)
+      
       try {
-        if (wholesalerId && API_URL) {
-          const data = await fetchPayments(wholesalerId)
-          if (data && data.length > 0) {
-            setPayments(data)
-            setError(null)
-            setLoading(false)
-            return
-          }
+        const response = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit)
+        if (response.success && response.data.payments) {
+          setPayments(response.data.payments)
+          setPagination(response.data.pagination)
+          setError(null)
+        } else {
+          setError('Failed to fetch payments')
         }
       } catch (err: any) {
         console.error('Error fetching payments from API:', err)
+        setError(err.message || 'Failed to fetch payments')
+      } finally {
+        setLoading(false)
       }
-
-      // Fallback to mock data
-      console.log('🔧 Development mode: Using mock payment data')
-      const mockPayments = [
-         { id: 'PAY-001', date: '2024-01-15', amount: 2450.00, status: 'Completed', paymentMethod: 'Credit Card' },
-         { id: 'PAY-002', date: '2024-01-14', amount: 1850.75, status: 'Completed', paymentMethod: 'Bank Transfer' },
-         { id: 'PAY-003', date: '2024-01-13', amount: 3200.50, status: 'Pending', paymentMethod: 'PayPal' },
-         { id: 'PAY-004', date: '2024-01-12', amount: 950.25, status: 'Failed', paymentMethod: 'Credit Card' },
-         { id: 'PAY-005', date: '2024-01-11', amount: 4750.00, status: 'Completed', paymentMethod: 'Wire Transfer' },
-         { id: 'PAY-006', date: '2024-01-10', amount: 1650.80, status: 'Completed', paymentMethod: 'Credit Card' },
-         { id: 'PAY-007', date: '2024-01-09', amount: 2890.45, status: 'Pending', paymentMethod: 'Bank Transfer' },
-         { id: 'PAY-008', date: '2024-01-08', amount: 750.90, status: 'Completed', paymentMethod: 'PayPal' },
-         { id: 'PAY-009', date: '2024-01-07', amount: 5200.00, status: 'Completed', paymentMethod: 'Wire Transfer' },
-         { id: 'PAY-010', date: '2024-01-06', amount: 1120.35, status: 'Failed', paymentMethod: 'Credit Card' },
-      ]
-
-      // setPayments(mockPayments)
-      setError(null)
-      setLoading(false)
     }
 
     loadPayments()
-  }, [wholesalerId])
+  }, [wholesalerId, pagination.currentPage, pagination.limit])
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
@@ -372,20 +358,14 @@ const PaymentLogPage: FC = () => {
     }
   }
 
-  const handlePaymentActionClick = async (paymentId: string, action: string) => {
-    setActionLoading(paymentId)
-    setError(null)
+  const handleViewPayment = (payment: Payment) => {
+    setSelectedPayment(payment)
+    setShowViewModal(true)
+  }
 
-    try {
-      const result = await handlePaymentAction(paymentId, action)
-      console.log(`Payment ${action} result:`, result)
-      // Handle the result based on the action
-      // For example, if action is 'view', you might want to show a modal
-    } catch (err: any) {
-      setError(err.message || `Failed to ${action} payment`)
-    } finally {
-      setActionLoading(null)
-    }
+  const closeViewModal = () => {
+    setShowViewModal(false)
+    setSelectedPayment(null)
   }
 
   // Payment Modal Handlers
@@ -462,14 +442,21 @@ const PaymentLogPage: FC = () => {
       const result = await makePaymentToAgency(selectedAgencyId, amount)
       console.log('Payment successful:', result)
       
-      // Close modal and refresh data
+      // Close modal
       closePaymentModal()
       
-      // Optionally refresh payments and agencies
+      // Refresh data after successful payment
       if (wholesalerId) {
         // Refresh agencies to update balances
         const agenciesData = await fetchAgencies(wholesalerId)
         setAgencies(agenciesData)
+        
+        // Refresh payment history
+        const paymentResponse = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit)
+        if (paymentResponse.success && paymentResponse.data.payments) {
+          setPayments(paymentResponse.data.payments)
+          setPagination(paymentResponse.data.pagination)
+        }
       }
       
       // Show success message
@@ -481,44 +468,62 @@ const PaymentLogPage: FC = () => {
     }
   }
 
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }))
+  }
+
+  const handleNextPage = () => {
+    if (pagination.hasNextPage) {
+      handlePageChange(pagination.currentPage + 1)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (pagination.hasPrevPage) {
+      handlePageChange(pagination.currentPage - 1)
+    }
+  }
+
   const filtered = payments.filter(p => {
     const matchesSearch =
-      p.id.toLowerCase().includes(search.toLowerCase()) ||
-      p.amount.toString().includes(search)
+      p.paymentId.toLowerCase().includes(search.toLowerCase()) ||
+      p.paidAmount.toString().includes(search) ||
+      p.agencyId.slug.toLowerCase().includes(search.toLowerCase())
     const matchesStatus =
       statusFilter === 'All' || p.status === statusFilter
     return matchesSearch && matchesStatus
   })
 
-  const displayed = filtered.slice(0, 20)
+  const displayed = filtered
 
   // Calculate summary statistics
-  const totalAmount = filtered.reduce((sum, payment) => sum + payment.amount, 0)
-  const completedPayments = filtered.filter(p => p.status === 'Completed').length
-  const pendingPayments = filtered.filter(p => p.status === 'Pending').length
-  const failedPayments = filtered.filter(p => p.status === 'Failed').length
+  const totalAmount = filtered.reduce((sum, payment) => sum + payment.paidAmount, 0)
+  const paidPayments = filtered.filter(p => p.status === 'Paid').length
+  const partiallyPaidPayments = filtered.filter(p => p.status === 'Partially Paid').length
+  const refundedPayments = filtered.filter(p => p.status === 'Refunded').length
 
   const summaryStats = [
     { title: 'Total Revenue', value: `$${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, change: '+12.3%', gradient: 'gradient-success' },
-    { title: 'Completed', value: completedPayments.toString(), icon: CheckCircle, change: '+8.5%', gradient: 'gradient-blue' },
-    { title: 'Pending', value: pendingPayments.toString(), icon: Clock, change: '-2.1%', gradient: 'gradient-warning' },
-    { title: 'Failed', value: failedPayments.toString(), icon: XCircle, change: '-15.7%', gradient: 'gradient-secondary' }
+    { title: 'Paid', value: paidPayments.toString(), icon: CheckCircle, change: '+8.5%', gradient: 'gradient-blue' },
+    { title: 'Partially Paid', value: partiallyPaidPayments.toString(), icon: Clock, change: '-2.1%', gradient: 'gradient-warning' },
+    { title: 'Refunded', value: refundedPayments.toString(), icon: XCircle, change: '-15.7%', gradient: 'gradient-secondary' }
   ]
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed': return CheckCircle
-      case 'pending': return Clock
-      case 'failed': return XCircle
+      case 'paid': return CheckCircle
+      case 'partially paid': return Clock
+      case 'refunded': return XCircle
       default: return CreditCard
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-      case 'pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-      case 'failed': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+      case 'paid': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+      case 'partially paid': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+      case 'refunded': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
     }
   }
@@ -594,7 +599,7 @@ const PaymentLogPage: FC = () => {
             <input
               type="text"
               className="input-modern pl-10 pr-4 py-3 w-full"
-              placeholder="Search by ID, amount..."
+              placeholder="Search by payment ID, amount, or agency..."
               value={search}
               onChange={handleSearchChange}
             />
@@ -606,9 +611,9 @@ const PaymentLogPage: FC = () => {
               onChange={handleStatusFilterChange}
             >
               <option value="All">All Status</option>
-              <option value="Completed">Completed</option>
-              <option value="Pending">Pending</option>
-              <option value="Failed">Failed</option>
+              <option value="Paid">Paid</option>
+              <option value="Partially Paid">Partially Paid</option>
+              <option value="Refunded">Refunded</option>
             </select>
             <button className="btn-modern bg-blue-50 text-blue-600 dark:bg-blue-900 dark:text-blue-300 px-4">
               <Calendar className="w-4 h-4 mr-2" />
@@ -672,45 +677,42 @@ const PaymentLogPage: FC = () => {
             {displayed.map(payment => {
               const StatusIcon = getStatusIcon(payment.status);
               return (
-                <div key={payment.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+                <div key={payment._id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
                   <div className="flex justify-between items-center">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">#{payment.id}</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">#{payment.paymentId}</p>
                     <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
                       <StatusIcon className="w-3 h-3 mr-1" />
                       {payment.status}
                     </span>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Amount</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Paid Amount</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      ${payment.amount != null ? payment.amount.toFixed(2) : '0.00'}
+                      ${payment.paidAmount != null ? payment.paidAmount.toFixed(2) : '0.00'}
                     </p>
+                    {payment.remainingAmount > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Remaining: ${payment.remainingAmount.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex justify-between items-center">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                         <Calendar className="w-4 h-4" />
-                        <span>{payment.date}</span>
+                        <span>{format(new Date(payment.createdAt), 'yyyy-MM-dd')}</span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                         <CreditCard className="w-4 h-4" />
-                        <span>{payment.paymentMethod}</span>
+                        <span>{payment.agencyId.slug}</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-1">
                       <button 
-                        onClick={() => handlePaymentActionClick(payment.id, 'view')}
-                        disabled={actionLoading === payment.id}
-                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                        onClick={() => handleViewPayment(payment)}
+                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                       >
                         <Eye className="w-5 h-5" />
-                      </button>
-                      <button 
-                        onClick={() => handlePaymentActionClick(payment.id, 'download')}
-                        disabled={actionLoading === payment.id}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
-                      >
-                        <MoreVertical className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -726,9 +728,9 @@ const PaymentLogPage: FC = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transaction</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Paid Amount</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Method</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Agency</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -736,14 +738,14 @@ const PaymentLogPage: FC = () => {
                 {displayed.map((payment, index) => {
                   const StatusIcon = getStatusIcon(payment.status)
                   return (
-                    <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
+                    <tr key={payment._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-3">
                           <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
                             <CreditCard className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">#{payment.id}</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">#{payment.paymentId}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Transaction ID</p>
                           </div>
                         </div>
@@ -751,12 +753,14 @@ const PaymentLogPage: FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-900 dark:text-white">{payment.date}</span>
+                          <span className="text-sm text-gray-900 dark:text-white">{format(new Date(payment.createdAt), 'yyyy-MM-dd')}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900 dark:text-white">${payment.amount != null ? payment.amount.toFixed(2) : '0.00'}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">USD</div>
+                        <div className="text-sm font-bold text-gray-900 dark:text-white">${payment.paidAmount != null ? payment.paidAmount.toFixed(2) : '0.00'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {payment.remainingAmount > 0 ? `Remaining: $${payment.remainingAmount.toFixed(2)}` : 'USD'}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
@@ -765,23 +769,16 @@ const PaymentLogPage: FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white font-medium">{payment.paymentMethod}</div>
+                        <div className="text-sm text-gray-900 dark:text-white font-medium">{payment.agencyId.slug}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{payment.ledgerEntryId.referenceType}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <button 
-                            onClick={() => handlePaymentActionClick(payment.id, 'view')}
-                            disabled={actionLoading === payment.id}
-                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                            onClick={() => handleViewPayment(payment)}
+                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                           >
                             <Eye className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handlePaymentActionClick(payment.id, 'download')}
-                            disabled={actionLoading === payment.id}
-                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
-                          >
-                            <MoreVertical className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -795,12 +792,20 @@ const PaymentLogPage: FC = () => {
           {/* Pagination Info */}
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400 space-y-2 sm:space-y-0">
-              <span>Showing {displayed.length} of {filtered.length} transactions</span>
+              <span>Showing {displayed.length} of {pagination.totalCount} transactions (Page {pagination.currentPage} of {pagination.totalPages})</span>
               <div className="flex space-x-2">
-                <button className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50" disabled>
+                <button 
+                  onClick={handlePrevPage}
+                  disabled={!pagination.hasPrevPage}
+                  className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
                   Previous
                 </button>
-                <button className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50" disabled>
+                <button 
+                  onClick={handleNextPage}
+                  disabled={!pagination.hasNextPage}
+                  className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
                   Next
                 </button>
               </div>
@@ -962,6 +967,178 @@ const PaymentLogPage: FC = () => {
                     Confirm Payment
                   </div>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Payment Details Modal */}
+      {showViewModal && selectedPayment && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={closeViewModal}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full animate-scale-up border border-gray-100 dark:border-gray-700 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="relative p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-t-2xl">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-xl">
+                  <CreditCard className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Payment Details
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    #{selectedPayment.paymentId}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeViewModal}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Payment Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">Paid Amount</span>
+                      <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                      ${selectedPayment.paidAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Full Amount</span>
+                      <DollarSign className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                      ${selectedPayment.fullAmount.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Remaining Amount</span>
+                      <DollarSign className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
+                      ${selectedPayment.remainingAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  
+                  <div className={`rounded-xl p-4 border ${
+                    selectedPayment.status === 'Paid' 
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                      : selectedPayment.status === 'Partially Paid'
+                      ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                      : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</span>
+                      {(() => {
+                        const StatusIcon = getStatusIcon(selectedPayment.status);
+                        return <StatusIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+                      })()}
+                    </div>
+                    <p className={`text-lg font-bold ${
+                      selectedPayment.status === 'Paid' 
+                        ? 'text-green-900 dark:text-green-100' 
+                        : selectedPayment.status === 'Partially Paid'
+                        ? 'text-yellow-900 dark:text-yellow-100'
+                        : 'text-blue-900 dark:text-blue-100'
+                    }`}>
+                      {selectedPayment.status}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                  Payment Information
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Payment ID</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPayment.paymentId}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Agency</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPayment.agencyId.slug}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Created Date</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {format(new Date(selectedPayment.createdAt), 'PPP')}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Updated Date</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {format(new Date(selectedPayment.updatedAt), 'PPP')}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Reference Type</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPayment.ledgerEntryId.referenceType}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Reference ID</label>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPayment.ledgerEntryId.referenceId}</p>
+                    </div>
+                    {selectedPayment.createdBy && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Created By</label>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedPayment.createdBy}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Entry Description */}
+              <div className="space-y-3">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                  Transaction Description
+                </h4>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                    {selectedPayment.ledgerEntryId.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl">
+              <button
+                onClick={closeViewModal}
+                className="btn-modern bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2"
+              >
+                Close
               </button>
             </div>
           </div>
