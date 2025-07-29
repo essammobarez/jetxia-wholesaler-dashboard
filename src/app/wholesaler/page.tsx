@@ -34,6 +34,9 @@ import AssignMarkup from './AssignMarkup';
 import MarkupAgencyList from './MarkupAgencyList';
 import PlanList from './PlanList';
 
+// ✨ NEW: Import for Profile Settings
+import ProfileSettingsPage from './ProfileSettingsPage';
+
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
@@ -98,7 +101,7 @@ export default function WholesalerPage() {
 
   // Added a loading state to prevent UI flash before auth check
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // State for user type and permissions
   const [userType, setUserType] = useState<string | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
@@ -108,7 +111,7 @@ export default function WholesalerPage() {
   useEffect(() => {
     // 🔧 DEVELOPMENT BYPASS - Remove this section when authentication is needed
     const devBypass = searchParams.get('dev') === 'true' || localStorage.getItem('devMode') === 'true';
-    
+
     if (devBypass) {
       console.log('🔧 Development mode: Authentication bypassed');
       localStorage.setItem('devMode', 'true');
@@ -189,7 +192,7 @@ export default function WholesalerPage() {
       router.replace('/');
     }
   }, [searchParams, router]);
-  
+
   // Effect to filter menu items based on permissions
   useEffect(() => {
     if (userRole === 'sales') {
@@ -295,30 +298,45 @@ export default function WholesalerPage() {
               {userName}
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {userRole === 'sales' 
-                ? 'Sales Person' 
-                : userType === 'subuser' 
-                ? 'Subuser Panel' 
+              {userRole === 'sales'
+                ? 'Sales Person'
+                : userType === 'subuser'
+                ? 'Subuser Panel'
                 : 'Wholesaler Admin'}
             </span>
           </div>
           <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors duration-300" />
-          
+
           {showProfileMenu && (
             <div className="absolute top-full left-6 mt-2 w-48 card-modern py-2 z-50 animate-fade-scale">
               <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{userName}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">developer@example.com</p>
               </div>
-              <button className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200">
+              {/* ✨ UPDATED: Button to open Profile Settings page with event propagation stopped */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // <-- THIS IS THE FIX
+                  setActivePage('Profile Settings');
+                  setShowProfileMenu(false); // Hide profile dropdown
+                  setExpandedMenu(null);     // Hide any open sidebar submenu
+                }}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200"
+              >
                 Profile Settings
               </button>
-              <button className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200">
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200"
+              >
                 Preferences
               </button>
               <hr className="my-2 border-gray-100 dark:border-gray-700" />
               <button
-                onClick={handleLogout}
+                onClick={(e) => {
+                  e.stopPropagation(); // <-- THIS IS THE FIX
+                  handleLogout();
+                }}
                 className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors duration-200"
               >
                 Sign Out
@@ -347,19 +365,19 @@ export default function WholesalerPage() {
               >
                 <div className="flex items-center space-x-3">
                   <div className={`p-2 rounded-lg transition-all duration-300 ${
-                    activePage === item 
-                      ? 'bg-white/20' 
+                    activePage === item
+                      ? 'bg-white/20'
                       : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
                   }`}>
                     <LayoutGrid className={`w-4 h-4 ${
-                      activePage === item 
-                        ? 'text-white' 
+                      activePage === item
+                        ? 'text-white'
                         : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
                     }`} />
                   </div>
                   <span className={`font-medium ${
-                    activePage === item 
-                      ? 'text-white' 
+                    activePage === item
+                      ? 'text-white'
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
@@ -482,7 +500,7 @@ export default function WholesalerPage() {
                   ))}
                 </div>
               )}
-                
+
               {/* ✨ NEW: Sales Person Sub-menu */}
               {expandedMenu === 'Sales Person' && item === 'Sales Person' && (
                   <div className="ml-6 mt-2 space-y-1 animate-slide-up">
@@ -568,7 +586,7 @@ export default function WholesalerPage() {
               🔧 DEVELOPMENT MODE - Authentication temporarily disabled
             </div>
           )}
-          
+
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-6 flex-1">
               <button
@@ -578,7 +596,7 @@ export default function WholesalerPage() {
               >
                 <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
               </button>
-              
+
               <div className="relative text-gray-500 dark:text-gray-400 w-full sm:w-auto">
                 <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -587,7 +605,7 @@ export default function WholesalerPage() {
                   className="input-modern pl-10 pr-4 py-3 w-full sm:w-80 text-sm"
                 />
               </div>
-              
+
               <div className="hidden lg:flex items-center space-x-4">
                 <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
                   <LayoutGrid className="w-4 h-4 mr-2" />
@@ -599,7 +617,7 @@ export default function WholesalerPage() {
                 </button>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -612,10 +630,10 @@ export default function WholesalerPage() {
                   <Moon className="w-5 h-5 text-gray-600 group-hover:rotate-180 transition-transform duration-500" />
                 )}
               </button>
-              
+
               <div className="relative">
-                <button 
-                  aria-label="View notifications" 
+                <button
+                  aria-label="View notifications"
                   className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 relative"
                 >
                   <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -629,6 +647,9 @@ export default function WholesalerPage() {
         {/* Enhanced Body */}
         <main className="p-6 overflow-y-auto flex-1 bg-gradient-to-br from-transparent to-white/30 dark:to-gray-800/30">
           {activePage === 'Dashboard' && <DashboardPage />}
+
+          {/* ✨ NEW: Render Profile Settings Page */}
+          {activePage === 'Profile Settings' && <ProfileSettingsPage />}
 
           {activePage === 'Booking' && (
             <div className="animate-fade-scale">
@@ -700,7 +721,7 @@ export default function WholesalerPage() {
               )}
             </div>
           )}
-          
+
           {/* ✨ UPDATED: Logic to render the correct sub-menu page */}
           {activePage === 'Sales Person' && (
             <div className="animate-fade-scale">
@@ -718,8 +739,8 @@ export default function WholesalerPage() {
             </div>
           )}
 
-           {activePage === 'API Management' && <APIManagement />}
-           {activePage === 'Mapped Hotels' && <MappedHotels />}
+            {activePage === 'API Management' && <APIManagement />}
+            {activePage === 'Mapped Hotels' && <MappedHotels />}
 
           {activePage === 'Metrics' && <Metrics />}
           {activePage === 'Payment' && <Payment />}
