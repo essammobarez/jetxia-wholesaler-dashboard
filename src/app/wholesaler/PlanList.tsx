@@ -7,7 +7,7 @@ interface Markup {
   provider: {
     _id: string;
     name: string;
-  };
+  } | null; // Allow provider to be null to match potential API response
   type: 'percentage' | 'fixed'; // adjust if other types exist
   value: number;
   _id: string;
@@ -297,11 +297,13 @@ export default function PlanListAdvanced() {
             {filteredSortedPlans.map(plan => {
               // Prepare markup details
               const markupDetails = plan.markups.map(m => {
+                // Safely access provider name with a fallback
+                const providerName = m.provider?.name ?? 'N/A';
                 if (m.type === 'percentage') {
-                  return `${m.value}% (${m.provider.name})`;
+                  return `${m.value}% (${providerName})`;
                 }
                 // For fixed type, you might format as currency; adjust locale/currency as needed
-                return `${m.value} (${m.provider.name})`;
+                return `${m.value} (${providerName})`;
               });
 
               return (
