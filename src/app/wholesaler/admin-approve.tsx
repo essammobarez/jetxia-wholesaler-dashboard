@@ -56,10 +56,17 @@ const AdminApprove: NextPage = () => {
   // Helper to get token & wholesalerId
   const getAuthToken = useCallback(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("authToken") || "";
+      // The user provided a token snippet, but this component already handles it.
+      // We will use the existing consistent method.
+      const tokenFromCookie = document.cookie
+        .split("; ")
+        .find((r) => r.startsWith("authToken="))
+        ?.split("=")[1];
+      return tokenFromCookie || localStorage.getItem("authToken") || "";
     }
     return "";
   }, []);
+
 
   const getWholesalerId = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -100,7 +107,7 @@ const AdminApprove: NextPage = () => {
           id: item._id,
           agencyName: item.agencyName,
           contactName: `${item.firstName} ${item.lastName}`,
-          email: item.emailId || item.email, 
+          email: item.emailId || item.email,
           submittedAt: item.createdAt,
           status: item.status as "pending" | "approved" | "suspended",
           slug: item.slug,
@@ -225,6 +232,10 @@ const AdminApprove: NextPage = () => {
     if (!assignMarkupInfo) return;
     const { ids } = assignMarkupInfo;
     const token = getAuthToken();
+    if (!token) {
+        toast.error("Authorization failed. Please log in again.");
+        return;
+    }
 
     toast.info(`Assigning and approving ${ids.length} agencies...`);
 
@@ -241,10 +252,10 @@ const AdminApprove: NextPage = () => {
       );
       await Promise.all(assignPromises);
 
-      // Step 2: Approve all selected agencies
+      // Step 2: Approve all selected agencies using the new endpoint
       const approvePromises = ids.map(agencyId =>
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}agency/admin/agencies/${agencyId}`, {
-          method: "PATCH",
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}wholesaler/${agencyId}/status`, {
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
