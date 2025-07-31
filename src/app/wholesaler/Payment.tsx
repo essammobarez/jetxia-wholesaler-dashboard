@@ -60,15 +60,18 @@ type PaymentResponse = {
 
 type Agency = {
   _id: string
+  agencyId: string
   agencyName: string
-  slug: string
-  status: string
-  country: string
-  city: string
-  email: string
-  phoneNumber: string
-  businessCurrency: string
-  walletBalance: {
+  totalItems: number
+  totalOutstanding: number
+  slug?: string
+  status?: string
+  country?: string
+  city?: string
+  email?: string
+  phoneNumber?: string
+  businessCurrency?: string
+  walletBalance?: {
     mainBalance: number
     availableCredit: number
     creditExpiryDate: string | null
@@ -87,8 +90,8 @@ type Agency = {
       _id: string
     }>
   }
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!
@@ -172,8 +175,8 @@ const fetchAgencies = async (wholesalerId: string): Promise<Agency[]> => {
   if (!token) {
     throw new Error("Auth token missing. Please login again.");
   }
-
-  const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`, {
+  // reports/agency-outstanding-report
+  const res = await fetch(`${API_URL}reports/agency-outstanding-report`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -197,6 +200,48 @@ const fetchAgencies = async (wholesalerId: string): Promise<Agency[]> => {
   return response.data || []
 }
 
+// Function to fetch ledger entries for an agency
+const fetchLedgerEntries = async (agencyId: string) => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Auth token missing. Please login again.");
+  }
+
+  try {
+    const response = await fetch(`${API_URL}ledger/report`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error("Unauthorized. Please login again.");
+      }
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.success || !Array.isArray(data.data)) {
+      throw new Error("Invalid ledger API response format");
+    }
+
+    // Filter ledger entries for the specific agency and get unpaid entries
+    const agencyLedgerEntries = data.data.filter((entry: any) => 
+      entry.agency === agencyId && 
+      entry.ledgerStatus !== 'PAID' && 
+      entry.type === 'DEBIT'
+    );
+
+    return agencyLedgerEntries;
+  } catch (error) {
+    console.error('Error fetching ledger entries:', error);
+    throw error;
+  }
+}
+
 // Function to make payment to agency
 const makePaymentToAgency = async (agencyId: string, paymentAmount: number) => {
   const token = getAuthToken();
@@ -205,6 +250,16 @@ const makePaymentToAgency = async (agencyId: string, paymentAmount: number) => {
   }
 
   try {
+    // First, fetch ledger entries for the agency
+    const ledgerEntries = await fetchLedgerEntries(agencyId);
+    
+    if (ledgerEntries.length === 0) {
+      throw new Error("No outstanding ledger entries found for this agency");
+    }
+
+    // Extract ledger IDs
+    const ledgerIds = ledgerEntries.map((entry: any) => entry._id);
+
     const response = await fetch(`${API_URL}paymentHistory/${agencyId}/credit/settle`, {
       method: 'POST',
       headers: {
@@ -212,7 +267,8 @@ const makePaymentToAgency = async (agencyId: string, paymentAmount: number) => {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        paymentAmount: paymentAmount
+        paymentAmount: paymentAmount,
+        ledgerIds: ledgerIds
       }),
     });
 
@@ -260,6 +316,7 @@ const PaymentLogPage: FC = () => {
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [showAgencyDropdown, setShowAgencyDropdown] = useState(false)
+  const [agencySearchTerm, setAgencySearchTerm] = useState('')
 
   // Load stored wholesaler ID on mount
   useEffect(() => {
@@ -374,6 +431,7 @@ const PaymentLogPage: FC = () => {
     setSelectedAgencyId('')
     setPaymentAmount('')
     setPaymentError(null)
+    setAgencySearchTerm('')
   }
 
   const closePaymentModal = () => {
@@ -381,16 +439,21 @@ const PaymentLogPage: FC = () => {
     setSelectedAgencyId('')
     setPaymentAmount('')
     setPaymentError(null)
+    setAgencySearchTerm('')
   }
 
   const handleAgencySelect = (agencyId: string) => {
     setSelectedAgencyId(agencyId)
     setShowAgencyDropdown(false)
     setPaymentError(null)
+    setAgencySearchTerm('')
   }
 
   const toggleAgencyDropdown = () => {
     setShowAgencyDropdown(!showAgencyDropdown)
+    if (!showAgencyDropdown) {
+      setAgencySearchTerm('')
+    }
   }
 
   // Close dropdown when clicking outside
@@ -407,6 +470,20 @@ const PaymentLogPage: FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showAgencyDropdown]);
+
+  // Filter agencies based on search term
+  const filteredAgencies = agencies.filter(agency => {
+    if (!agencySearchTerm.trim()) return true;
+    
+    const searchLower = agencySearchTerm.toLowerCase();
+    return (
+      agency.agencyName.toLowerCase().includes(searchLower) ||
+      (agency.slug && agency.slug.toLowerCase().includes(searchLower)) ||
+      (agency.city && agency.city.toLowerCase().includes(searchLower)) ||
+      (agency.country && agency.country.toLowerCase().includes(searchLower)) ||
+      (agency.email && agency.email.toLowerCase().includes(searchLower))
+    );
+  });
 
   const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -435,11 +512,18 @@ const PaymentLogPage: FC = () => {
       return
     }
 
+    // Find the selected agency to get the agencyId field
+    const selectedAgency = agencies.find(a => a._id === selectedAgencyId)
+    if (!selectedAgency) {
+      setPaymentError('Selected agency not found')
+      return
+    }
+
     setPaymentLoading(true)
     setPaymentError(null)
 
     try {
-      const result = await makePaymentToAgency(selectedAgencyId, amount)
+      const result = await makePaymentToAgency(selectedAgency._id, amount)
       console.log('Payment successful:', result)
       
       // Close modal
@@ -863,7 +947,10 @@ const PaymentLogPage: FC = () => {
                   >
                     <span className={selectedAgencyId ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}>
                       {selectedAgencyId 
-                        ? agencies.find(a => a._id === selectedAgencyId)?.agencyName || 'Choose an agency...'
+                        ? (() => {
+                            const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                            return selectedAgency ? `${selectedAgency.agencyName} ($${selectedAgency.totalOutstanding.toFixed(2)})` : 'Choose an agency...';
+                          })()
                         : 'Choose an agency...'
                       }
                     </span>
@@ -873,22 +960,52 @@ const PaymentLogPage: FC = () => {
                   </button>
                   
                   {showAgencyDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {agencies.map((agency) => (
-                        <button
-                          key={agency._id}
-                          type="button"
-                          onClick={() => handleAgencySelect(agency._id)}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                        >
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            {agency.agencyName} ({agency.slug})
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden">
+                      {/* Search Input */}
+                      <div className="sticky top-0 bg-white dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 p-3">
+                        <div className="relative">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            value={agencySearchTerm}
+                            onChange={(e) => setAgencySearchTerm(e.target.value)}
+                            placeholder="Search agencies..."
+                            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 focus:bg-white dark:focus:bg-gray-700 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Agency List */}
+                      <div className="max-h-48 overflow-y-auto">
+                        {filteredAgencies.length > 0 ? (
+                          filteredAgencies.map((agency) => (
+                            <button
+                              key={agency._id}
+                              type="button"
+                              onClick={() => handleAgencySelect(agency._id)}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900 dark:text-white">
+                                {agency.agencyName}
+                              </div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                Total Outstanding: ${agency.totalOutstanding.toFixed(2)} ({agency.totalItems} items)
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-6 text-center">
+                            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                              <Search className="w-6 h-6 text-gray-400" />
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No agencies found</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              Try adjusting your search terms
+                            </p>
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {agency.city}, {agency.country}
-                          </div>
-                        </button>
-                      ))}
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -932,10 +1049,13 @@ const PaymentLogPage: FC = () => {
                       <div className="p-1.5 bg-blue-100 dark:bg-blue-900 rounded-lg">
                         <DollarSign className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       </div>
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Current Balance</span>
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Outstanding</span>
                     </div>
                     <span className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                      ${agencies.find(a => a._id === selectedAgencyId)?.walletBalance.mainBalance.toFixed(2) || '0.00'}
+                      ${(() => {
+                        const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                        return selectedAgency ? selectedAgency.totalOutstanding.toFixed(2) : '0.00';
+                      })()}
                     </span>
                   </div>
                 </div>
