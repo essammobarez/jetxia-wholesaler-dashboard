@@ -183,19 +183,39 @@ export default function AgencyAdminPanel() {
   }, [API_URL, wholesalerId]);
 
   const toggleStatus = async (agency: AgencyWithState) => {
+    const token =
+      document.cookie
+        .split('; ')
+        .find((r) => r.startsWith('authToken='))
+        ?.split('=')[1] || localStorage.getItem('authToken');
+
+    if (!token) {
+      console.error('Authorization failed. Please log in again.');
+      return;
+    }
+
     const newStatus = agency.suspended ? 'approved' : 'suspended';
+    const agencyId = agency.id;
+
     try {
-      const res = await fetch(`${API_URL}agency/admin/agencies/${agency.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${API_URL}wholesaler/${agencyId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ status: newStatus }),
       });
+
       const json = await res.json();
-      if (!json.success) return;
+      if (!json.success) {
+        console.error('Failed to toggle status:', json.message || json);
+        return;
+      }
 
       setAgencies((prev) =>
         prev.map((a) =>
-          a.id === agency.id
+          a.id === agencyId
             ? { ...a, status: newStatus, suspended: newStatus !== 'approved' }
             : a
         )

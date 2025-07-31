@@ -37,6 +37,9 @@ import PlanList from './PlanList';
 // ✨ NEW: Import for Profile Settings
 import ProfileSettingsPage from './ProfileSettingsPage';
 
+// ✨ NEW: Import for Preferences Page
+import PreferencesPage from './PreferencesPage';
+
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
@@ -313,28 +316,35 @@ export default function WholesalerPage() {
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{userName}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">developer@example.com</p>
               </div>
-              {/* ✨ UPDATED: Button to open Profile Settings page with event propagation stopped */}
+              {/* Profile Settings Button */}
               <button
                 onClick={(e) => {
-                  e.stopPropagation(); // <-- THIS IS THE FIX
+                  e.stopPropagation();
                   setActivePage('Profile Settings');
-                  setShowProfileMenu(false); // Hide profile dropdown
-                  setExpandedMenu(null);     // Hide any open sidebar submenu
+                  setShowProfileMenu(false);
+                  setExpandedMenu(null);
                 }}
                 className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200"
               >
                 Profile Settings
               </button>
+              {/* ✨ NEW: Preferences Button */}
               <button
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePage('Preferences');
+                  setShowProfileMenu(false);
+                  setExpandedMenu(null);
+                }}
                 className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200"
               >
                 Preferences
               </button>
               <hr className="my-2 border-gray-100 dark:border-gray-700" />
+              {/* Sign Out Button */}
               <button
                 onClick={(e) => {
-                  e.stopPropagation(); // <-- THIS IS THE FIX
+                  e.stopPropagation();
                   handleLogout();
                 }}
                 className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors duration-200"
@@ -381,7 +391,6 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {/* ✨ UPDATED: Added 'Sales Person' to the list of expandable menus */}
                 {['Booking', 'Customers', 'Markup', 'Supplier', 'Reports', 'Sales Person'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
@@ -501,7 +510,6 @@ export default function WholesalerPage() {
                 </div>
               )}
 
-              {/* ✨ NEW: Sales Person Sub-menu */}
               {expandedMenu === 'Sales Person' && item === 'Sales Person' && (
                   <div className="ml-6 mt-2 space-y-1 animate-slide-up">
                     {['SalesPerson', 'AgencyList'].map((tab) => (
@@ -650,6 +658,9 @@ export default function WholesalerPage() {
 
           {/* ✨ NEW: Render Profile Settings Page */}
           {activePage === 'Profile Settings' && <ProfileSettingsPage />}
+          
+          {/* ✨ NEW: Render Preferences Page */}
+          {activePage === 'Preferences' && <PreferencesPage />}
 
           {activePage === 'Booking' && (
             <div className="animate-fade-scale">
@@ -722,7 +733,6 @@ export default function WholesalerPage() {
             </div>
           )}
 
-          {/* ✨ UPDATED: Logic to render the correct sub-menu page */}
           {activePage === 'Sales Person' && (
             <div className="animate-fade-scale">
                 {activeTab === 'SalesPerson' && <SalesPersonPage />}
