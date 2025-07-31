@@ -65,7 +65,8 @@ const allMenuItems = [
   'Supplier',
   'Sales Person',
   'Metrics',
-  'Payment',
+  // 'Payment',
+  // 'History',
   // 'Messages',
   // 'Masters',
   "Support Tickets",
@@ -722,7 +723,8 @@ export default function WholesalerPage() {
            {activePage === 'Mapped Hotels' && <MappedHotels />}
 
           {activePage === 'Metrics' && <Metrics />}
-          {activePage === 'Payment' && <Payment />}
+          {/* {activePage === 'Payment' && <Payment />} */}
+          {/* {activePage === 'History' && <HistoryTab />} */}
           {activePage === 'Support Tickets' && <SupportTicketsPage />}
           {activePage === 'Permissions' && <Permissions />}
         {activePage === 'Users' && <Users />}
@@ -732,7 +734,8 @@ export default function WholesalerPage() {
               {activeTab === 'AgencyOutstandingStatement' && <AgencyOutstandingStatement />}
               {activeTab === 'LedgerReport' && <LedgerReport />}
               {activeTab === 'StatementOfAccount' && <StatementOfAccount />}
-              {activeTab === 'PaymentReport' && <PaymentReport />}
+              {/* {activeTab === 'PaymentReport' && <PaymentReport />} */}
+              {activeTab === 'PaymentReport' && <Payment />}
               {activeTab === 'AdvancedAnalytics' && <AdvancedAnalytics />}
               {!activeTab && (
                 <ReportsDashboard onSelectReport={setActiveTab} />
