@@ -12,8 +12,8 @@ import {
   Briefcase,
   CheckCircle,
 } from 'lucide-react';
-import AreaChart from './AreaChart'; // Assuming these components exist
-import DonutChart from './DonutChart'; // Assuming these components exist
+import AgencyStatsChart from './AgencyStatsChart'; // CHANGED: Using the bar chart for agency stats
+import FinancialOverviewChart from './FinancialOverviewChart'; // CHANGED: Using the new financial chart
 
 // --- Data Type Definitions ---
 interface DashboardData {
@@ -173,7 +173,6 @@ export default function DashboardPage() {
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map(({ label, value, gradient, icon: Icon, description }, index) => (
-          // FIXED: Changed h-40 to min-h-40 to prevent content from being cut off
           <div key={label} className="card-modern p-6 min-h-40 flex flex-col justify-between relative overflow-hidden animate-slide-up" style={{ animationDelay: `${index * 0.15}s` }}>
             <div className={`absolute top-0 right-0 w-24 h-24 ${gradient} opacity-10 rounded-full -mr-8 -mt-8`}></div>
             <div className="flex items-center justify-between mb-3">
@@ -189,18 +188,18 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
-      
+
       <hr/>
 
-      {/* Charts Section (Using placeholder components) */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <div className="card-modern p-6 animate-slide-right">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Performance Analytics</h2>
-          <AreaChart />
+          {/* Chart for agency and booking data */}
+          <AgencyStatsChart data={dashboardData} />
         </div>
         <div className="card-modern p-6 animate-slide-right" style={{ animationDelay: '0.2s' }}>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Distribution Overview</h2>
-          <DonutChart />
+          {/* Chart for financial report data */}
+          <FinancialOverviewChart data={reportData} />
         </div>
       </div>
 
