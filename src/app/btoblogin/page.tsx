@@ -162,18 +162,13 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // New state for verification method
   const [verificationMethod, setVerificationMethod] = useState<'email' | 'google'>('email');
-
   type AuthStep = 'credentials' | 'email-verify-pending' | '2fa-setup' | '2fa-verify';
   const [authStep, setAuthStep] = useState<AuthStep>('credentials');
-  
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [setupSecret, setSetupSecret] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
-  const [countdown, setCountdown] = useState(300); // Set to 5 minutes (300 seconds)
-
+  const [countdown, setCountdown] = useState(300);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
@@ -181,10 +176,9 @@ export default function Login() {
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
-  // --- Effects (UPDATED) ---
+  // --- Effects (Unchanged) ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    // Timer now runs during email verification step
     if (authStep === 'email-verify-pending' && countdown > 0) {
       timer = setInterval(() => {
         setCountdown((prevCountdown) => prevCountdown - 1);
@@ -194,9 +188,7 @@ export default function Login() {
   }, [authStep, countdown]);
 
   useEffect(() => {
-    // This effect handles the success case for email verification
     if (authStep !== 'email-verify-pending') return;
-    
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'pendingToken' && event.newValue === null) {
         toast.success('Account verified successfully! Redirecting to dashboard...');
@@ -216,32 +208,64 @@ export default function Login() {
     setIsLoading(true);
     setMessage(null);
     const lowercasedEmail = email.toLowerCase();
-    
-    try {
-      const res = await fetch(`${API_URL}auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || 'Invalid credentials or server error.');
-      }
 
-      // ** NEW: Conditional logic based on selected verification method **
-      if (verificationMethod === 'email') {
+    // Logic for Email Verification
+    if (verificationMethod === 'email') {
+      try {
+        const res = await fetch(`${API_URL}auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || 'Invalid credentials or server error.');
+        }
         toast.success('Login successful! A verification link has been sent.');
-        localStorage.setItem('pendingToken', 'true'); // Simulate pending status
+        localStorage.setItem('pendingToken', 'true');
         setAuthStep('email-verify-pending');
-        setCountdown(300); // Start 5-minute countdown
-      } else { // 'google'
-        toast.success('Login successful! Please complete 2FA verification.');
-        const storageKey = `2fa_secret_${lowercasedEmail}`;
-        const storedSecret = localStorage.getItem(storageKey);
-        if (storedSecret) {
-          setSetupSecret(storedSecret);
+        setCountdown(300);
+      } catch (err: any) {
+        setMessage(err.message);
+        setMessageType('error');
+        toast.error(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Logic for Google Authenticator
+    if (verificationMethod === 'google') {
+      try {
+        const res = await fetch(`${API_URL}auth/google-authenticator`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // **FIX**: Added type: 'wholesaler' to the payload
+          body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
+        });
+        const json = await res.json();
+        
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || 'Invalid credentials or server error.');
+        }
+
+        // Save accessToken as authToken immediately after successful credential check
+        if (json.data?.accessToken) {
+          const authToken = json.data.accessToken;
+          const expires = new Date(Date.now() + 86400e3).toUTCString(); // 24 hours
+          document.cookie = `authToken=${authToken}; expires=${expires}; path=/; SameSite=Lax; Secure`;
+          localStorage.setItem('authToken', authToken);
+        } else {
+            throw new Error('Authentication failed: No access token received.');
+        }
+
+        if (json.data?.secretKey) {
+          toast.success('Credentials verified. Please enter your 2FA code.');
+          setSetupSecret(json.data.secretKey);
           setAuthStep('2fa-verify');
         } else {
+          toast.success('Credentials verified. Please set up your 2FA.');
           const newSecret = authenticator.generateSecret();
           const otpAuthUrl = authenticator.keyuri(lowercasedEmail, 'Booking Desk', newSecret);
           const qrUrl = await QRCode.toDataURL(otpAuthUrl);
@@ -249,57 +273,74 @@ export default function Login() {
           setQrCodeDataUrl(qrUrl);
           setAuthStep('2fa-setup');
         }
+      } catch (err: any) {
+        setMessage(err.message);
+        setMessageType('error');
+        toast.error(err.message);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: any) {
-      console.error('Login error:', err);
-      setMessage(err.message);
-      setMessageType('error');
-      toast.error(err.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handle2FASubmit = (e: React.FormEvent) => {
+  const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
+    setIsLoading(true);
+
     if (!setupSecret) {
-      setMessage('An error occurred. Please try logging in again.');
-      setMessageType('error');
+      toast.error('An error occurred. Please try logging in again.');
       setAuthStep('credentials');
+      setIsLoading(false);
       return;
     }
+
     try {
       if (twoFactorToken.length !== 6) {
         throw new Error('Please enter a valid 6-digit code.');
       }
+      
       const isValid = authenticator.verify({ token: twoFactorToken, secret: setupSecret });
+      
       if (!isValid) {
         throw new Error('Invalid 2FA code. Please try again.');
       }
-      
-      // ** UPDATED: On successful 2FA, save secret (if needed) and redirect **
-      toast.success('Verification successful! Redirecting...');
+
       if (authStep === '2fa-setup') {
-        const storageKey = `2fa_secret_${email.toLowerCase()}`;
-        localStorage.setItem(storageKey, setupSecret);
+        const saveRes = await fetch(`${API_URL}auth/save-secret-key`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            password: password,
+            secretKey: setupSecret,
+          }),
+        });
+
+        const saveData = await saveRes.json();
+        if (!saveRes.ok || !saveData.success) {
+          throw new Error(saveData.message || 'Failed to save 2FA setup.');
+        }
+        
+        toast.success('2FA set up successfully! Redirecting...');
+        router.push('/wholesaler');
+
+      } else if (authStep === '2fa-verify') {
+        toast.success('Verification successful! Redirecting...');
+        router.push('/wholesaler');
       }
-      const authToken = 'dummy-auth-token-from-backend'; // This would come from your API
-      const expires = new Date(Date.now() + 86400e3).toUTCString();
-      document.cookie = `authToken=${authToken}; expires=${expires}; path=/`;
-      
-      // Redirect directly to the dashboard
-      router.push('/wholesaler');
 
     } catch (err: any) {
       setMessage(err.message);
       setMessageType('error');
       toast.error(err.message);
       setTwoFactorToken('');
+    } finally {
+        setIsLoading(false);
     }
   };
-
-  // --- Render logic for different authentication steps (UPDATED) ---
+  
+  // --- Render logic for different authentication steps ---
   const renderAuthStep = () => {
     const buttonClassName = `w-full py-3 rounded-lg text-white font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
       isLoading
@@ -330,7 +371,6 @@ export default function Login() {
               placeholder="Password"
             />
             
-            {/* ** NEW: Verification Method Selection ** */}
             <div className="pt-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">Verification Method</label>
               <div className="grid grid-cols-2 gap-2">
@@ -396,7 +436,9 @@ export default function Login() {
             <p className="text-sm font-medium text-gray-700 mt-3">Enter Verification Code</p>
             <OtpInput length={6} value={twoFactorToken} onChange={setTwoFactorToken} />
             <div className="pt-2">
-              <button type="submit" className={buttonClassName}>Verify & Complete</button>
+              <button type="submit" disabled={isLoading} className={buttonClassName}>
+                {isLoading ? 'Verifying...' : 'Verify & Complete'}
+              </button>
             </div>
           </form>
         );
@@ -408,12 +450,13 @@ export default function Login() {
             <p className="mb-3 text-sm text-gray-600">Open your authenticator app and enter the code for {email}.</p>
             <OtpInput length={6} value={twoFactorToken} onChange={setTwoFactorToken} />
             <div className="pt-2">
-              <button type="submit" className={buttonClassName}>Verify</button>
+              <button type="submit" disabled={isLoading} className={buttonClassName}>
+                {isLoading ? 'Verifying...' : 'Verify'}
+              </button>
             </div>
           </form>
         );
 
-      // Renamed 'success' to 'email-verify-pending' for clarity
       case 'email-verify-pending':
         return (
           <div className="text-center py-8">
