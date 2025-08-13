@@ -6,17 +6,17 @@ import { format } from 'date-fns';
 import { Ticket, StatusColors } from './types';
 
 const statusColors: StatusColors = {
-  Open: {
+  open: {
     bg: 'bg-green-50',
     text: 'text-green-700',
   },
-  Closed: {
-    bg: 'bg-gray-50',
-    text: 'text-gray-700',
-  },
-  Pending: {
+  in_progress: {
     bg: 'bg-yellow-50',
     text: 'text-yellow-700',
+  },
+  closed: {
+    bg: 'bg-gray-50',
+    text: 'text-gray-700',
   },
 };
 
@@ -38,8 +38,9 @@ interface TicketCardProps {
   onClick?: () => void;
   isDropdownOpen: boolean;
   onDropdownToggle: () => void;
-  onEdit: (ticket: Ticket) => void;
+  onStatusChange: (ticket: Ticket) => void;
   onDelete: (ticket: Ticket) => void;
+  onReopen: (ticket: Ticket) => void;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({
@@ -48,19 +49,20 @@ const TicketCard: React.FC<TicketCardProps> = ({
   onClick,
   isDropdownOpen,
   onDropdownToggle,
-  onEdit,
-  onDelete
+  onStatusChange,
+  onDelete,
+  onReopen
 }) => {
-  const status = statusColors[ticket.status] || { bg: 'bg-gray-50', text: 'text-gray-700' };
+  const status = statusColors[ticket?.status] || { bg: 'bg-gray-50', text: 'text-gray-700' };
   const randomBgColor = React.useMemo(() => getRandomColor(), []);
 
   const formattedDate = React.useMemo(() => {
     try {
-      return format(new Date(ticket.createdAt), 'dd MMMM, yyyy');
+      return format(new Date(ticket?.createdAt), 'dd MMMM, yyyy');
     } catch (error) {
-      return ticket.createdAt;
+      return ticket?.createdAt;
     }
-  }, [ticket.createdAt]);
+  }, [ticket?.createdAt]);
 
   return (
     <div
@@ -92,10 +94,17 @@ const TicketCard: React.FC<TicketCardProps> = ({
             className={`
               px-2.5 py-1 rounded-full text-xs font-medium
               border border-gray-200
-              ${status.bg} ${status.text}
+              ${status?.bg} ${status?.text}
             `}
           >
-            {ticket.status}
+            {ticket.status
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase())}
+          </div>
+          
+          {/* Category Badge */}
+          <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+            {ticket.category}
           </div>
 
           <div className="relative dropdown-menu">
@@ -115,12 +124,23 @@ const TicketCard: React.FC<TicketCardProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onEdit(ticket);
+                      onStatusChange(ticket);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
                   >
-                    Edit
+                    Change Status
                   </button>
+                  {ticket.status === 'closed' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReopen(ticket);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      Reopen
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -148,10 +168,10 @@ const TicketCard: React.FC<TicketCardProps> = ({
 
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          {ticket.wholesalerId?.email ? (
+          {ticket?.agency?.avatar ? (
             <img
-              src={ticket.wholesalerId.email}
-              alt={ticket.wholesalerId.email}
+              src={ticket?.agency?.avatar}
+              alt={ticket?.agency?.agencyName}
               className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
@@ -164,23 +184,20 @@ const TicketCard: React.FC<TicketCardProps> = ({
                 ${randomBgColor}
               `}
             >
-              {/* Fallback initials from agency email or generic 'NA' */}
-              {ticket.agencyId?.email
-                ? ticket.agencyId.email.slice(0, 2).toUpperCase()
-                : 'NA'}
+              {ticket?.agency?.agencyName?.slice(0, 2)}
             </div>
           )}
 
           {/* Message */}
           <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-600 line-clamp-2">{ticket.replies[0]?.message}</p>
+              <p className="text-sm text-gray-600 line-clamp-2">{ticket?.replies[0]?.message}</p>
           </div>
 
           {/* Replies */}
-          {ticket.replies?.length > 0 && (
+          {ticket?.replies?.length > 0 && (
             <div className="flex items-center gap-1.5 text-blue-600 text-sm">
               <FiMessageCircle className="w-4 h-4" />
-              <span className="font-medium">{ticket.replies.length}</span>
+              <span className="font-medium">{ticket?.replies?.length}</span>
             </div>
           )}
         </div>

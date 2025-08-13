@@ -3,13 +3,15 @@
 import React from 'react';
 import FilterSection from './FilterSection';
 import TicketList from './TicketList';
-import { StatusType, SortType, Ticket } from './types';
+import { StatusType, SortType, Ticket, CategoryType } from './types';
 
 interface AllTicketsSectionProps {
   search: string;
   onSearch: (value: string) => void;
   status: StatusType;
   onStatus: (value: StatusType) => void;
+  category: CategoryType;
+  onCategory: (value: CategoryType) => void;
   sort: SortType;
   onSort: (value: SortType) => void;
   selectedTicket: Ticket | null;
@@ -18,8 +20,11 @@ interface AllTicketsSectionProps {
   onCreateTicket: () => void;
   isDropdownOpen: string | null;
   onDropdownToggle: (id: string | null) => void;
-  onEdit: (ticket: Ticket) => void;
+  onStatusChange: (ticket: Ticket) => void;
   onDelete: (ticket: Ticket) => void;
+  onReopen: (ticket: Ticket) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
@@ -27,6 +32,8 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
   onSearch,
   status,
   onStatus,
+  category,
+  onCategory,
   sort,
   onSort,
   selectedTicket,
@@ -35,8 +42,11 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
   onCreateTicket,
   isDropdownOpen,
   onDropdownToggle,
-  onEdit,
+  onStatusChange,
   onDelete,
+  onReopen,
+  onRefresh,
+  isRefreshing,
 }) => {
   return (
     <div className="h-full flex flex-col bg-white border-r border-gray-300">
@@ -47,10 +57,14 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
           onSearch={onSearch}
           status={status}
           onStatus={onStatus}
+          category={category}
+          onCategory={onCategory}
           sort={sort}
           onSort={onSort}
           totalTickets={tickets.length}
           onCreateTicket={onCreateTicket}
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
         />
       </div>
 
@@ -63,8 +77,9 @@ const AllTicketsSection: React.FC<AllTicketsSectionProps> = ({
             onSelect={onSelect}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={onDropdownToggle}
-            onEdit={onEdit}
+            onStatusChange={onStatusChange}
             onDelete={onDelete}
+            onReopen={onReopen}
           />
         </div>
       </div>

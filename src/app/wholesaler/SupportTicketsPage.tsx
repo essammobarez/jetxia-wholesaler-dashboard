@@ -1,12 +1,14 @@
-import { AllTicketsSection, ViewTicketSection } from "@/components/support-tickets";
+import { AllTicketsSection, StatusType, Ticket, ViewTicketSection, CategoryType, Reply, SortType, TicketResponse, Agency, Wholesaler, AgencyState, WholesalerState } from "@/components/support-tickets";
 import { mockTickets } from "@/components/support-tickets/mockTickets";
-import { Message, StatusType, SortType, Ticket, TicketResponse } from "@/components/support-tickets/types";
 import CreateTicketModal from "@/components/support-tickets/CreateTicketModal";
 import React, { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import EditTicketModal from "@/components/support-tickets/EditTicketModal";
+import LoadingOverlay from "@/components/ui/loading-overlay";
 import DeleteConfirmModal from "@/components/support-tickets/DeleteConfirmModal";
+import StatusChangeModal from "@/components/support-tickets/StatusChangeModal";
+import MessageEditModal from "@/components/support-tickets/MessageEditModal";
+import { jwtDecode } from "jwt-decode";
 
 const getAuthToken = () => {
   if (typeof window !== "undefined") {
@@ -15,37 +17,128 @@ const getAuthToken = () => {
   return "";
 };
 
+const getWholesalerId = () => {
+  const token = getAuthToken();
+  if (!token) return null;
+  try {
+    const decoded = jwtDecode<{ wholesalerId?: string }>(token);
+    return decoded.wholesalerId ?? null;
+  } catch (err) {
+    console.error("Error decoding token:", err);
+    return null;
+  }
+};
+
+const getCurrentUserType = (): "wholesaler_admin" | "agency_admin" => {
+  const token = getAuthToken();
+  if (!token) return "wholesaler_admin"; // Default to wholesaler_admin for this page
+  try {
+    const decoded = jwtDecode<{ userType?: string }>(token);
+    return (decoded.userType as "wholesaler_admin" | "agency_admin") ?? "wholesaler_admin";
+  } catch (err) {
+    console.error("Error decoding token:", err);
+    return "wholesaler_admin"; // Default to wholesaler_admin for this page
+  }
+};
+
 const SupportTicketsPage = () => {
   // API States
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+
+  // Granular loading states for different operations
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isDeletingTicket, setIsDeletingTicket] = useState(false);
+  const [isRefreshingTickets, setIsRefreshingTickets] = useState(false);
+
   // States for ticket list
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusType>("all");
+  const [category, setCategory] = useState<CategoryType>("all");
   const [sort, setSort] = useState<SortType>("Recent");
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [selectedEditTicket, setSelectedEditTicket] = useState<Ticket | null>(null);
-  const [selectedDeleteTicket, setSelectedDeleteTicket] = useState<Ticket | null>(
-    null
-  );
+  const [selectedDeleteTicket, setSelectedDeleteTicket] = useState<Ticket | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isStatusChangeModalOpen, setIsStatusChangeModalOpen] = useState(false);
+  const [selectedStatusChangeTicket, setSelectedStatusChangeTicket] = useState<Ticket | null>(null);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [isMessageEditModalOpen, setIsMessageEditModalOpen] = useState(false);
+  const [selectedEditMessage, setSelectedEditMessage] = useState<{ id: string; content: string } | null>(null);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+
+  // New states for agency and wholesaler
+  const [agency, setAgency] = useState<AgencyState>(null);
+  const [wholesaler, setWholesaler] = useState<WholesalerState>(null);
+
   // States for ticket details
   const [replyText, setReplyText] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState<string | null>(null);
-  const [updated, setUpdated] = useState<boolean>(false);
+  const [lastRefetchTime, setLastRefetchTime] = useState<Date | null>(null);
+
+  // States for ticket details
   const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const token = getAuthToken();
+  const currentUserType = getCurrentUserType();
 
-  const fetchTickets = useCallback(async () => {
+  // Helper function to update local state after API operations
+  const updateLocalTicketState = useCallback((updatedTicket: Ticket) => {
+    // Update tickets list
+    setTickets(prev => prev.map(ticket => 
+      ticket._id === updatedTicket._id ? updatedTicket : ticket
+    ));
+    
+    // Update selected ticket if it's the current one
+    setSelectedTicket(prev => {
+      if (prev && prev._id === updatedTicket._id) {
+        return updatedTicket;
+      }
+      return prev;
+    });
+  }, []); // Remove selectedTicket dependency to prevent recreation
+
+  // Helper function to remove ticket from local state
+  const removeLocalTicket = useCallback((ticketId: string) => {
+    // Remove from tickets list
+    setTickets(prev => prev.filter(ticket => ticket._id !== ticketId));
+    
+    // Clear selected ticket if it was the deleted one
+    setSelectedTicket(prev => {
+      if (prev && prev._id === ticketId) {
+        return null;
+      }
+      return prev;
+    });
+  }, []); // Remove selectedTicket dependency to prevent recreation
+
+  const fetchTickets = useCallback(async (forceRefresh = false) => {
+    const tokenExists = !!token;
+    if (!tokenExists) {
+      setError("Authentication required");
+      setIsInitialLoading(false);
+      return;
+    }
+
+    const now = new Date();
+    if (!forceRefresh && lastRefetchTime && (now.getTime() - lastRefetchTime.getTime()) < 2000) {
+      console.log("Skipping fetch - too soon since last fetch");
+      return;
+    }
+
     try {
-      setIsLoading(true);
+      // Only show initial loading on first load
+      if (tickets.length === 0) {
+        setIsInitialLoading(true);
+      } else {
+        setIsRefreshingTickets(true);
+      }
       setError(null);
+
       const response = await axios.get<TicketResponse>(
         `${apiUrl}support/tickets/wholesaler`,
         {
@@ -55,35 +148,63 @@ const SupportTicketsPage = () => {
           },
         }
       );
+
       if (response.data.success) {
         setTickets(response.data.data);
+        // Mirror reference: extract agency/wholesaler from first ticket if present
+        if (response.data.data.length > 0) {
+          setAgency(response.data.data[0].agency || null);
+          setWholesaler(response.data.data[0].wholesaler || null);
+        } else {
+          setAgency(null);
+          setWholesaler(null);
+        }
+        setLastRefetchTime(now);
       } else {
         setError(response.data.message);
       }
     } catch (error) {
       console.error("Error fetching tickets:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to fetch tickets"
-      );
+      setError(error instanceof Error ? error.message : "Failed to fetch tickets");
     } finally {
-      setIsLoading(false);
+      setIsInitialLoading(false);
+      setIsRefreshingTickets(false);
     }
-  }, [apiUrl, token]);
+  }, [apiUrl, token]); // Removed tickets.length dependency
 
+  // Initial fetch on component mount
   useEffect(() => {
     fetchTickets();
+  }, []); // Empty dependency array - only run once on mount
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setIsRefreshingTickets(true);
+      setError(null);
+      await fetchTickets(true);
+    } catch (error) {
+      console.error("Error refreshing tickets:", error);
+      setError("Failed to refresh tickets");
+    } finally {
+      setIsRefreshingTickets(false);
+    }
   }, [fetchTickets]);
+
+  useEffect(() => {
+    setReplyText("");
+  }, [selectedTicket?._id]);
 
   // Filter and sort tickets
   const filteredTickets = (tickets.length > 0 ? tickets : [])
     .filter((ticket) => {
       const matchesStatus = status === "all" || ticket.status === status;
+      const matchesCategory = category === "all" || ticket.category === category;
       const matchesSearch =
         ticket.subject.toLowerCase().includes(search.toLowerCase()) ||
         ticket.replies.some((reply) =>
           reply.message.toLowerCase().includes(search.toLowerCase())
         );
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesCategory && matchesSearch;
     })
     .sort((a, b) =>
       sort === "Recent"
@@ -97,13 +218,18 @@ const SupportTicketsPage = () => {
   }, []);
 
   const handleCreateTicketSubmit = useCallback(
-    async (data: { subject: string; message: string }) => {
+    async (data: { subject: string; message: string; category?: string }) => {
       try {
-        setIsLoading(true);
+        setIsCreatingTicket(true);
         setError(null);
+
+        const wholesalerId = getWholesalerId();
+        const payload: Record<string, any> = { ...data };
+        if (wholesalerId) payload.wholesalerId = wholesalerId;
+
         const response = await axios.post<TicketResponse>(
           `${apiUrl}support/create-ticket`,
-          data,
+          payload,
           {
             headers: {
               "Content-Type": "application/json",
@@ -111,31 +237,38 @@ const SupportTicketsPage = () => {
             },
           }
         );
+
         if (response.data.success) {
-          await fetchTickets();
+          // Add the new ticket to the local state instead of reloading
+          if (response.data.data && response.data.data.length > 0) {
+            const newTicket = response.data.data[0];
+            setTickets(prev => [newTicket, ...prev]);
+            // Set as selected ticket
+            setSelectedTicket(newTicket);
+          }
           setIsCreateModalOpen(false);
         } else {
           setError(response.data.message);
         }
       } catch (error) {
         console.error("Error creating ticket:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to create ticket"
-        );
+        setError(error instanceof Error ? error.message : "Failed to create ticket");
       } finally {
-        setIsLoading(false);
+        setIsCreatingTicket(false);
       }
     },
-    [apiUrl, token, fetchTickets]
+    [apiUrl, token]
   );
 
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || !selectedTicket?._id) return;
+  
     try {
-      setIsLoading(true);
+      setIsSendingReply(true);
       setError(null);
+  
       const response = await axios.post<TicketResponse>(
-        `${apiUrl}support/reply-ticket/${selectedTicket?._id}`,
+        `${apiUrl}support/reply-ticket/${selectedTicket._id}`,
         { message: replyText },
         {
           headers: {
@@ -144,38 +277,76 @@ const SupportTicketsPage = () => {
           },
         }
       );
+  
       if (response.data.success) {
         setReplyText("");
-        await fetchTickets();
+        // Update the local ticket state instead of reloading
+        if (response.data.data && response.data.data.length > 0) {
+          const updatedTicket = response.data.data[0];
+          updateLocalTicketState(updatedTicket);
+        } else {
+          // If API doesn't return updated data, update locally
+          if (selectedTicket) {
+            const updatedTicket = {
+              ...selectedTicket,
+              replies: [
+                ...selectedTicket.replies,
+                {
+                  _id: `temp-${Date.now()}`,
+                  message: replyText,
+                  sender: "wholesaler_admin" as const,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                }
+              ]
+            };
+            updateLocalTicketState(updatedTicket);
+          }
+        }
       } else {
         setError(response.data.message);
       }
     } catch (error) {
       console.error("Error sending reply:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to send reply"
-      );
+      setError(error instanceof Error ? error.message : "Failed to send reply");
     } finally {
-      setIsLoading(false);
+      setIsSendingReply(false);
     }
-  }, [replyText, selectedTicket, apiUrl, token, fetchTickets]);
+  }, [replyText, selectedTicket, apiUrl, token, updateLocalTicketState]);
 
-  const handleEdit = useCallback((ticket: Ticket) => {
-    setSelectedEditTicket(ticket);
-    setIsEditModalOpen(true);
+  const handleDelete = useCallback((ticket: Ticket) => {
+    console.log('Delete button clicked for ticket:', ticket._id);
+    console.log('Ticket subject:', ticket.subject);
+    setSelectedDeleteTicket(ticket);
+    setIsDeleteModalOpen(true);
+    console.log('Modal should now be open, isDeleteModalOpen:', true);
   }, []);
 
-  const handleEditSubmit = useCallback(
-    async (data: { id: string; subject: string; message: string }) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const response = await axios.patch<TicketResponse>(
-          `${apiUrl}support/edit-tickets/${data.id}`,
-          {
-            subject: data.subject,
-            message: data.message,
-          },
+  const handleReopen = useCallback((ticket: Ticket) => {
+    // For now, just log the reopen action
+    console.log("Reopen ticket:", ticket);
+  }, []);
+
+  const handleStatusChange = useCallback((ticket: Ticket) => {
+    setSelectedStatusChangeTicket(ticket);
+    setIsStatusChangeModalOpen(true);
+  }, []);
+
+  const handleStatusChangeSubmit = useCallback(async (action: 'close' | 'reopen') => {
+    if (!selectedStatusChangeTicket) return;
+
+    try {
+      setIsChangingStatus(true);
+      setError(null);
+
+      let response: any;
+      let newStatus: Exclude<StatusType, "all"> = 'open'; // Default value
+
+      if (action === 'close') {
+        // Use the close API
+        response = await axios.post<TicketResponse>(
+          `${apiUrl}support/close/${selectedStatusChangeTicket._id}`,
+          {},
           {
             headers: {
               "Content-Type": "application/json",
@@ -183,34 +354,54 @@ const SupportTicketsPage = () => {
             },
           }
         );
-        if (response.data.success) {
-          await fetchTickets();
-          setIsEditModalOpen(false);
-        } else {
-          setError(response.data.message);
-        }
-      } catch (error) {
-        console.error("Error editing ticket:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to edit ticket"
+        newStatus = 'closed';
+      } else if (action === 'reopen') {
+        // Use the reopen API
+        response = await axios.post<TicketResponse>(
+          `${apiUrl}support/reopen/${selectedStatusChangeTicket._id}`,
+          {},
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
-      } finally {
-        setIsLoading(false);
+        newStatus = 'open';
       }
-    },
-    [apiUrl, token, fetchTickets]
-  );
 
-  const handleDelete = useCallback((ticket: Ticket) => {
-    setSelectedDeleteTicket(ticket);
-    setIsDeleteModalOpen(true);
-  }, []);
+      if (response && response.data.success) {
+        // Update the local ticket state instead of reloading
+        if (response.data.data && response.data.data.length > 0) {
+          const updatedTicket = response.data.data[0];
+          updateLocalTicketState(updatedTicket);
+        } else {
+          // If API doesn't return updated data, update locally
+          const updatedTicket = { ...selectedStatusChangeTicket, status: newStatus };
+          updateLocalTicketState(updatedTicket);
+        }
+        setIsStatusChangeModalOpen(false);
+        setSelectedStatusChangeTicket(null);
+      } else {
+        setError(response?.data?.message || "Failed to update status");
+      }
+    } catch (error) {
+      console.error("Error changing status:", error);
+      setError(error instanceof Error ? error.message : "Failed to change status");
+    } finally {
+      setIsChangingStatus(false);
+    }
+  }, [apiUrl, token, selectedStatusChangeTicket, updateLocalTicketState]);
 
   const handleDeleteConfirm = useCallback(
     async (id: string) => {
       try {
-        setIsLoading(true);
+        setIsDeletingTicket(true);
         setError(null);
+        
+        console.log('Attempting to delete ticket with ID:', id);
+        console.log('API URL:', `${apiUrl}support/delete-tickets/${id}`);
+        
         const response = await axios.delete<TicketResponse>(
           `${apiUrl}support/delete-tickets/${id}`,
           {
@@ -220,37 +411,105 @@ const SupportTicketsPage = () => {
             },
           }
         );
+        
+        console.log('Delete response:', response.data);
+        
         if (response.data.success) {
-          await fetchTickets();
+          console.log('Ticket deleted successfully, updating local state');
+          // Remove the ticket from local state instead of reloading
+          removeLocalTicket(id);
           setIsDeleteModalOpen(false);
           setSelectedDeleteTicket(null);
-          setSelectedTicket(null);
         } else {
+          console.error('Delete failed:', response.data.message);
           setError(response.data.message);
         }
       } catch (error) {
         console.error("Error deleting ticket:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to delete ticket"
-        );
+        if (axios.isAxiosError(error)) {
+          console.error('Axios error details:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message
+          });
+          setError(error.response?.data?.message || error.message);
+        } else {
+          setError(error instanceof Error ? error.message : "Failed to delete ticket");
+        }
       } finally {
-        setIsLoading(false);
+        setIsDeletingTicket(false);
       }
     },
-    [apiUrl, token, fetchTickets]
+    [apiUrl, token, removeLocalTicket]
   );
 
   const handleMessageEdit = useCallback((messageId: string) => {
-    console.log("Edit message:", messageId);
-  }, []);
+    // Find the message content from the selected ticket
+    if (selectedTicket) {
+      const message = selectedTicket.replies.find(reply => reply._id === messageId);
+      if (message) {
+        setSelectedEditMessage({ id: messageId, content: message.message });
+        setIsMessageEditModalOpen(true);
+      }
+    }
+  }, [selectedTicket]);
+
+  const handleMessageEditSubmit = useCallback(async (messageId: string, newContent: string) => {
+    try {
+      setIsEditingMessage(true);
+      setError(null);
+
+      const response = await axios.patch<TicketResponse>(
+        `${apiUrl}support/messages/${messageId}`,
+        { message: newContent },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Update the local ticket state instead of reloading
+        if (response.data.data && response.data.data.length > 0) {
+          const updatedTicket = response.data.data[0];
+          updateLocalTicketState(updatedTicket);
+        } else {
+          // If API doesn't return updated data, update locally
+          if (selectedTicket) {
+            const updatedTicket = {
+              ...selectedTicket,
+              replies: selectedTicket.replies.map(reply => 
+                reply._id === messageId 
+                  ? { ...reply, message: newContent }
+                  : reply
+              )
+            };
+            updateLocalTicketState(updatedTicket);
+          }
+        }
+        setIsMessageEditModalOpen(false);
+        setSelectedEditMessage(null);
+      } else {
+        setError(response.data.message);
+      }
+    } catch (error) {
+      console.error("Error editing message:", error);
+      setError(error instanceof Error ? error.message : "Failed to edit message");
+    } finally {
+      setIsEditingMessage(false);
+    }
+  }, [apiUrl, token, selectedTicket, updateLocalTicketState]);
 
   const handleMessageDelete = useCallback(
     async (messageId: string) => {
+      if (!selectedTicket?._id) return;
+      
       try {
-        setIsLoading(true);
         setError(null);
         const response = await axios.delete<TicketResponse>(
-          `${apiUrl}support/messages/${messageId}`,
+          `${apiUrl}support/delete-Reply/${selectedTicket._id}/${messageId}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -259,7 +518,20 @@ const SupportTicketsPage = () => {
           }
         );
         if (response.data.success) {
-          await fetchTickets();
+          // Update the local ticket state instead of reloading
+          if (response.data.data && response.data.data.length > 0) {
+            const updatedTicket = response.data.data[0];
+            updateLocalTicketState(updatedTicket);
+          } else {
+            // If API doesn't return updated data, update locally
+            if (selectedTicket) {
+              const updatedTicket = {
+                ...selectedTicket,
+                replies: selectedTicket.replies.filter(reply => reply._id !== messageId)
+              };
+              updateLocalTicketState(updatedTicket);
+            }
+          }
         } else {
           setError(response.data.message);
         }
@@ -268,24 +540,24 @@ const SupportTicketsPage = () => {
         setError(
           error instanceof Error ? error.message : "Failed to delete message"
         );
-      } finally {
-        setIsLoading(false);
       }
     },
-    [apiUrl, token, fetchTickets]
+    [apiUrl, token, selectedTicket, updateLocalTicketState]
   );
 
   const handleMessageReply = useCallback(
     async (messageId: string) => {
       if (!selectedTicket?._id) return;
       try {
-        setIsLoading(true);
+        setIsSendingReply(true);
         setError(null);
+  
         const response = await axios.post<TicketResponse>(
-          `${apiUrl}support/tickets/agency`,
+          `${apiUrl}support/tickets/wholesaler`,
           {
-            sender: "agency",
+            sender: "wholesaler",
             message: replyText,
+            ticketId: selectedTicket._id,
           },
           {
             headers: {
@@ -294,23 +566,43 @@ const SupportTicketsPage = () => {
             },
           }
         );
+  
         if (response.data.success) {
           setReplyText("");
-          await fetchTickets();
-          setUpdated((prev) => !prev);
+          // Update the local ticket state instead of reloading
+          if (response.data.data && response.data.data.length > 0) {
+            const updatedTicket = response.data.data[0];
+            updateLocalTicketState(updatedTicket);
+          } else {
+            // If API doesn't return updated data, update locally
+            if (selectedTicket) {
+              const updatedTicket = {
+                ...selectedTicket,
+                replies: [
+                  ...selectedTicket.replies,
+                  {
+                    _id: `temp-${Date.now()}`,
+                    message: replyText,
+                    sender: "wholesaler_admin" as const,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  }
+                ]
+              };
+              updateLocalTicketState(updatedTicket);
+            }
+          }
         } else {
           setError(response.data.message);
         }
       } catch (error) {
         console.error("Error replying to message:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to reply to message"
-        );
+        setError(error instanceof Error ? error.message : "Failed to reply to message");
       } finally {
-        setIsLoading(false);
+        setIsSendingReply(false);
       }
     },
-    [selectedTicket?._id, replyText, apiUrl, token, fetchTickets]
+    [selectedTicket?._id, replyText, apiUrl, token, updateLocalTicketState]
   );
 
   const handleDropdownToggle = useCallback(
@@ -337,7 +629,7 @@ const SupportTicketsPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
-      {isLoading && (
+      {(isInitialLoading || isCreatingTicket || isSendingReply || isDeletingTicket || isRefreshingTickets) && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-50">
           <LoadingSpinner />
         </div>
@@ -377,16 +669,17 @@ const SupportTicketsPage = () => {
             {/* Scrollable Content - Below the sticky bar */}
             <div className="flex-1 overflow-y-auto px-4 py-2">
               <ViewTicketSection
+                key={selectedTicket?._id || 'no-ticket'} // Force re-render when ticket changes
                 selectedTicket={selectedTicket}
                 replyText={replyText}
                 onReplyChange={setReplyText}
                 onSendReply={handleSendReply}
-                onEdit={handleEdit}
                 onDelete={handleDelete}
+                onStatusChange={handleStatusChange}
                 onMessageEdit={handleMessageEdit}
                 onMessageDelete={handleMessageDelete}
                 onMessageReply={handleMessageReply}
-                updated={updated}
+                currentUserType={currentUserType}
               />
             </div>
           </div>
@@ -396,6 +689,8 @@ const SupportTicketsPage = () => {
             onSearch={setSearch}
             status={status}
             onStatus={setStatus}
+            category={category}
+            onCategory={setCategory}
             sort={sort}
             onSort={setSort}
             selectedTicket={selectedTicket}
@@ -407,20 +702,25 @@ const SupportTicketsPage = () => {
             onCreateTicket={handleCreateTicket}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={handleDropdownToggle}
-            onEdit={handleEdit}
+            onStatusChange={handleStatusChange}
             onDelete={handleDelete}
+            onReopen={handleReopen}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshingTickets}
           />
         )}
       </div>
 
       {/* Desktop View */}
-      <div className="hidden md:grid md:grid-cols-12 min-h-screen">
-        <div className="col-span-5">
+      <div className="hidden md:grid md:grid-cols-12 h-screen overflow-hidden">
+        <div className="col-span-5 h-full">
           <AllTicketsSection
             search={search}
             onSearch={setSearch}
             status={status}
             onStatus={setStatus}
+            category={category}
+            onCategory={setCategory}
             sort={sort}
             onSort={setSort}
             selectedTicket={selectedTicket}
@@ -429,22 +729,26 @@ const SupportTicketsPage = () => {
             onCreateTicket={handleCreateTicket}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={handleDropdownToggle}
-            onEdit={handleEdit}
+            onStatusChange={handleStatusChange}
             onDelete={handleDelete}
+            onReopen={handleReopen}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshingTickets}
           />
         </div>
-        <div className="col-span-7 overflow-auto">
+        <div className="col-span-7 h-full overflow-hidden">
           <ViewTicketSection
+            key={selectedTicket?._id || 'no-ticket'} // Force re-render when ticket changes
             selectedTicket={selectedTicket}
             replyText={replyText}
             onReplyChange={setReplyText}
             onSendReply={handleSendReply}
-            onEdit={handleEdit}
             onDelete={handleDelete}
+            onStatusChange={handleStatusChange}
             onMessageEdit={handleMessageEdit}
             onMessageDelete={handleMessageDelete}
             onMessageReply={handleMessageReply}
-            updated={updated}
+            currentUserType={currentUserType}
           />
         </div>
       </div>
@@ -455,17 +759,39 @@ const SupportTicketsPage = () => {
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateTicketSubmit}
       />
-      <EditTicketModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleEditSubmit}
-        ticket={selectedEditTicket}
-      />
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
         ticket={selectedDeleteTicket}
+      />
+      <StatusChangeModal
+        isOpen={isStatusChangeModalOpen}
+        onClose={() => {
+          setIsStatusChangeModalOpen(false);
+          setSelectedStatusChangeTicket(null);
+        }}
+        onSubmit={handleStatusChangeSubmit}
+        currentStatus={selectedStatusChangeTicket?.status || 'open'}
+        ticketSubject={selectedStatusChangeTicket?.subject || ''}
+        isLoading={isChangingStatus}
+      />
+      <MessageEditModal
+        isOpen={isMessageEditModalOpen}
+        onClose={() => {
+          setIsMessageEditModalOpen(false);
+          setSelectedEditMessage(null);
+        }}
+        onSubmit={handleMessageEditSubmit}
+        messageId={selectedEditMessage?.id || ''}
+        currentContent={selectedEditMessage?.content || ''}
+        isLoading={isEditingMessage}
+      />
+
+      {/* Loading Overlay for Refresh */}
+      <LoadingOverlay 
+        isVisible={isRefreshingTickets} 
+        message="Refreshing tickets..." 
       />
     </div>
   );

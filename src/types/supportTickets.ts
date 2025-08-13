@@ -44,25 +44,9 @@ export interface TicketResponse {
   data: Ticket[];
 }
 
-// Union types for nullable states
+// New types for agency and wholesaler state in SupportTicketsLogic
 export type AgencyState = Agency | null;
 export type WholesalerState = Wholesaler | null;
-
-export interface Message {
-  id: string;
-  sender: {
-    type: "Wholesaler" | "Agency";
-    name: string;
-  };
-  content: string;
-  createdAt: string;
-}
-
-export interface TicketDetails {
-  subject: string;
-  createdAt: string;
-  messages: Message[];
-}
 
 export interface StatusColors {
   [key: string]: {
