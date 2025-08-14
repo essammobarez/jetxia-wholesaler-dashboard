@@ -46,6 +46,9 @@ const SupportTicketsPage = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  
+  // ⬇️ ENHANCED: selectedTicket is now updated immediately after each API operation
+  // and also refreshed from server to ensure data consistency
 
   // Granular loading states for different operations
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
@@ -76,7 +79,6 @@ const SupportTicketsPage = () => {
   // States for ticket details
   const [replyText, setReplyText] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState<string | null>(null);
-  const [lastRefetchTime, setLastRefetchTime] = useState<Date | null>(null);
 
   // States for ticket details
   const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -88,6 +90,8 @@ const SupportTicketsPage = () => {
 
   // Helper function to update local state after API operations
   const updateLocalTicketState = useCallback((updatedTicket: Ticket) => {
+    console.log("updateLocalTicketState called with:", updatedTicket._id, updatedTicket.status);
+    
     // Update tickets list
     setTickets(prev => prev.map(ticket => 
       ticket._id === updatedTicket._id ? updatedTicket : ticket
@@ -96,11 +100,46 @@ const SupportTicketsPage = () => {
     // Update selected ticket if it's the current one
     setSelectedTicket(prev => {
       if (prev && prev._id === updatedTicket._id) {
+        console.log("Updating selectedTicket to:", updatedTicket._id, updatedTicket.status);
         return updatedTicket;
       }
       return prev;
     });
-  }, []); // Remove selectedTicket dependency to prevent recreation
+  }, []);
+
+  // Helper function to refresh ticket data after operations
+  const refreshTicketData = useCallback(async (ticketId: string) => {
+    try {
+      const response = await axios.get<TicketResponse>(
+        `${apiUrl}support/tickets/${ticketId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
+        const refreshedTicket = response.data.data[0];
+        updateLocalTicketState(refreshedTicket);
+      }
+    } catch (error) {
+      console.error("Error refreshing ticket data:", error);
+    }
+  }, [apiUrl, token]);
+
+  // ⬇️ NEW: one-call refetch for BOTH list & detail after any successful operation
+  const refetchAll = useCallback(
+    async (focusTicketId?: string | null) => {
+      await fetchTickets();                    // always refetch the list
+      if (focusTicketId) {
+        await refreshTicketData(focusTicketId); // and ensure the detail view is fresh
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [] // hook is filled after fetchTickets is defined below; do not inline dependencies to avoid re-creations
+  );
 
   // Helper function to remove ticket from local state
   const removeLocalTicket = useCallback((ticketId: string) => {
@@ -116,17 +155,11 @@ const SupportTicketsPage = () => {
     });
   }, []); // Remove selectedTicket dependency to prevent recreation
 
-  const fetchTickets = useCallback(async (forceRefresh = false) => {
+  const fetchTickets = useCallback(async () => {
     const tokenExists = !!token;
     if (!tokenExists) {
       setError("Authentication required");
       setIsInitialLoading(false);
-      return;
-    }
-
-    const now = new Date();
-    if (!forceRefresh && lastRefetchTime && (now.getTime() - lastRefetchTime.getTime()) < 2000) {
-      console.log("Skipping fetch - too soon since last fetch");
       return;
     }
 
@@ -151,6 +184,21 @@ const SupportTicketsPage = () => {
 
       if (response.data.success) {
         setTickets(response.data.data);
+        
+        // Update selected ticket if it still exists in the refreshed list
+        if (selectedTicket) {
+          const updatedSelectedTicket = response.data.data.find(ticket => ticket._id === selectedTicket._id);
+          if (updatedSelectedTicket) {
+            console.log("fetchTickets: Updating selectedTicket from list refresh:", updatedSelectedTicket._id, updatedSelectedTicket.status);
+            setSelectedTicket(updatedSelectedTicket);
+          } else {
+            // If selected ticket no longer exists, clear it
+            console.log("fetchTickets: Clearing selectedTicket as it no longer exists");
+            setSelectedTicket(null);
+            setShowMobileDetail(false);
+          }
+        }
+        
         // Mirror reference: extract agency/wholesaler from first ticket if present
         if (response.data.data.length > 0) {
           setAgency(response.data.data[0].agency || null);
@@ -159,7 +207,6 @@ const SupportTicketsPage = () => {
           setAgency(null);
           setWholesaler(null);
         }
-        setLastRefetchTime(now);
       } else {
         setError(response.data.message);
       }
@@ -170,25 +217,31 @@ const SupportTicketsPage = () => {
       setIsInitialLoading(false);
       setIsRefreshingTickets(false);
     }
-  }, [apiUrl, token]); // Removed tickets.length dependency
+  // ⬇️ include only essential deps for API calls
+  }, [apiUrl, token, selectedTicket]);
+
+  // Wire refetchAll now that fetchTickets is defined
+  // (We assign after definition to keep refetchAll stable)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { (refetchAll as any).fetchTickets = fetchTickets; (refetchAll as any).refreshTicketData = refreshTicketData; }, []);
 
   // Initial fetch on component mount
   useEffect(() => {
     fetchTickets();
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     try {
       setIsRefreshingTickets(true);
       setError(null);
-      await fetchTickets(true);
+      await fetchTickets();
     } catch (error) {
       console.error("Error refreshing tickets:", error);
       setError("Failed to refresh tickets");
     } finally {
       setIsRefreshingTickets(false);
     }
-  }, [fetchTickets]);
+  }, []);
 
   useEffect(() => {
     setReplyText("");
@@ -245,6 +298,8 @@ const SupportTicketsPage = () => {
             setTickets(prev => [newTicket, ...prev]);
             // Set as selected ticket
             setSelectedTicket(newTicket);
+            // ⬇️ ensure both list & detail are refreshed from server
+            await refetchAll(newTicket._id);
           }
           setIsCreateModalOpen(false);
         } else {
@@ -280,29 +335,20 @@ const SupportTicketsPage = () => {
   
       if (response.data.success) {
         setReplyText("");
-        // Update the local ticket state instead of reloading
+        // Update the local ticket state with the response data
         if (response.data.data && response.data.data.length > 0) {
           const updatedTicket = response.data.data[0];
+          console.log("updated ticket after post", updatedTicket);
           updateLocalTicketState(updatedTicket);
-        } else {
-          // If API doesn't return updated data, update locally
-          if (selectedTicket) {
-            const updatedTicket = {
-              ...selectedTicket,
-              replies: [
-                ...selectedTicket.replies,
-                {
-                  _id: `temp-${Date.now()}`,
-                  message: replyText,
-                  sender: "wholesaler_admin" as const,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                }
-              ]
-            };
-            updateLocalTicketState(updatedTicket);
+          
+          // If this was the selected ticket, update it immediately
+          if (selectedTicket && selectedTicket._id === updatedTicket._id) {
+            console.log("Immediate selectedTicket update in handleSendReply:", updatedTicket._id, updatedTicket.status);
+            setSelectedTicket(updatedTicket);
           }
         }
+        // ⬇️ always refetch for both list & view
+        await refetchAll(selectedTicket._id);
       } else {
         setError(response.data.message);
       }
@@ -312,7 +358,7 @@ const SupportTicketsPage = () => {
     } finally {
       setIsSendingReply(false);
     }
-  }, [replyText, selectedTicket, apiUrl, token, updateLocalTicketState]);
+  }, [replyText, selectedTicket, apiUrl, token]);
 
   const handleDelete = useCallback((ticket: Ticket) => {
     console.log('Delete button clicked for ticket:', ticket._id);
@@ -323,8 +369,8 @@ const SupportTicketsPage = () => {
   }, []);
 
   const handleReopen = useCallback((ticket: Ticket) => {
-    // For now, just log the reopen action
-    console.log("Reopen ticket:", ticket);
+    // Wholesalers cannot reopen tickets - this function is disabled
+    console.log("Reopen functionality disabled for wholesalers");
   }, []);
 
   const handleStatusChange = useCallback((ticket: Ticket) => {
@@ -332,56 +378,42 @@ const SupportTicketsPage = () => {
     setIsStatusChangeModalOpen(true);
   }, []);
 
-  const handleStatusChangeSubmit = useCallback(async (action: 'close' | 'reopen') => {
+  const handleStatusChangeSubmit = useCallback(async (action: 'close') => {
     if (!selectedStatusChangeTicket) return;
 
     try {
       setIsChangingStatus(true);
       setError(null);
 
-      let response: any;
-      let newStatus: Exclude<StatusType, "all"> = 'open'; // Default value
-
-      if (action === 'close') {
-        // Use the close API
-        response = await axios.post<TicketResponse>(
-          `${apiUrl}support/close/${selectedStatusChangeTicket._id}`,
-          {},
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        newStatus = 'closed';
-      } else if (action === 'reopen') {
-        // Use the reopen API
-        response = await axios.post<TicketResponse>(
-          `${apiUrl}support/reopen/${selectedStatusChangeTicket._id}`,
-          {},
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        newStatus = 'open';
-      }
+      // Only close action is supported for wholesalers
+      const response = await axios.patch<TicketResponse>(
+        `${apiUrl}support/close/${selectedStatusChangeTicket._id}`,
+        {"status":"closed"},
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (response && response.data.success) {
-        // Update the local ticket state instead of reloading
+        // Update the local ticket state with the response data
         if (response.data.data && response.data.data.length > 0) {
           const updatedTicket = response.data.data[0];
           updateLocalTicketState(updatedTicket);
-        } else {
-          // If API doesn't return updated data, update locally
-          const updatedTicket = { ...selectedStatusChangeTicket, status: newStatus };
-          updateLocalTicketState(updatedTicket);
+          
+          // If this was the selected ticket, update it immediately
+          if (selectedTicket && selectedTicket._id === updatedTicket._id) {
+            console.log("Immediate selectedTicket update in handleStatusChangeSubmit:", updatedTicket._id, updatedTicket.status);
+            setSelectedTicket(updatedTicket);
+          }
         }
         setIsStatusChangeModalOpen(false);
         setSelectedStatusChangeTicket(null);
+
+        // ⬇️ always refetch for both list & view
+        await refetchAll(response?.data?.data?.[0]?._id ?? selectedTicket?._id ?? null);
       } else {
         setError(response?.data?.message || "Failed to update status");
       }
@@ -391,7 +423,7 @@ const SupportTicketsPage = () => {
     } finally {
       setIsChangingStatus(false);
     }
-  }, [apiUrl, token, selectedStatusChangeTicket, updateLocalTicketState]);
+  }, [apiUrl, token, selectedStatusChangeTicket]);
 
   const handleDeleteConfirm = useCallback(
     async (id: string) => {
@@ -412,7 +444,7 @@ const SupportTicketsPage = () => {
           }
         );
         
-        console.log('Delete response:', response.data);
+        // console.log('Delete response:', response.data);
         
         if (response.data.success) {
           console.log('Ticket deleted successfully, updating local state');
@@ -420,6 +452,15 @@ const SupportTicketsPage = () => {
           removeLocalTicket(id);
           setIsDeleteModalOpen(false);
           setSelectedDeleteTicket(null);
+          
+          // Clear selected ticket if it was the deleted one
+          if (selectedTicket && selectedTicket._id === id) {
+            setSelectedTicket(null);
+            setShowMobileDetail(false);
+          }
+
+          // ⬇️ refresh the list to stay in sync (no detail to refetch since ticket was deleted)
+          await fetchTickets();
         } else {
           console.error('Delete failed:', response.data.message);
           setError(response.data.message);
@@ -440,7 +481,7 @@ const SupportTicketsPage = () => {
         setIsDeletingTicket(false);
       }
     },
-    [apiUrl, token, removeLocalTicket]
+    [apiUrl, token, selectedTicket]
   );
 
   const handleMessageEdit = useCallback((messageId: string) => {
@@ -475,22 +516,18 @@ const SupportTicketsPage = () => {
         if (response.data.data && response.data.data.length > 0) {
           const updatedTicket = response.data.data[0];
           updateLocalTicketState(updatedTicket);
-        } else {
-          // If API doesn't return updated data, update locally
-          if (selectedTicket) {
-            const updatedTicket = {
-              ...selectedTicket,
-              replies: selectedTicket.replies.map(reply => 
-                reply._id === messageId 
-                  ? { ...reply, message: newContent }
-                  : reply
-              )
-            };
-            updateLocalTicketState(updatedTicket);
+          
+          // If this was the selected ticket, update it immediately
+          if (selectedTicket && selectedTicket._id === updatedTicket._id) {
+            console.log("Immediate selectedTicket update in handleMessageEditSubmit:", updatedTicket._id, updatedTicket.status);
+            setSelectedTicket(updatedTicket);
           }
         }
         setIsMessageEditModalOpen(false);
         setSelectedEditMessage(null);
+
+        // ⬇️ always refetch for both list & view
+        await refetchAll(selectedTicket?._id ?? null);
       } else {
         setError(response.data.message);
       }
@@ -500,7 +537,7 @@ const SupportTicketsPage = () => {
     } finally {
       setIsEditingMessage(false);
     }
-  }, [apiUrl, token, selectedTicket, updateLocalTicketState]);
+  }, [apiUrl, token, selectedTicket]);
 
   const handleMessageDelete = useCallback(
     async (messageId: string) => {
@@ -518,20 +555,19 @@ const SupportTicketsPage = () => {
           }
         );
         if (response.data.success) {
-          // Update the local ticket state instead of reloading
+          // Update the local ticket state with the response data
           if (response.data.data && response.data.data.length > 0) {
             const updatedTicket = response.data.data[0];
             updateLocalTicketState(updatedTicket);
-          } else {
-            // If API doesn't return updated data, update locally
-            if (selectedTicket) {
-              const updatedTicket = {
-                ...selectedTicket,
-                replies: selectedTicket.replies.filter(reply => reply._id !== messageId)
-              };
-              updateLocalTicketState(updatedTicket);
+            
+            // If this was the selected ticket, update it immediately
+            if (selectedTicket && selectedTicket._id === updatedTicket._id) {
+              console.log("Immediate selectedTicket update in handleMessageDelete:", updatedTicket._id, updatedTicket.status);
+              setSelectedTicket(updatedTicket);
             }
           }
+          // ⬇️ always refetch for both list & view
+          await refetchAll(selectedTicket._id);
         } else {
           setError(response.data.message);
         }
@@ -542,7 +578,7 @@ const SupportTicketsPage = () => {
         );
       }
     },
-    [apiUrl, token, selectedTicket, updateLocalTicketState]
+    [apiUrl, token, selectedTicket]
   );
 
   const handleMessageReply = useCallback(
@@ -569,29 +605,19 @@ const SupportTicketsPage = () => {
   
         if (response.data.success) {
           setReplyText("");
-          // Update the local ticket state instead of reloading
+          // Update the local ticket state with the response data
           if (response.data.data && response.data.data.length > 0) {
             const updatedTicket = response.data.data[0];
             updateLocalTicketState(updatedTicket);
-          } else {
-            // If API doesn't return updated data, update locally
-            if (selectedTicket) {
-              const updatedTicket = {
-                ...selectedTicket,
-                replies: [
-                  ...selectedTicket.replies,
-                  {
-                    _id: `temp-${Date.now()}`,
-                    message: replyText,
-                    sender: "wholesaler_admin" as const,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  }
-                ]
-              };
-              updateLocalTicketState(updatedTicket);
+            
+            // If this was the selected ticket, update it immediately
+            if (selectedTicket && selectedTicket._id === updatedTicket._id) {
+              console.log("Immediate selectedTicket update in handleMessageReply:", updatedTicket._id, updatedTicket.status);
+              setSelectedTicket(updatedTicket);
             }
           }
+          // ⬇️ always refetch for both list & view
+          await refetchAll(selectedTicket._id);
         } else {
           setError(response.data.message);
         }
@@ -602,7 +628,7 @@ const SupportTicketsPage = () => {
         setIsSendingReply(false);
       }
     },
-    [selectedTicket?._id, replyText, apiUrl, token, updateLocalTicketState]
+    [selectedTicket?._id, replyText, apiUrl, token]
   );
 
   const handleDropdownToggle = useCallback(
@@ -629,7 +655,8 @@ const SupportTicketsPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
-      {(isInitialLoading || isCreatingTicket || isSendingReply || isDeletingTicket || isRefreshingTickets) && (
+      {/* ⬇️ Show full-page overlay ONLY on the very first load */}
+      {isInitialLoading && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-50">
           <LoadingSpinner />
         </div>
@@ -680,6 +707,8 @@ const SupportTicketsPage = () => {
                 onMessageDelete={handleMessageDelete}
                 onMessageReply={handleMessageReply}
                 currentUserType={currentUserType}
+                onDeleteConfirm={handleDelete}
+                onMessageEditConfirm={handleMessageEditSubmit}
               />
             </div>
           </div>
@@ -749,6 +778,8 @@ const SupportTicketsPage = () => {
             onMessageDelete={handleMessageDelete}
             onMessageReply={handleMessageReply}
             currentUserType={currentUserType}
+            onDeleteConfirm={handleDelete}
+            onMessageEditConfirm={handleMessageEditSubmit}
           />
         </div>
       </div>

@@ -7,7 +7,7 @@ import { StatusType } from './types';
 interface StatusChangeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (action: 'close' | 'reopen') => void;
+  onSubmit: (action: 'close') => void;
   currentStatus: Exclude<StatusType, "all">;
   ticketSubject: string;
   isLoading?: boolean;
@@ -21,7 +21,7 @@ const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
   ticketSubject,
   isLoading = false,
 }) => {
-  const [selectedAction, setSelectedAction] = useState<'close' | 'reopen' | null>(null);
+  const [selectedAction, setSelectedAction] = useState<'close' | null>(null);
 
   // Reset selected action when modal opens or current status changes
   useEffect(() => {
@@ -41,9 +41,7 @@ const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
           { action: 'close', label: 'Close Ticket', description: 'Mark ticket as resolved and closed' }
         ];
       case 'closed':
-        return [
-          { action: 'reopen', label: 'Reopen Ticket', description: 'Reopen the closed ticket' }
-        ];
+        return []; // No actions available for closed tickets
       default:
         return [];
     }
@@ -118,7 +116,7 @@ const StatusChangeModal: React.FC<StatusChangeModalProps> = ({
                       name="action"
                       value={action.action}
                       checked={selectedAction === action.action}
-                      onChange={(e) => setSelectedAction(e.target.value as 'close' | 'reopen')}
+                      onChange={(e) => setSelectedAction(e.target.value as 'close')}
                       className="sr-only"
                     />
                     <div className={`w-4 h-4 rounded-full border-2 mr-3 ${

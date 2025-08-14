@@ -121,24 +121,15 @@ const TicketCard: React.FC<TicketCardProps> = ({
             {isDropdownOpen && (
               <div className="absolute right-0 mt-1 w-48 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                 <div className="py-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStatusChange(ticket);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-                  >
-                    Change Status
-                  </button>
-                  {ticket.status === 'closed' && (
+                  {ticket.status !== 'closed' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onReopen(ticket);
+                        onStatusChange(ticket);
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
                     >
-                      Reopen
+                      Change Status
                     </button>
                   )}
                   <button
