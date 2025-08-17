@@ -1,15 +1,14 @@
-import { AllTicketsSection, StatusType, Ticket, ViewTicketSection, CategoryType, Reply, SortType, TicketResponse, Agency, Wholesaler, AgencyState, WholesalerState } from "@/components/support-tickets";
-import { mockTickets } from "@/components/support-tickets/mockTickets";
+import { AllTicketsSection, StatusType, Ticket, ViewTicketSection, CategoryType, SortType, TicketResponse, AgencyState, WholesalerState } from "@/components/support-tickets";
 import CreateTicketModal from "@/components/support-tickets/CreateTicketModal";
 import React, { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import LoadingOverlay from "@/components/ui/loading-overlay";
 import DeleteConfirmModal from "@/components/support-tickets/DeleteConfirmModal";
 import StatusChangeModal from "@/components/support-tickets/StatusChangeModal";
 import MessageEditModal from "@/components/support-tickets/MessageEditModal";
 import { jwtDecode } from "jwt-decode";
 
+// Utility functions
 const getAuthToken = () => {
   if (typeof window !== "undefined") {
     return localStorage.getItem("authToken") || "";
@@ -31,145 +30,68 @@ const getWholesalerId = () => {
 
 const getCurrentUserType = (): "wholesaler_admin" | "agency_admin" => {
   const token = getAuthToken();
-  if (!token) return "wholesaler_admin"; // Default to wholesaler_admin for this page
+  if (!token) return "wholesaler_admin";
   try {
     const decoded = jwtDecode<{ userType?: string }>(token);
     return (decoded.userType as "wholesaler_admin" | "agency_admin") ?? "wholesaler_admin";
   } catch (err) {
     console.error("Error decoding token:", err);
-    return "wholesaler_admin"; // Default to wholesaler_admin for this page
+    return "wholesaler_admin";
   }
 };
 
 const SupportTicketsPage = () => {
-  // API States
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Core states
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // ⬇️ ENHANCED: selectedTicket is now updated immediately after each API operation
-  // and also refreshed from server to ensure data consistency
-
-  // Granular loading states for different operations
-  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const [isDeletingTicket, setIsDeletingTicket] = useState(false);
-  const [isRefreshingTickets, setIsRefreshingTickets] = useState(false);
-
-  // States for ticket list
+  // Filter and search states
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusType>("all");
   const [category, setCategory] = useState<CategoryType>("all");
   const [sort, setSort] = useState<SortType>("Recent");
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [selectedDeleteTicket, setSelectedDeleteTicket] = useState<Ticket | null>(null);
+  
+  // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isStatusChangeModalOpen, setIsStatusChangeModalOpen] = useState(false);
-  const [selectedStatusChangeTicket, setSelectedStatusChangeTicket] = useState<Ticket | null>(null);
-  const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [isMessageEditModalOpen, setIsMessageEditModalOpen] = useState(false);
+  
+  // Action states
+  const [selectedDeleteTicket, setSelectedDeleteTicket] = useState<Ticket | null>(null);
+  const [selectedStatusChangeTicket, setSelectedStatusChangeTicket] = useState<Ticket | null>(null);
   const [selectedEditMessage, setSelectedEditMessage] = useState<{ id: string; content: string } | null>(null);
-  const [isEditingMessage, setIsEditingMessage] = useState(false);
-
-  // New states for agency and wholesaler
-  const [agency, setAgency] = useState<AgencyState>(null);
-  const [wholesaler, setWholesaler] = useState<WholesalerState>(null);
-
-  // States for ticket details
+  
+  // Loading states for operations
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isDeletingTicket, setIsDeletingTicket] = useState(false);
+  
+  // Reply state
   const [replyText, setReplyText] = useState("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState<string | null>(null);
 
-  // States for ticket details
+  // Mobile view state
   const [showMobileDetail, setShowMobileDetail] = useState(false);
+  
+  // Dropdown state
+  const [isDropdownOpen, setIsDropdownOpen] = useState<string | null>(null);
 
   // API configuration
   const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const token = getAuthToken();
   const currentUserType = getCurrentUserType();
 
-  // Helper function to update local state after API operations
-  const updateLocalTicketState = useCallback((updatedTicket: Ticket) => {
-    console.log("updateLocalTicketState called with:", updatedTicket._id, updatedTicket.status);
-    
-    // Update tickets list
-    setTickets(prev => prev.map(ticket => 
-      ticket._id === updatedTicket._id ? updatedTicket : ticket
-    ));
-    
-    // Update selected ticket if it's the current one
-    setSelectedTicket(prev => {
-      if (prev && prev._id === updatedTicket._id) {
-        console.log("Updating selectedTicket to:", updatedTicket._id, updatedTicket.status);
-        return updatedTicket;
-      }
-      return prev;
-    });
-  }, []);
-
-  // Helper function to refresh ticket data after operations
-  const refreshTicketData = useCallback(async (ticketId: string) => {
-    try {
-      const response = await axios.get<TicketResponse>(
-        `${apiUrl}support/tickets/${ticketId}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      
-      if (response.data.success && response.data.data && response.data.data.length > 0) {
-        const refreshedTicket = response.data.data[0];
-        updateLocalTicketState(refreshedTicket);
-      }
-    } catch (error) {
-      console.error("Error refreshing ticket data:", error);
-    }
-  }, [apiUrl, token]);
-
-  // ⬇️ NEW: one-call refetch for BOTH list & detail after any successful operation
-  const refetchAll = useCallback(
-    async (focusTicketId?: string | null) => {
-      await fetchTickets();                    // always refetch the list
-      if (focusTicketId) {
-        await refreshTicketData(focusTicketId); // and ensure the detail view is fresh
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [] // hook is filled after fetchTickets is defined below; do not inline dependencies to avoid re-creations
-  );
-
-  // Helper function to remove ticket from local state
-  const removeLocalTicket = useCallback((ticketId: string) => {
-    // Remove from tickets list
-    setTickets(prev => prev.filter(ticket => ticket._id !== ticketId));
-    
-    // Clear selected ticket if it was the deleted one
-    setSelectedTicket(prev => {
-      if (prev && prev._id === ticketId) {
-        return null;
-      }
-      return prev;
-    });
-  }, []); // Remove selectedTicket dependency to prevent recreation
-
+  // Fetch tickets from API - REMOVED selectedTicket dependency to prevent infinite loop
   const fetchTickets = useCallback(async () => {
-    const tokenExists = !!token;
-    if (!tokenExists) {
+    if (!token) {
       setError("Authentication required");
-      setIsInitialLoading(false);
+      setIsLoading(false);
       return;
     }
 
     try {
-      // Only show initial loading on first load
-      if (tickets.length === 0) {
-        setIsInitialLoading(true);
-      } else {
-        setIsRefreshingTickets(true);
-      }
+      setIsLoading(true);
       setError(null);
 
       const response = await axios.get<TicketResponse>(
@@ -185,27 +107,15 @@ const SupportTicketsPage = () => {
       if (response.data.success) {
         setTickets(response.data.data);
         
-        // Update selected ticket if it still exists in the refreshed list
+        // Update selected ticket if it still exists
         if (selectedTicket) {
           const updatedSelectedTicket = response.data.data.find(ticket => ticket._id === selectedTicket._id);
           if (updatedSelectedTicket) {
-            console.log("fetchTickets: Updating selectedTicket from list refresh:", updatedSelectedTicket._id, updatedSelectedTicket.status);
             setSelectedTicket(updatedSelectedTicket);
           } else {
-            // If selected ticket no longer exists, clear it
-            console.log("fetchTickets: Clearing selectedTicket as it no longer exists");
             setSelectedTicket(null);
             setShowMobileDetail(false);
           }
-        }
-        
-        // Mirror reference: extract agency/wholesaler from first ticket if present
-        if (response.data.data.length > 0) {
-          setAgency(response.data.data[0].agency || null);
-          setWholesaler(response.data.data[0].wholesaler || null);
-        } else {
-          setAgency(null);
-          setWholesaler(null);
         }
       } else {
         setError(response.data.message);
@@ -214,42 +124,30 @@ const SupportTicketsPage = () => {
       console.error("Error fetching tickets:", error);
       setError(error instanceof Error ? error.message : "Failed to fetch tickets");
     } finally {
-      setIsInitialLoading(false);
-      setIsRefreshingTickets(false);
+      setIsLoading(false);
     }
-  // ⬇️ include only essential deps for API calls
-  }, [apiUrl, token, selectedTicket]);
+  }, [apiUrl, token]); // Removed selectedTicket dependency
 
-  // Wire refetchAll now that fetchTickets is defined
-  // (We assign after definition to keep refetchAll stable)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { (refetchAll as any).fetchTickets = fetchTickets; (refetchAll as any).refreshTicketData = refreshTicketData; }, []);
-
-  // Initial fetch on component mount
+  // Initial fetch
   useEffect(() => {
     fetchTickets();
-  }, []);
+  }, [fetchTickets]);
 
-  const handleRefresh = useCallback(async () => {
-    try {
-      setIsRefreshingTickets(true);
-      setError(null);
-      await fetchTickets();
-    } catch (error) {
-      console.error("Error refreshing tickets:", error);
-      setError("Failed to refresh tickets");
-    } finally {
-      setIsRefreshingTickets(false);
-    }
-  }, []);
-
+  // Reset reply text when selected ticket changes
   useEffect(() => {
     setReplyText("");
   }, [selectedTicket?._id]);
 
+  // Debug: Monitor tickets state changes
+  useEffect(() => {
+    console.log('Tickets state updated:', tickets.length, 'tickets');
+    if (selectedTicket) {
+      console.log('Selected ticket:', selectedTicket._id, 'with', selectedTicket.replies.length, 'replies');
+    }
+  }, [tickets, selectedTicket]);
+
   // Filter and sort tickets
-  const filteredTickets = (tickets.length > 0 ? tickets : [])
-    .filter((ticket) => {
+  const filteredTickets = tickets.filter((ticket) => {
       const matchesStatus = status === "all" || ticket.status === status;
       const matchesCategory = category === "all" || ticket.category === category;
       const matchesSearch =
@@ -258,22 +156,15 @@ const SupportTicketsPage = () => {
           reply.message.toLowerCase().includes(search.toLowerCase())
         );
       return matchesStatus && matchesCategory && matchesSearch;
-    })
-    .sort((a, b) =>
+  }).sort((a, b) =>
       sort === "Recent"
         ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
-  // Event handlers
-  const handleCreateTicket = useCallback(() => {
-    setIsCreateModalOpen(true);
-  }, []);
-
-  const handleCreateTicketSubmit = useCallback(
-    async (data: { subject: string; message: string; category?: string }) => {
-      try {
-        setIsCreatingTicket(true);
+  // Create ticket handler
+  const handleCreateTicket = useCallback(async (data: { subject: string; message: string; category?: string }) => {
+    try {
         setError(null);
 
         const wholesalerId = getWholesalerId();
@@ -291,16 +182,11 @@ const SupportTicketsPage = () => {
           }
         );
 
-        if (response.data.success) {
-          // Add the new ticket to the local state instead of reloading
-          if (response.data.data && response.data.data.length > 0) {
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
             const newTicket = response.data.data[0];
             setTickets(prev => [newTicket, ...prev]);
-            // Set as selected ticket
             setSelectedTicket(newTicket);
-            // ⬇️ ensure both list & detail are refreshed from server
-            await refetchAll(newTicket._id);
-          }
+        setShowMobileDetail(true);
           setIsCreateModalOpen(false);
         } else {
           setError(response.data.message);
@@ -308,19 +194,19 @@ const SupportTicketsPage = () => {
       } catch (error) {
         console.error("Error creating ticket:", error);
         setError(error instanceof Error ? error.message : "Failed to create ticket");
-      } finally {
-        setIsCreatingTicket(false);
       }
-    },
-    [apiUrl, token]
-  );
+  }, [apiUrl, token]);
 
+  // Send reply handler
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || !selectedTicket?._id) return;
   
     try {
       setIsSendingReply(true);
-      setError(null);
+      // setError(null); // Commented out - no error display
+  
+      console.log('Sending reply for ticket:', selectedTicket._id);
+      console.log('Reply text:', replyText);
   
       const response = await axios.post<TicketResponse>(
         `${apiUrl}support/reply-ticket/${selectedTicket._id}`,
@@ -333,46 +219,110 @@ const SupportTicketsPage = () => {
         }
       );
   
+      console.log('Reply response:', response.data);
+  
       if (response.data.success) {
+        // Create a new reply object
+        const newReply = {
+          _id: Date.now().toString(), // Temporary ID
+          sender: 'wholesaler_admin' as const,
+          message: replyText,
+          createdAt: new Date().toISOString(),
+        };
+        
+        // Create updated ticket with new reply
+        const updatedTicket = {
+          ...selectedTicket,
+          replies: [...selectedTicket.replies, newReply],
+        };
+        
+        console.log('Updated ticket with new reply:', updatedTicket);
+        
+        // Update tickets list
+        setTickets(prev => {
+          const newTickets = prev.map(ticket => 
+            ticket._id === updatedTicket._id ? updatedTicket : ticket
+          );
+          console.log('New tickets list:', newTickets);
+          return newTickets;
+        });
+        
+        // Update selected ticket
+        setSelectedTicket(updatedTicket);
+        console.log('Updated selected ticket');
+        
+        // Clear reply text
         setReplyText("");
-        // Update the local ticket state with the response data
-        if (response.data.data && response.data.data.length > 0) {
-          const updatedTicket = response.data.data[0];
-          console.log("updated ticket after post", updatedTicket);
-          updateLocalTicketState(updatedTicket);
-          
-          // If this was the selected ticket, update it immediately
-          if (selectedTicket && selectedTicket._id === updatedTicket._id) {
-            console.log("Immediate selectedTicket update in handleSendReply:", updatedTicket._id, updatedTicket.status);
-            setSelectedTicket(updatedTicket);
-          }
-        }
-        // ⬇️ always refetch for both list & view
-        await refetchAll(selectedTicket._id);
       } else {
-        setError(response.data.message);
+        console.log('Reply failed:', response.data.message);
+        // setError(response.data.message); // Commented out - no error display
       }
     } catch (error) {
       console.error("Error sending reply:", error);
-      setError(error instanceof Error ? error.message : "Failed to send reply");
+      // setError(error instanceof Error ? error.message : "Failed to send reply"); // Commented out - no error display
     } finally {
       setIsSendingReply(false);
     }
   }, [replyText, selectedTicket, apiUrl, token]);
 
+  // Delete ticket handler
   const handleDelete = useCallback((ticket: Ticket) => {
-    console.log('Delete button clicked for ticket:', ticket._id);
-    console.log('Ticket subject:', ticket.subject);
     setSelectedDeleteTicket(ticket);
     setIsDeleteModalOpen(true);
-    console.log('Modal should now be open, isDeleteModalOpen:', true);
   }, []);
 
-  const handleReopen = useCallback((ticket: Ticket) => {
-    // Wholesalers cannot reopen tickets - this function is disabled
-    console.log("Reopen functionality disabled for wholesalers");
-  }, []);
+  const handleDeleteConfirm = useCallback(async (id: string) => {
+    try {
+      setIsDeletingTicket(true);
+      // setError(null); // Commented out - no error display
+      
+      console.log('Deleting ticket:', id);
+      
+      const response = await axios.delete<TicketResponse>(
+        `${apiUrl}support/delete-tickets/${id}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      console.log('Delete response:', response.data);
+      
+      if (response.data.success) {
+        console.log('Ticket deleted successfully');
+        
+        // Remove from tickets list
+        setTickets(prev => {
+          const newTickets = prev.filter(ticket => ticket._id !== id);
+          console.log('New tickets list after delete:', newTickets);
+          return newTickets;
+        });
+        
+        // Clear selected ticket if it was the deleted one
+        if (selectedTicket && selectedTicket._id === id) {
+          console.log('Clearing selected ticket');
+          setSelectedTicket(null);
+          setShowMobileDetail(false);
+        }
+        
+        // Close modal
+        setIsDeleteModalOpen(false);
+        setSelectedDeleteTicket(null);
+      } else {
+        console.log('Delete failed:', response.data.message);
+        // setError(response.data.message); // Commented out - no error display
+      }
+    } catch (error) {
+      console.error("Error deleting ticket:", error);
+      // setError(error instanceof Error ? error.message : "Failed to delete ticket"); // Commented out - no error display
+    } finally {
+      setIsDeletingTicket(false);
+    }
+  }, [apiUrl, token, selectedTicket]);
 
+  // Status change handler
   const handleStatusChange = useCallback((ticket: Ticket) => {
     setSelectedStatusChangeTicket(ticket);
     setIsStatusChangeModalOpen(true);
@@ -382,10 +332,8 @@ const SupportTicketsPage = () => {
     if (!selectedStatusChangeTicket) return;
 
     try {
-      setIsChangingStatus(true);
       setError(null);
 
-      // Only close action is supported for wholesalers
       const response = await axios.patch<TicketResponse>(
         `${apiUrl}support/close/${selectedStatusChangeTicket._id}`,
         {"status":"closed"},
@@ -397,95 +345,29 @@ const SupportTicketsPage = () => {
         }
       );
 
-      if (response && response.data.success) {
-        // Update the local ticket state with the response data
-        if (response.data.data && response.data.data.length > 0) {
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
           const updatedTicket = response.data.data[0];
-          updateLocalTicketState(updatedTicket);
+        setTickets(prev => prev.map(ticket => 
+          ticket._id === updatedTicket._id ? updatedTicket : ticket
+        ));
           
-          // If this was the selected ticket, update it immediately
           if (selectedTicket && selectedTicket._id === updatedTicket._id) {
-            console.log("Immediate selectedTicket update in handleStatusChangeSubmit:", updatedTicket._id, updatedTicket.status);
             setSelectedTicket(updatedTicket);
-          }
         }
+        
         setIsStatusChangeModalOpen(false);
         setSelectedStatusChangeTicket(null);
-
-        // ⬇️ always refetch for both list & view
-        await refetchAll(response?.data?.data?.[0]?._id ?? selectedTicket?._id ?? null);
       } else {
-        setError(response?.data?.message || "Failed to update status");
+        setError(response.data.message || "Failed to update status");
       }
     } catch (error) {
       console.error("Error changing status:", error);
       setError(error instanceof Error ? error.message : "Failed to change status");
-    } finally {
-      setIsChangingStatus(false);
     }
-  }, [apiUrl, token, selectedStatusChangeTicket]);
+  }, [apiUrl, token, selectedTicket]);
 
-  const handleDeleteConfirm = useCallback(
-    async (id: string) => {
-      try {
-        setIsDeletingTicket(true);
-        setError(null);
-        
-        console.log('Attempting to delete ticket with ID:', id);
-        console.log('API URL:', `${apiUrl}support/delete-tickets/${id}`);
-        
-        const response = await axios.delete<TicketResponse>(
-          `${apiUrl}support/delete-tickets/${id}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        
-        // console.log('Delete response:', response.data);
-        
-        if (response.data.success) {
-          console.log('Ticket deleted successfully, updating local state');
-          // Remove the ticket from local state instead of reloading
-          removeLocalTicket(id);
-          setIsDeleteModalOpen(false);
-          setSelectedDeleteTicket(null);
-          
-          // Clear selected ticket if it was the deleted one
-          if (selectedTicket && selectedTicket._id === id) {
-            setSelectedTicket(null);
-            setShowMobileDetail(false);
-          }
-
-          // ⬇️ refresh the list to stay in sync (no detail to refetch since ticket was deleted)
-          await fetchTickets();
-        } else {
-          console.error('Delete failed:', response.data.message);
-          setError(response.data.message);
-        }
-      } catch (error) {
-        console.error("Error deleting ticket:", error);
-        if (axios.isAxiosError(error)) {
-          console.error('Axios error details:', {
-            status: error.response?.status,
-            data: error.response?.data,
-            message: error.message
-          });
-          setError(error.response?.data?.message || error.message);
-        } else {
-          setError(error instanceof Error ? error.message : "Failed to delete ticket");
-        }
-      } finally {
-        setIsDeletingTicket(false);
-      }
-    },
-    [apiUrl, token, selectedTicket]
-  );
-
+  // Message edit handler
   const handleMessageEdit = useCallback((messageId: string) => {
-    // Find the message content from the selected ticket
     if (selectedTicket) {
       const message = selectedTicket.replies.find(reply => reply._id === messageId);
       if (message) {
@@ -497,7 +379,6 @@ const SupportTicketsPage = () => {
 
   const handleMessageEditSubmit = useCallback(async (messageId: string, newContent: string) => {
     try {
-      setIsEditingMessage(true);
       setError(null);
 
       const response = await axios.patch<TicketResponse>(
@@ -511,36 +392,29 @@ const SupportTicketsPage = () => {
         }
       );
 
-      if (response.data.success) {
-        // Update the local ticket state instead of reloading
-        if (response.data.data && response.data.data.length > 0) {
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
           const updatedTicket = response.data.data[0];
-          updateLocalTicketState(updatedTicket);
+        setTickets(prev => prev.map(ticket => 
+          ticket._id === updatedTicket._id ? updatedTicket : ticket
+        ));
           
-          // If this was the selected ticket, update it immediately
           if (selectedTicket && selectedTicket._id === updatedTicket._id) {
-            console.log("Immediate selectedTicket update in handleMessageEditSubmit:", updatedTicket._id, updatedTicket.status);
             setSelectedTicket(updatedTicket);
-          }
         }
+        
         setIsMessageEditModalOpen(false);
         setSelectedEditMessage(null);
-
-        // ⬇️ always refetch for both list & view
-        await refetchAll(selectedTicket?._id ?? null);
       } else {
         setError(response.data.message);
       }
     } catch (error) {
       console.error("Error editing message:", error);
       setError(error instanceof Error ? error.message : "Failed to edit message");
-    } finally {
-      setIsEditingMessage(false);
     }
   }, [apiUrl, token, selectedTicket]);
 
-  const handleMessageDelete = useCallback(
-    async (messageId: string) => {
+  // Message delete handler
+  const handleMessageDelete = useCallback(async (messageId: string) => {
       if (!selectedTicket?._id) return;
       
       try {
@@ -554,89 +428,44 @@ const SupportTicketsPage = () => {
             },
           }
         );
-        if (response.data.success) {
-          // Update the local ticket state with the response data
-          if (response.data.data && response.data.data.length > 0) {
+      
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
             const updatedTicket = response.data.data[0];
-            updateLocalTicketState(updatedTicket);
+        setTickets(prev => prev.map(ticket => 
+          ticket._id === updatedTicket._id ? updatedTicket : ticket
+        ));
             
-            // If this was the selected ticket, update it immediately
             if (selectedTicket && selectedTicket._id === updatedTicket._id) {
-              console.log("Immediate selectedTicket update in handleMessageDelete:", updatedTicket._id, updatedTicket.status);
               setSelectedTicket(updatedTicket);
             }
-          }
-          // ⬇️ always refetch for both list & view
-          await refetchAll(selectedTicket._id);
         } else {
           setError(response.data.message);
         }
       } catch (error) {
         console.error("Error deleting message:", error);
-        setError(
-          error instanceof Error ? error.message : "Failed to delete message"
-        );
-      }
-    },
-    [apiUrl, token, selectedTicket]
-  );
+      setError(error instanceof Error ? error.message : "Failed to delete message");
+    }
+  }, [apiUrl, token, selectedTicket]);
 
-  const handleMessageReply = useCallback(
-    async (messageId: string) => {
-      if (!selectedTicket?._id) return;
-      try {
-        setIsSendingReply(true);
-        setError(null);
-  
-        const response = await axios.post<TicketResponse>(
-          `${apiUrl}support/tickets/wholesaler`,
-          {
-            sender: "wholesaler",
-            message: replyText,
-            ticketId: selectedTicket._id,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-  
-        if (response.data.success) {
-          setReplyText("");
-          // Update the local ticket state with the response data
-          if (response.data.data && response.data.data.length > 0) {
-            const updatedTicket = response.data.data[0];
-            updateLocalTicketState(updatedTicket);
-            
-            // If this was the selected ticket, update it immediately
-            if (selectedTicket && selectedTicket._id === updatedTicket._id) {
-              console.log("Immediate selectedTicket update in handleMessageReply:", updatedTicket._id, updatedTicket.status);
-              setSelectedTicket(updatedTicket);
-            }
-          }
-          // ⬇️ always refetch for both list & view
-          await refetchAll(selectedTicket._id);
-        } else {
-          setError(response.data.message);
-        }
-      } catch (error) {
-        console.error("Error replying to message:", error);
-        setError(error instanceof Error ? error.message : "Failed to reply to message");
-      } finally {
-        setIsSendingReply(false);
-      }
-    },
-    [selectedTicket?._id, replyText, apiUrl, token]
-  );
+  // Refresh handler
+  const handleRefresh = useCallback(async () => {
+    await fetchTickets();
+  }, [fetchTickets]);
 
-  const handleDropdownToggle = useCallback(
-    (ticketId: string | null) => {
+  // Mobile handlers
+  const handleMobileSelect = useCallback((ticket: Ticket) => {
+    setSelectedTicket(ticket);
+    setShowMobileDetail(true);
+  }, []);
+
+  const handleMobileBack = useCallback(() => {
+    setShowMobileDetail(false);
+  }, []);
+
+  // Dropdown handlers
+  const handleDropdownToggle = useCallback((ticketId: string | null) => {
       setIsDropdownOpen(ticketId);
-    },
-    []
-  );
+  }, []);
 
   // Click outside handler for dropdowns
   useEffect(() => {
@@ -653,23 +482,41 @@ const SupportTicketsPage = () => {
       document.removeEventListener("mousedown", handleClickOutside);
   }, [isDropdownOpen]);
 
+  // Loading overlay
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 relative">
-      {/* ⬇️ Show full-page overlay ONLY on the very first load */}
-      {isInitialLoading && (
-        <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-50">
-          <LoadingSpinner />
+      {/* Error Display - Commented out */}
+      {/* {error && (
+        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+          <span className="block sm:inline">{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
+          >
+            <span className="sr-only">Close</span>
+            <svg className="fill-current h-6 w-6" role="button" xmlns="http://www.w3.org/2000/svg">
+              <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 0 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 0 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+            </svg>
+          </button>
         </div>
-      )}
+      )} */}
 
       {/* Mobile View */}
       <div className="md:hidden">
         {showMobileDetail && selectedTicket ? (
           <div className="h-screen flex flex-col bg-white">
-            {/* Sticky Back Button Bar */}
+            {/* Back Button Bar */}
             <div className="sticky top-0 z-50 bg-white border-b flex items-center px-4 py-3 shadow-sm">
               <button
-                onClick={() => setShowMobileDetail(false)}
+                onClick={handleMobileBack}
                 className="text-blue-600 font-medium flex items-center"
               >
                 <svg
@@ -693,10 +540,10 @@ const SupportTicketsPage = () => {
               </h2>
             </div>
 
-            {/* Scrollable Content - Below the sticky bar */}
+            {/* Ticket Details */}
             <div className="flex-1 overflow-y-auto px-4 py-2">
               <ViewTicketSection
-                key={selectedTicket?._id || 'no-ticket'} // Force re-render when ticket changes
+                key={`${selectedTicket._id}-${selectedTicket.replies.length}`}
                 selectedTicket={selectedTicket}
                 replyText={replyText}
                 onReplyChange={setReplyText}
@@ -705,10 +552,11 @@ const SupportTicketsPage = () => {
                 onStatusChange={handleStatusChange}
                 onMessageEdit={handleMessageEdit}
                 onMessageDelete={handleMessageDelete}
-                onMessageReply={handleMessageReply}
+                onMessageReply={() => {}} // Not implemented for wholesalers
                 currentUserType={currentUserType}
                 onDeleteConfirm={handleDelete}
                 onMessageEditConfirm={handleMessageEditSubmit}
+                isSendingReply={isSendingReply}
               />
             </div>
           </div>
@@ -723,19 +571,16 @@ const SupportTicketsPage = () => {
             sort={sort}
             onSort={setSort}
             selectedTicket={selectedTicket}
-            onSelect={(ticket) => {
-              setSelectedTicket(ticket);
-              setShowMobileDetail(true);
-            }}
+            onSelect={handleMobileSelect}
             tickets={filteredTickets}
-            onCreateTicket={handleCreateTicket}
+            onCreateTicket={() => setIsCreateModalOpen(true)}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={handleDropdownToggle}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
-            onReopen={handleReopen}
+            onReopen={() => {}} // Not available for wholesalers
             onRefresh={handleRefresh}
-            isRefreshing={isRefreshingTickets}
+            isRefreshing={false}
           />
         )}
       </div>
@@ -755,19 +600,19 @@ const SupportTicketsPage = () => {
             selectedTicket={selectedTicket}
             onSelect={setSelectedTicket}
             tickets={filteredTickets}
-            onCreateTicket={handleCreateTicket}
+            onCreateTicket={() => setIsCreateModalOpen(true)}
             isDropdownOpen={isDropdownOpen}
             onDropdownToggle={handleDropdownToggle}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
-            onReopen={handleReopen}
+            onReopen={() => {}} // Not available for wholesalers
             onRefresh={handleRefresh}
-            isRefreshing={isRefreshingTickets}
+            isRefreshing={false}
           />
         </div>
         <div className="col-span-7 h-full overflow-hidden">
           <ViewTicketSection
-            key={selectedTicket?._id || 'no-ticket'} // Force re-render when ticket changes
+            key={selectedTicket ? `${selectedTicket._id}-${selectedTicket.replies.length}` : 'no-ticket'}
             selectedTicket={selectedTicket}
             replyText={replyText}
             onReplyChange={setReplyText}
@@ -776,10 +621,11 @@ const SupportTicketsPage = () => {
             onStatusChange={handleStatusChange}
             onMessageEdit={handleMessageEdit}
             onMessageDelete={handleMessageDelete}
-            onMessageReply={handleMessageReply}
+            onMessageReply={() => {}} // Not implemented for wholesalers
             currentUserType={currentUserType}
             onDeleteConfirm={handleDelete}
             onMessageEditConfirm={handleMessageEditSubmit}
+            isSendingReply={isSendingReply}
           />
         </div>
       </div>
@@ -788,13 +634,14 @@ const SupportTicketsPage = () => {
       <CreateTicketModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateTicketSubmit}
+        onSubmit={handleCreateTicket}
       />
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
         ticket={selectedDeleteTicket}
+        isLoading={isDeletingTicket}
       />
       <StatusChangeModal
         isOpen={isStatusChangeModalOpen}
@@ -805,7 +652,7 @@ const SupportTicketsPage = () => {
         onSubmit={handleStatusChangeSubmit}
         currentStatus={selectedStatusChangeTicket?.status || 'open'}
         ticketSubject={selectedStatusChangeTicket?.subject || ''}
-        isLoading={isChangingStatus}
+        isLoading={false}
       />
       <MessageEditModal
         isOpen={isMessageEditModalOpen}
@@ -816,13 +663,7 @@ const SupportTicketsPage = () => {
         onSubmit={handleMessageEditSubmit}
         messageId={selectedEditMessage?.id || ''}
         currentContent={selectedEditMessage?.content || ''}
-        isLoading={isEditingMessage}
-      />
-
-      {/* Loading Overlay for Refresh */}
-      <LoadingOverlay 
-        isVisible={isRefreshingTickets} 
-        message="Refreshing tickets..." 
+        isLoading={false}
       />
     </div>
   );

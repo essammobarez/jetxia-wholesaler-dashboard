@@ -45,7 +45,7 @@ const TicketList: React.FC<TicketListProps> = ({
         <TicketCard
           key={ticket._id}
           ticket={ticket}
-          selected={ticket._id === selectedTicket?._id}
+          selected={selectedTicket?._id === ticket._id}
           onClick={() => onSelect(ticket)}
           isDropdownOpen={isDropdownOpen === ticket._id}
           onDropdownToggle={() => onDropdownToggle(isDropdownOpen === ticket._id ? null : ticket._id)}

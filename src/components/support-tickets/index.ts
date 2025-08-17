@@ -1,7 +1,10 @@
 export { default as AllTicketsSection } from './AllTicketsSection';
-export { default as FilterSection } from './FilterSection';
-export { default as TicketCard } from './TicketCard';
 export { default as TicketList } from './TicketList';
 export { default as ViewTicketSection } from './ViewTicketSection';
-export { mockTickets } from './mockTickets';
+export { default as FilterSection } from './FilterSection';
+export { default as TicketCard } from './TicketCard';
+export { default as CreateTicketModal } from './CreateTicketModal';
+export { default as DeleteConfirmModal } from './DeleteConfirmModal';
+export { default as StatusChangeModal } from './StatusChangeModal';
+export { default as MessageEditModal } from './MessageEditModal';
 export * from './types';

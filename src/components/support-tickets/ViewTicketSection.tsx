@@ -16,9 +16,9 @@ interface ViewTicketSectionProps {
   onMessageDelete: (messageId: string) => void;
   onMessageReply: (messageId: string) => void;
   currentUserType: "wholesaler_admin" | "agency_admin";
-  onDeleteConfirm?: (ticket: Ticket) => void; // parent opens DeleteConfirmModal
+  onDeleteConfirm?: (ticket: Ticket) => void;
   onMessageEditConfirm?: (messageId: string, newContent: string) => void;
-  onNewReplyAdded?: (reply: any) => void;
+  isSendingReply?: boolean;
 }
 
 // Subcomponents
@@ -171,10 +171,23 @@ const MessageCard: React.FC<{
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
                     <div className="py-1">
-                      <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
-                        <Edit className="h-4 w-4" />
-                        Edit (Unavailable)
-                      </div>
+                      {canEdit && onMessageEdit && messageId ? (
+                        <button
+                          onClick={() => {
+                            onMessageEdit(messageId);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit
+                        </button>
+                      ) : (
+                        <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
+                          <Edit className="h-4 w-4" />
+                          Edit (Unavailable)
+                        </div>
+                      )}
                       {canDelete && onMessageDeleteConfirm && messageId ? (
                         <button
                           onClick={() => onMessageDeleteConfirm(messageId, content)}
@@ -221,19 +234,6 @@ const NewMessageCard: React.FC<{
   onMessageReply,
   currentUserType,
 }) => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Keep original order - first message is main, subsequent are replies
   const mainMessage = ticketData.replies[0];
   const replies = ticketData.replies.slice(1);
@@ -383,14 +383,12 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
   currentUserType,
   onDeleteConfirm,
   onMessageEditConfirm,
-  onNewReplyAdded,
+  isSendingReply,
 }) => {
-  // Use parent's selectedTicket directly for real-time updates
   const ticketData = selectedTicket;
   const [isLoading] = useState(false);
-  const [error] = useState<string | null>(null);
 
-  // Message delete confirmation (kept here, parent doesn't have a modal for this)
+  // Message delete confirmation
   const [isMessageDeleteModalOpen, setIsMessageDeleteModalOpen] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<{ id: string; content: string } | null>(null);
 
@@ -412,14 +410,9 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
     setMessageToDelete(null);
   };
 
-  const handleMessageEditConfirmLocal = (messageId: string, newContent: string) => {
-    if (onMessageEditConfirm) onMessageEditConfirm(messageId, newContent);
-  };
-
   const handleLocalReplySend = () => {
     if (replyText.trim()) {
       onSendReply();
-      onReplyChange("");
     }
   };
 
@@ -451,20 +444,6 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-red-600">
-        <p>Error: {error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   if (!ticketData) return null;
 
   const ticketDetails: TicketDetails = {
@@ -489,14 +468,14 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
       {/* Breadcrumb */}
       <Breadcrumb subject={ticketDetails.subject} />
 
-      {/* Header - uses PARENT modal via onDeleteConfirm; no local duplicate modal */}
+      {/* Header */}
       <TicketHeader
         subject={ticketDetails.subject}
         createdAt={ticketDetails.createdAt}
         ticket={selectedTicket}
         onDeleteConfirm={(t) => {
           if (onDeleteConfirm) onDeleteConfirm(t);
-          else onDelete(t); // fallback if parent didn't pass a modal handler
+          else onDelete(t);
         }}
         onStatusChange={onStatusChange}
       />
@@ -510,7 +489,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
             else onDelete(t);
           }}
           onMessageEdit={onMessageEdit}
-          onMessageEditConfirm={handleMessageEditConfirmLocal}
+          onMessageEditConfirm={onMessageEditConfirm || (() => {})}
           onMessageDeleteConfirm={handleMessageDeleteClick}
           onMessageReply={onMessageReply}
           currentUserType={currentUserType}
@@ -518,9 +497,9 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
       </div>
 
       {/* Reply Box */}
-      <ReplyBox value={replyText} onChange={onReplyChange} onSend={handleLocalReplySend} isLoading={isLoading} />
+      <ReplyBox value={replyText} onChange={onReplyChange} onSend={handleLocalReplySend} isLoading={isSendingReply} />
 
-      {/* Message Delete Confirmation Modal (kept here, no parent duplicate) */}
+      {/* Message Delete Confirmation Modal */}
       {isMessageDeleteModalOpen && messageToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
