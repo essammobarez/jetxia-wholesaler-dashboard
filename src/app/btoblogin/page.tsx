@@ -500,9 +500,9 @@ export default function Login() {
                 <p className="text-gray-600 text-sm mb-8 max-w-md">
                   Welcome to Booking Desk, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, Booking Desk helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.
                 </p>
-                <button type="button" className="text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+                {/* <button type="button" className="text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
                   Register For Free
-                </button>
+                </button> */}
               </div>
             </div>
 
