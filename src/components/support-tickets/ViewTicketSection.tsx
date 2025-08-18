@@ -19,6 +19,7 @@ interface ViewTicketSectionProps {
   onDeleteConfirm?: (ticket: Ticket) => void;
   onMessageEditConfirm?: (messageId: string, newContent: string) => void;
   isSendingReply?: boolean;
+  refreshLoad?: boolean;
 }
 
 // Subcomponents
@@ -67,7 +68,7 @@ const TicketHeader: React.FC<{
         </button>
       )}
 
-      <button
+      {/* <button
         onClick={() => onDeleteConfirm(ticket)}
         className="group px-4 py-2 text-sm font-medium text-red-600 bg-red-100 hover:bg-red-200 rounded-lg transition-all duration-200 flex items-center gap-2 hover:shadow-md active:scale-95"
       >
@@ -75,7 +76,7 @@ const TicketHeader: React.FC<{
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M3 7h16" />
         </svg>
         Delete
-      </button>
+      </button> */}
     </div>
   </div>
 );
@@ -103,119 +104,121 @@ const MessageCard: React.FC<{
   ticketData,
   messageId,
 }) => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsDropdownOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
-  const canEdit = currentUserType === "wholesaler_admin" && sender.type === "Wholesaler";
-  const canDelete = currentUserType === "wholesaler_admin" && sender.type === "Wholesaler";
 
-  const isAgency = sender.type === "Agency";
-  const avatar = isAgency ? ticketData?.agency?.avatar : ticketData?.wholesaler?.avatar;
-  const name = isAgency ? ticketData?.agency?.agencyName : ticketData?.wholesaler?.wholesalerName;
-  const initials = (name?.[0] || "?").toUpperCase();
+    const canEdit = currentUserType === "wholesaler_admin" && sender.type === "Wholesaler";
+    const canDelete = currentUserType === "wholesaler_admin" && sender.type === "Wholesaler";
 
-  return (
-    <div className="space-y-4">
-      <div className="group rounded-xl transition-all duration-200">
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          {avatar ? (
-            <img
-              src={avatar}
-              alt={name || "User"}
-              className="w-12 h-12 rounded-full object-cover"
-            />
-          ) : (
-            <div
-              className={`
+    const isAgency = sender.type === "Agency";
+    const avatar = isAgency ? ticketData?.agency?.avatar : ticketData?.wholesaler?.avatar;
+    const name = isAgency ? ticketData?.agency?.agencyName : ticketData?.wholesaler?.wholesalerName;
+    const initials = (name?.[0] || "?").toUpperCase();
+
+    return (
+      <div className="space-y-4">
+        <div className="group rounded-xl transition-all duration-200">
+          <div className="flex items-start gap-4">
+            {/* Avatar */}
+            {avatar ? (
+              <img
+                src={avatar}
+                alt={name || "User"}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <div
+                className={`
                 w-12 h-12
                 rounded-full 
                 flex items-center justify-center 
                 text-white font-medium
                 bg-gray-500
               `}
-            >
-              {initials}
-            </div>
-          )}
-
-          {/* Message Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
-                  {sender.name}
-                </h3>
-                <p className="text-sm text-gray-500">{new Date(createdAt).toLocaleString()}</p>
+              >
+                {initials}
               </div>
-              <div className="relative" ref={dropdownRef}>
-                {canEdit && onMessageEdit && messageId ? (
-                  <button
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                  >
-                    <MoreVertical className="h-5 w-5 text-gray-500" />
-                  </button>
-                ) : null}
+            )}
 
-                {isDropdownOpen && (
-                  <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
-                    <div className="py-1">
-                      {canEdit && onMessageEdit && messageId ? (
-                        <button
-                          onClick={() => {
-                            onMessageEdit(messageId);
-                            setIsDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100 flex items-center gap-2"
-                        >
-                          <Edit className="h-4 w-4" />
-                          Edit
-                        </button>
-                      ) : (
-                        <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
-                          <Edit className="h-4 w-4" />
-                          Edit (Unavailable)
-                        </div>
-                      )}
-                      {canDelete && onMessageDeleteConfirm && messageId ? (
-                        <button
-                          onClick={() => onMessageDeleteConfirm(messageId, content)}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </button>
-                      ) : (
-                        <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
-                          <Trash2 className="h-4 w-4" />
-                          Delete (Not allowed)
-                        </div>
-                      )}
+            {/* Message Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
+                    {sender.name}
+                  </h3>
+                  <p className="text-sm text-gray-500">{new Date(createdAt).toLocaleString()}</p>
+                </div>
+                <div className="relative" ref={dropdownRef}>
+                  {canEdit && onMessageEdit && messageId ? (
+                    <button
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                      <MoreVertical className="h-5 w-5 text-gray-500" />
+                    </button>
+                  ) : null}
+
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                      <div className="py-1">
+                        {canEdit && onMessageEdit && messageId ? (
+                          // <button
+                          //   onClick={() => {
+                          //     onMessageEdit(messageId);
+                          //     setIsDropdownOpen(false);
+                          //   }}
+                          //   className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-100 flex items-center gap-2"
+                          // >
+                          //   <Edit className="h-4 w-4" />
+                          //   Edit
+                          // </button>
+                          null
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
+                            <Edit className="h-4 w-4" />
+                            Edit (Unavailable)
+                          </div>
+                        )}
+                        {canDelete && onMessageDeleteConfirm && messageId ? (
+                          <button
+                            onClick={() => onMessageDeleteConfirm(messageId, content)}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2 bg-gray-50">
+                            <Trash2 className="h-4 w-4" />
+                            Delete (Not allowed)
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-            <div>
-              <p className="mt-2 text-gray-700 break-words">{content}</p>
+              <div>
+                <p className="mt-2 text-gray-700 break-words">{content}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 const NewMessageCard: React.FC<{
   ticketData: Ticket;
@@ -234,106 +237,106 @@ const NewMessageCard: React.FC<{
   onMessageReply,
   currentUserType,
 }) => {
-  // Keep original order - first message is main, subsequent are replies
-  const mainMessage = ticketData.replies[0];
-  const replies = ticketData.replies.slice(1);
+    // Keep original order - first message is main, subsequent are replies
+    const mainMessage = ticketData.replies[0];
+    const replies = ticketData.replies.slice(1);
 
-  const agencyName = ticketData.agency?.agencyName || "Agency";
-  const wholesalerName = ticketData.wholesaler?.wholesalerName || "Wholesaler";
+    const agencyName = ticketData.agency?.agencyName || "Agency";
+    const wholesalerName = ticketData.wholesaler?.wholesalerName || "Wholesaler";
 
-  const mainSenderIsAgency = mainMessage?.sender === "agency_admin";
-  const mainSenderName = mainSenderIsAgency ? agencyName : wholesalerName;
-  const mainSenderInitial = (mainSenderName?.[0] || "?").toUpperCase();
-  const mainSenderAvatar = mainSenderIsAgency ? ticketData.agency?.avatar : ticketData.wholesaler?.avatar;
+    const mainSenderIsAgency = mainMessage?.sender === "agency_admin";
+    const mainSenderName = mainSenderIsAgency ? agencyName : wholesalerName;
+    const mainSenderInitial = (mainSenderName?.[0] || "?").toUpperCase();
+    const mainSenderAvatar = mainSenderIsAgency ? ticketData.agency?.avatar : ticketData.wholesaler?.avatar;
 
-  if (!mainMessage) {
+    if (!mainMessage) {
+      return (
+        <div className="text-center text-gray-500 py-8">
+          <p>No messages found</p>
+        </div>
+      );
+    }
+
     return (
-      <div className="text-center text-gray-500 py-8">
-        <p>No messages found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="group rounded-xl transition-all duration-200">
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          {mainSenderAvatar ? (
-            <img
-              src={mainSenderAvatar}
-              alt={mainSenderName || "User"}
-              className="w-12 h-12 rounded-full object-cover"
-            />
-          ) : (
-            <div
-              className={`
+      <div className="space-y-4">
+        <div className="group rounded-xl transition-all duration-200">
+          <div className="flex items-start gap-4">
+            {/* Avatar */}
+            {mainSenderAvatar ? (
+              <img
+                src={mainSenderAvatar}
+                alt={mainSenderName || "User"}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <div
+                className={`
                 w-12 h-12
                 rounded-full 
                 flex items-center justify-center 
                 text-white font-medium
                 bg-gray-500
               `}
-            >
-              {mainSenderInitial}
-            </div>
-          )}
-
-          {/* Message Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
-                  {mainSenderName}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {new Date(mainMessage.createdAt).toLocaleString()}
-                </p>
+              >
+                {mainSenderInitial}
               </div>
-              <div className="flex items-center gap-3">
-                {/* Category Badge */}
-                <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  {ticketData.category}
+            )}
+
+            {/* Message Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">
+                    {mainSenderName}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {new Date(mainMessage.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Category Badge */}
+                  <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    {ticketData.category}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <p className="mt-2 text-gray-700 break-words">{mainMessage.message}</p>
+              <p className="mt-2 text-gray-700 break-words">{mainMessage.message}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Nested Replies */}
-      {replies.length > 0 && (
-        <div className="space-y-4 pl-8 border-l-2 border-gray-200 ml-6">
-          {replies.map((reply) => {
-            const senderName = reply.sender === "agency_admin" ? agencyName : wholesalerName;
-            return (
-              <React.Fragment key={reply._id}>
-                <Separator className="my-3" />
-                <MessageCard
-                  sender={{
-                    type: reply.sender === "agency_admin" ? "Agency" : "Wholesaler",
-                    name: senderName,
-                  }}
-                  content={reply.message}
-                  createdAt={reply.createdAt}
-                  onMessageEdit={onMessageEdit}
-                  onMessageEditConfirm={onMessageEditConfirm}
-                  onMessageDeleteConfirm={onMessageDeleteConfirm}
-                  onMessageReply={onMessageReply}
-                  currentUserType={currentUserType}
-                  ticketData={ticketData}
-                  messageId={reply._id}
-                />
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
+        {/* Nested Replies */}
+        {replies.length > 0 && (
+          <div className="space-y-4 pl-8 border-l-2 border-gray-200 ml-6">
+            {replies.map((reply) => {
+              const senderName = reply.sender === "agency_admin" ? agencyName : wholesalerName;
+              return (
+                <React.Fragment key={reply._id}>
+                  <Separator className="my-3" />
+                  <MessageCard
+                    sender={{
+                      type: reply.sender === "agency_admin" ? "Agency" : "Wholesaler",
+                      name: senderName,
+                    }}
+                    content={reply.message}
+                    createdAt={reply.createdAt}
+                    onMessageEdit={onMessageEdit}
+                    onMessageEditConfirm={onMessageEditConfirm}
+                    onMessageDeleteConfirm={onMessageDeleteConfirm}
+                    onMessageReply={onMessageReply}
+                    currentUserType={currentUserType}
+                    ticketData={ticketData}
+                    messageId={reply._id}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
 const ReplyBox: React.FC<{
   value: string;
@@ -384,6 +387,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
   onDeleteConfirm,
   onMessageEditConfirm,
   isSendingReply,
+  refreshLoad,
 }) => {
   const ticketData = selectedTicket;
   const [isLoading] = useState(false);
@@ -410,11 +414,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
     setMessageToDelete(null);
   };
 
-  const handleLocalReplySend = () => {
-    if (replyText.trim()) {
-      onSendReply();
-    }
-  };
+  const handleLocalReplySend = () => onSendReply();
 
   if (!selectedTicket) {
     return (
@@ -435,11 +435,56 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
     );
   }
 
-  if (isLoading && !ticketData) {
+  if (refreshLoad) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="mt-4 text-gray-600">Loading ticket details...</p>
+      <div className="flex flex-col h-fit p-4 lg:p-6 xl:p-8 bg-white shadow-xs border border-gray-200 border-l-0 rounded-r-2xl">
+        {/* Breadcrumb Skeleton */}
+        <div className="flex items-center text-sm font-medium text-gray-300 mb-6">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+          <ChevronRight className="h-4 w-4 mx-1 text-gray-200" />
+          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <ChevronRight className="h-4 w-4 mx-1 text-gray-200" />
+          <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex-1">
+            <div className="h-8 w-64 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="h-10 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Messages Container Skeleton */}
+        <div className="bg-gray-50 rounded-2xl p-6 flex-1 space-y-6 mb-3 min-h-[250px]">
+          {/* Message skeleton */}
+          <div className="flex items-start space-x-3">
+            <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-1/2 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Reply Box Skeleton */}
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex-1 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="h-12 w-20 bg-gray-200 rounded-lg animate-pulse"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -489,7 +534,7 @@ const ViewTicketSection: React.FC<ViewTicketSectionProps> = ({
             else onDelete(t);
           }}
           onMessageEdit={onMessageEdit}
-          onMessageEditConfirm={onMessageEditConfirm || (() => {})}
+          onMessageEditConfirm={onMessageEditConfirm || (() => { })}
           onMessageDeleteConfirm={handleMessageDeleteClick}
           onMessageReply={onMessageReply}
           currentUserType={currentUserType}

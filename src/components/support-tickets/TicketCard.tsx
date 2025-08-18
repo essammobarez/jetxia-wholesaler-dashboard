@@ -36,22 +36,12 @@ interface TicketCardProps {
   ticket: Ticket;
   selected?: boolean;
   onClick?: () => void;
-  isDropdownOpen: boolean;
-  onDropdownToggle: () => void;
-  onStatusChange: (ticket: Ticket) => void;
-  onDelete: (ticket: Ticket) => void;
-  onReopen: (ticket: Ticket) => void;
 }
 
 const TicketCard: React.FC<TicketCardProps> = ({
   ticket,
   selected,
   onClick,
-  isDropdownOpen,
-  onDropdownToggle,
-  onStatusChange,
-  onDelete,
-  onReopen
 }) => {
   const status = statusColors[ticket?.status] || { bg: 'bg-gray-50', text: 'text-gray-700' };
   const randomBgColor = React.useMemo(() => getRandomColor(), []);
@@ -107,7 +97,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
             {ticket.category}
           </div>
 
-          <div className="relative dropdown-menu">
+          {/* <div className="relative dropdown-menu">
             <button
               className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
               onClick={(e) => {
@@ -144,7 +134,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </div> */}
         </div>
       </div>
 
