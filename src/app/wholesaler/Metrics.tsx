@@ -13,6 +13,9 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 
 // Define interfaces for our data structures for type safety
 interface KpiData {
@@ -152,6 +155,48 @@ export default function Metrics() {
     fetchData();
   }, []); // Empty dependency array means this effect runs once on mount
 
+  // Function to handle PDF export
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    const tableHeadStyles = { fillColor: [41, 128, 185] }; // A nice blue color
+
+    // Add main title and date
+    doc.setFontSize(18);
+    doc.text('Business Metrics Report', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Report Generated: ${format(new Date(), 'MMMM dd, yyyy')}`, 14, 29);
+
+    // Add KPI summary table
+    doc.setFontSize(14);
+    doc.text('Key Performance Indicators (KPIs)', 14, 45);
+    autoTable(doc, {
+      startY: 50,
+      head: [['Metric', 'Value', 'Description']],
+      body: kpiData.map(kpi => [kpi.title, kpi.value, kpi.description]),
+      headStyles: tableHeadStyles,
+      theme: 'grid',
+    });
+
+    // Add Monthly Revenue data table
+    const finalY = (doc as any).lastAutoTable.finalY || 10;
+    doc.setFontSize(14);
+    doc.text('Monthly Revenue Breakdown', 14, finalY + 15);
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['Month', 'Monthly Revenue', 'Cumulative Revenue']],
+      body: revenueData.map(data => [
+        data.month,
+        `$${data.revenue.toFixed(2)}`,
+        `$${data.cumulative.toFixed(2)}`
+      ]),
+      headStyles: tableHeadStyles,
+      theme: 'grid',
+    });
+
+    doc.save(`business-metrics-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   // Render a loading state
   if (loading) {
     return (
@@ -183,15 +228,23 @@ export default function Metrics() {
             Track your performance and growth with detailed analytics
           </p>
         </div>
-        <div className="flex space-x-3">
-          <button className="btn-gradient">
-            <BarChart2 className="w-4 h-4 mr-2" />
-            Export Report
-          </button>
-          <button className="btn-modern bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-            Filter Data
-          </button>
-        </div>
+        <div className="flex items-center space-x-3">
+  <button onClick={exportToPDF} className="btn-gradient flex items-center">
+    <BarChart2 className="w-4 h-4 mr-2" />
+    Export Report
+  </button>
+
+  {/* The commented part below is kept as-is, but updated
+      with flex + items-center so that the icon and text
+      will also be vertically centered when you enable it */}
+  {/* 
+  <button className="btn-modern bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center">
+    <Filter className="w-4 h-4 mr-2" />
+    Filter Data
+  </button> 
+  */}
+</div>
+
       </div>
 
       {/* KPI Cards */}

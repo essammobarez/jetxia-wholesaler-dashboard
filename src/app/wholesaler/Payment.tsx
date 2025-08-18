@@ -1,22 +1,25 @@
 'use client'
 
 import React, { FC, useState, useEffect, ChangeEvent } from 'react'
-import { format } from 'date-fns'
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  CreditCard, 
-  TrendingUp, 
-  DollarSign, 
-  Calendar, 
-  CheckCircle, 
-  Clock, 
+import { format, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns'
+import {
+  Search,
+  Filter,
+  Download,
+  CreditCard,
+  TrendingUp,
+  DollarSign,
+  Calendar,
+  CheckCircle,
+  Clock,
   XCircle,
   Eye,
   Plus,
-  X
+  X,
+  FileText, // Icon for PDF
+  FileSpreadsheet // Icon for CSV
 } from 'lucide-react'
+import { jsPDF } from 'jspdf' // Library for PDF generation
 
 type Payment = {
   _id: string
@@ -103,13 +106,23 @@ const getAuthToken = () => {
   return "";
 }
 
-const fetchPayments = async (wholesalerId: string, page: number = 1, limit: number = 10): Promise<PaymentResponse> => {
+// MODIFIED: fetchPayments now accepts startDate and endDate
+const fetchPayments = async (wholesalerId: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string): Promise<PaymentResponse> => {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Auth token missing. Please login again.");
   }
 
-  const res = await fetch(`${API_URL}paymentHistory/wholesaler/payments?page=${page}&limit=${limit}`, {
+  // Construct query string with date parameters
+  let url = `${API_URL}paymentHistory/wholesaler/payments?page=${page}&limit=${limit}`;
+  if (startDate) {
+    url += `&startDate=${startDate}`;
+  }
+  if (endDate) {
+    url += `&endDate=${endDate}`;
+  }
+
+  const res = await fetch(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -127,8 +140,6 @@ const fetchPayments = async (wholesalerId: string, page: number = 1, limit: numb
   const data: PaymentResponse = await res.json()
   return data
 }
-
-
 
 // Function to export payment report
 const exportPaymentReport = async (wholesalerId: string, filters?: any) => {
@@ -192,7 +203,7 @@ const fetchAgencies = async (wholesalerId: string): Promise<Agency[]> => {
   }
 
   const response = await res.json()
-  
+
   if (!response.success) {
     throw new Error(response.message || 'Failed to fetch agencies')
   }
@@ -229,9 +240,9 @@ const fetchLedgerEntries = async (agencyId: string) => {
     }
 
     // Filter ledger entries for the specific agency and get unpaid entries
-    const agencyLedgerEntries = data.data.filter((entry: any) => 
-      entry.agency === agencyId && 
-      entry.ledgerStatus !== 'PAID' && 
+    const agencyLedgerEntries = data.data.filter((entry: any) =>
+      entry.agency === agencyId &&
+      entry.ledgerStatus !== 'PAID' &&
       entry.type === 'DEBIT'
     );
 
@@ -252,7 +263,7 @@ const makePaymentToAgency = async (agencyId: string, paymentAmount: number) => {
   try {
     // First, fetch ledger entries for the agency
     const ledgerEntries = await fetchLedgerEntries(agencyId);
-    
+
     if (ledgerEntries.length === 0) {
       throw new Error("No outstanding ledger entries found for this agency");
     }
@@ -293,6 +304,10 @@ const PaymentLogPage: FC = () => {
   const [agencies, setAgencies] = useState<Agency[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  // NEW: State for date range filtering
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [showDateFilter, setShowDateFilter] = useState(false)
   const [loading, setLoading] = useState(false)
   const [agenciesLoading, setAgenciesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -308,7 +323,7 @@ const PaymentLogPage: FC = () => {
     hasNextPage: false,
     hasPrevPage: false
   })
-  
+
   // Payment Modal States
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedAgencyId, setSelectedAgencyId] = useState('')
@@ -332,10 +347,10 @@ const PaymentLogPage: FC = () => {
   useEffect(() => {
     const loadAgencies = async () => {
       if (!wholesalerId) return
-      
+
       setAgenciesLoading(true)
       console.log("Fetching agencies for wholesalerId:", wholesalerId)
-      
+
       try {
         const agenciesData = await fetchAgencies(wholesalerId)
         console.log("Agencies fetched successfully:", agenciesData)
@@ -352,7 +367,7 @@ const PaymentLogPage: FC = () => {
     loadAgencies()
   }, [wholesalerId])
 
-  // Fetch payments once we have the wholesaler ID
+  // MODIFIED: useEffect to fetch payments with date range filter
   useEffect(() => {
     const loadPayments = async () => {
       if (!wholesalerId || !API_URL) {
@@ -362,9 +377,10 @@ const PaymentLogPage: FC = () => {
 
       setLoading(true)
       console.log("wholesalerId", wholesalerId)
-      
+
       try {
-        const response = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit)
+        // Pass startDate and endDate to the fetch function
+        const response = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit, startDate, endDate)
         if (response.success && response.data.payments) {
           setPayments(response.data.payments)
           setPagination(response.data.pagination)
@@ -381,7 +397,7 @@ const PaymentLogPage: FC = () => {
     }
 
     loadPayments()
-  }, [wholesalerId, pagination.currentPage, pagination.limit])
+  }, [wholesalerId, pagination.currentPage, pagination.limit, startDate, endDate]) // ADDED: Dependencies for date filters
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
@@ -389,6 +405,19 @@ const PaymentLogPage: FC = () => {
 
   const handleStatusFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value)
+  }
+
+  // NEW: Date change handlers
+  const handleStartDateChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setStartDate(e.target.value)
+    // Reset page to 1 when filters change
+    setPagination(prev => ({ ...prev, currentPage: 1 }))
+  }
+
+  const handleEndDateChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setEndDate(e.target.value)
+    // Reset page to 1 when filters change
+    setPagination(prev => ({ ...prev, currentPage: 1 }))
   }
 
   const handleExportReport = async () => {
@@ -401,12 +430,15 @@ const PaymentLogPage: FC = () => {
     setError(null)
 
     try {
+      // MODIFIED: Include date filters in the export payload
       const filters = {
         search,
         status: statusFilter === 'All' ? undefined : statusFilter,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
         // Add more filters as needed
       }
-      
+
       await exportPaymentReport(wholesalerId, filters)
     } catch (err: any) {
       setError(err.message || 'Failed to export report')
@@ -424,6 +456,75 @@ const PaymentLogPage: FC = () => {
     setShowViewModal(false)
     setSelectedPayment(null)
   }
+
+  // --- NEW --- Export single payment as PDF
+  const handleExportPDF = (payment: Payment) => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text('Payment Receipt', 14, 22);
+
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Payment ID: ${payment.paymentId}`, 14, 32);
+    doc.text(`Date: ${format(new Date(payment.createdAt), 'yyyy-MM-dd')}`, 14, 39);
+
+    doc.setLineWidth(0.5);
+    doc.line(14, 45, 196, 45);
+
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    const details = [
+      { label: 'Agency:', value: payment.agencyId.slug },
+      { label: 'Status:', value: payment.status },
+      { label: 'Paid Amount:', value: `$${payment.paidAmount.toFixed(2)}` },
+      { label: 'Full Amount:', value: `$${payment.fullAmount.toFixed(2)}` },
+      { label: 'Remaining Amount:', value: `$${payment.remainingAmount.toFixed(2)}` },
+      { label: 'Reference Type:', value: payment.ledgerEntryId.referenceType },
+      { label: 'Description:', value: payment.ledgerEntryId.description },
+    ];
+
+    let yPosition = 55;
+    details.forEach(detail => {
+      doc.text(detail.label, 14, yPosition);
+      doc.text(detail.value, 60, yPosition);
+      yPosition += 8;
+    });
+
+    doc.save(`payment-${payment.paymentId}.pdf`);
+  };
+
+  // --- NEW --- Export single payment as CSV
+  const handleExportCSV = (payment: Payment) => {
+    const headers = [
+      "Payment ID", "Agency Slug", "Status", "Paid Amount", "Full Amount",
+      "Remaining Amount", "Date", "Reference Type", "Description"
+    ];
+
+    const row = [
+      payment.paymentId,
+      payment.agencyId.slug,
+      payment.status,
+      payment.paidAmount.toFixed(2),
+      payment.fullAmount.toFixed(2),
+      payment.remainingAmount.toFixed(2),
+      format(new Date(payment.createdAt), 'yyyy-MM-dd'),
+      payment.ledgerEntryId.referenceType,
+      `"${payment.ledgerEntryId.description.replace(/"/g, '""')}"` // Escape double quotes
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + headers.join(',') + "\n"
+      + row.join(',');
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `payment-${payment.paymentId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Payment Modal Handlers
   const openPaymentModal = () => {
@@ -474,7 +575,7 @@ const PaymentLogPage: FC = () => {
   // Filter agencies based on search term
   const filteredAgencies = agencies.filter(agency => {
     if (!agencySearchTerm.trim()) return true;
-    
+
     const searchLower = agencySearchTerm.toLowerCase();
     return (
       agency.agencyName.toLowerCase().includes(searchLower) ||
@@ -525,16 +626,16 @@ const PaymentLogPage: FC = () => {
     try {
       const result = await makePaymentToAgency(selectedAgency._id, amount)
       console.log('Payment successful:', result)
-      
+
       // Close modal
       closePaymentModal()
-      
+
       // Refresh data after successful payment
       if (wholesalerId) {
         // Refresh agencies to update balances
         const agenciesData = await fetchAgencies(wholesalerId)
         setAgencies(agenciesData)
-        
+
         // Refresh payment history
         const paymentResponse = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit)
         if (paymentResponse.success && paymentResponse.data.payments) {
@@ -542,7 +643,7 @@ const PaymentLogPage: FC = () => {
           setPagination(paymentResponse.data.pagination)
         }
       }
-      
+
       // Show success message
       setError(null)
     } catch (err: any) {
@@ -569,6 +670,7 @@ const PaymentLogPage: FC = () => {
     }
   }
 
+  // MODIFIED: `filtered` now only handles search and status filters since the API will handle date filtering.
   const filtered = payments.filter(p => {
     const matchesSearch =
       p.paymentId.toLowerCase().includes(search.toLowerCase()) ||
@@ -625,14 +727,14 @@ const PaymentLogPage: FC = () => {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-2 sm:space-y-0 w-full sm:w-auto">
-          <button 
+          <button
             onClick={openPaymentModal}
             className="bg-purple-600 hover:bg-purple-700 text-white w-full sm:w-auto px-4 py-2 rounded-xl font-medium transition-colors duration-200"
           >
             <Plus className="w-4 h-4 mr-2" />
             Make Payment
           </button>
-          <button 
+          <button
             onClick={handleExportReport}
             disabled={exportLoading}
             className={`btn-gradient w-full sm:w-auto ${exportLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
@@ -640,9 +742,12 @@ const PaymentLogPage: FC = () => {
             <Download className="w-4 h-4 mr-2" />
             {exportLoading ? 'Exporting...' : 'Export Report'}
           </button>
-          <button className="btn-modern bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 w-full sm:w-auto">
-            <Filter className="w-4 h-4 mr-2" />
-            Advanced Filter
+          <button
+            onClick={() => setShowDateFilter(!showDateFilter)}
+            className="btn-modern bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 w-full sm:w-auto"
+          >
+            <Calendar className="w-4 h-4 mr-2" />
+            {showDateFilter ? 'Hide Date Filter' : 'Date Filter'}
           </button>
         </div>
       </div>
@@ -650,7 +755,7 @@ const PaymentLogPage: FC = () => {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {summaryStats.map(({ title, value, icon: Icon, change, gradient }, index) => (
-          <div 
+          <div
             key={title}
             className="card-modern p-6 relative overflow-hidden animate-slide-up"
             style={{ animationDelay: `${index * 0.1}s` }}
@@ -699,10 +804,25 @@ const PaymentLogPage: FC = () => {
               <option value="Partially Paid">Partially Paid</option>
               <option value="Refunded">Refunded</option>
             </select>
-            <button className="btn-modern bg-blue-50 text-blue-600 dark:bg-blue-900 dark:text-blue-300 px-4">
-              <Calendar className="w-4 h-4 mr-2" />
-              Date Range
-            </button>
+            {/* NEW: Date filter inputs */}
+            {showDateFilter && (
+              <div className="flex space-x-2 w-full sm:w-auto">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={handleStartDateChange}
+                  className="input-modern py-3 px-4 w-full"
+                  placeholder="Start Date"
+                />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                  className="input-modern py-3 px-4 w-full"
+                  placeholder="End Date"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -735,8 +855,8 @@ const PaymentLogPage: FC = () => {
           </div>
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Payments Found</h3>
           <p className="text-gray-500 dark:text-gray-400">No payments match your current filter criteria.</p>
-          <button 
-            onClick={() => { setSearch(''); setStatusFilter('All'); }}
+          <button
+            onClick={() => { setSearch(''); setStatusFilter('All'); setStartDate(''); setEndDate('') }}
             className="mt-4 btn-modern bg-blue-50 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
           >
             Clear Filters
@@ -792,11 +912,26 @@ const PaymentLogPage: FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <button 
+                      <button
                         onClick={() => handleViewPayment(payment)}
                         className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        title="View Details"
                       >
                         <Eye className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleExportPDF(payment)}
+                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        title="Export as PDF"
+                      >
+                        <FileText className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleExportCSV(payment)}
+                        className="p-2 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                        title="Export as CSV"
+                      >
+                        <FileSpreadsheet className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -858,11 +993,26 @@ const PaymentLogPage: FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <button 
+                          <button
                             onClick={() => handleViewPayment(payment)}
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            title="View Details"
                           >
                             <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleExportPDF(payment)}
+                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            title="Export as PDF"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleExportCSV(payment)}
+                            className="p-2 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                            title="Export as CSV"
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -872,20 +1022,20 @@ const PaymentLogPage: FC = () => {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination Info */}
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 dark:text-gray-400 space-y-2 sm:space-y-0">
               <span>Showing {displayed.length} of {pagination.totalCount} transactions (Page {pagination.currentPage} of {pagination.totalPages})</span>
               <div className="flex space-x-2">
-                <button 
+                <button
                   onClick={handlePrevPage}
                   disabled={!pagination.hasPrevPage}
                   className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
                 >
                   Previous
                 </button>
-                <button 
+                <button
                   onClick={handleNextPage}
                   disabled={!pagination.hasNextPage}
                   className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
@@ -900,11 +1050,11 @@ const PaymentLogPage: FC = () => {
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={closePaymentModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full animate-scale-up border border-gray-100 dark:border-gray-700"
             onClick={(e) => e.stopPropagation()}
           >
@@ -946,11 +1096,11 @@ const PaymentLogPage: FC = () => {
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 transition-colors text-left flex items-center justify-between"
                   >
                     <span className={selectedAgencyId ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}>
-                      {selectedAgencyId 
+                      {selectedAgencyId
                         ? (() => {
-                            const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
-                            return selectedAgency ? `${selectedAgency.agencyName} ($${selectedAgency.totalOutstanding.toFixed(2)})` : 'Choose an agency...';
-                          })()
+                          const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                          return selectedAgency ? `${selectedAgency.agencyName} ($${selectedAgency.totalOutstanding.toFixed(2)})` : 'Choose an agency...';
+                        })()
                         : 'Choose an agency...'
                       }
                     </span>
@@ -958,7 +1108,7 @@ const PaymentLogPage: FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  
+
                   {showAgencyDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden">
                       {/* Search Input */}
@@ -975,7 +1125,7 @@ const PaymentLogPage: FC = () => {
                           />
                         </div>
                       </div>
-                      
+
                       {/* Agency List */}
                       <div className="max-h-48 overflow-y-auto">
                         {filteredAgencies.length > 0 ? (
@@ -1052,7 +1202,7 @@ const PaymentLogPage: FC = () => {
                       <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Outstanding</span>
                     </div>
                     <span className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                      ${(() => {
+                      {(() => {
                         const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
                         return selectedAgency ? selectedAgency.totalOutstanding.toFixed(2) : '0.00';
                       })()}
@@ -1095,11 +1245,11 @@ const PaymentLogPage: FC = () => {
 
       {/* View Payment Details Modal */}
       {showViewModal && selectedPayment && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={closeViewModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full animate-scale-up border border-gray-100 dark:border-gray-700 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1140,7 +1290,7 @@ const PaymentLogPage: FC = () => {
                       ${selectedPayment.paidAmount.toFixed(2)}
                     </p>
                   </div>
-                  
+
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Full Amount</span>
@@ -1162,14 +1312,14 @@ const PaymentLogPage: FC = () => {
                       ${selectedPayment.remainingAmount.toFixed(2)}
                     </p>
                   </div>
-                  
+
                   <div className={`rounded-xl p-4 border ${
-                    selectedPayment.status === 'Paid' 
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                    selectedPayment.status === 'Paid'
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                       : selectedPayment.status === 'Partially Paid'
-                      ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                  }`}>
+                        ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                    }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</span>
                       {(() => {
@@ -1178,12 +1328,12 @@ const PaymentLogPage: FC = () => {
                       })()}
                     </div>
                     <p className={`text-lg font-bold ${
-                      selectedPayment.status === 'Paid' 
-                        ? 'text-green-900 dark:text-green-100' 
+                      selectedPayment.status === 'Paid'
+                        ? 'text-green-900 dark:text-green-100'
                         : selectedPayment.status === 'Partially Paid'
-                        ? 'text-yellow-900 dark:text-yellow-100'
-                        : 'text-blue-900 dark:text-blue-100'
-                    }`}>
+                          ? 'text-yellow-900 dark:text-yellow-100'
+                          : 'text-blue-900 dark:text-blue-100'
+                      }`}>
                       {selectedPayment.status}
                     </p>
                   </div>
@@ -1195,7 +1345,7 @@ const PaymentLogPage: FC = () => {
                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
                   Payment Information
                 </h4>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <div>
@@ -1219,7 +1369,7 @@ const PaymentLogPage: FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Reference Type</label>

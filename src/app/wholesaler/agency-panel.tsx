@@ -422,7 +422,7 @@ export default function AgencyAdminPanel() {
         <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto]">
             <div className="hidden lg:contents">
                 {headerTitles.map(title => (
-                    <div key={title} className="lg:p-4 font-semibold text-sm text-blue-700 uppercase tracking-wider bg-blue-100 text-left">
+                    <div key={title} className="lg:p-4 font-semibold text-sm text-blue-700 uppercase tracking-wider bg-blue-100 text-center">
                         {title}
                     </div>
                 ))}
@@ -437,27 +437,27 @@ export default function AgencyAdminPanel() {
                     return (
                         <div key={a.id} className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:contents lg:group">
                             
-                            <div className="flex justify-between items-center lg:items-center lg:justify-start lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
+                            <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
                                 <strong className="lg:hidden text-gray-600">Agency</strong>
                                 {/* This span is shifted down 2px for better optical alignment */}
-                                <span className="relative top-[8px]">{a.agencyName}</span>
+                                <span className="relative text-center top-[8px]">{a.agencyName}</span>
                             </div>
 
-                            <div className="flex justify-between items-center lg:items-center lg:justify-start lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
+                            <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
                                 <strong className="lg:hidden text-gray-600">Contact</strong>
-                                <span className="text-right lg:text-left">{a.contactName}</span>
+                                <span className="text-right lg:text-center">{a.contactName}</span>
                             </div>
 
-                            <div className="flex justify-between items-center lg:items-center lg:justify-start lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
+                            <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
                                 <strong className="lg:hidden text-gray-600">Submitted</strong>
-                                <span className="text-right lg:text-left">
+                                <span className="text-right lg:text-center">
                                     {new Date(a.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                 </span>
                             </div>
 
-                            <div className="flex justify-between items-center lg:items-center lg:justify-start lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
+                            <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
                                 <strong className="lg:hidden text-gray-600">Markup Plan</strong>
-                                <div className="flex justify-end lg:justify-start">
+                                <div className="flex justify-end lg:justify-center">
                                     {a.markupPlanName !== '—' ? (
                                         <div className="flex items-center space-x-2">
                                             <span
@@ -518,8 +518,8 @@ export default function AgencyAdminPanel() {
                                 </span>
                             </div>
 
-                            <div className="flex justify-end items-center pt-2 lg:pt-0 lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
-                                <div className="flex items-center justify-end flex-wrap lg:flex-nowrap gap-2">
+                            <div className="flex justify-end items-center pt-2 lg:pt-0 lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
+                                <div className="flex items-center justify-center flex-wrap lg:flex-nowrap gap-2">
                                     <button title="Add Credit" onClick={() => openCreditModal(a.id)} className="p-2 bg-green-300 text-white rounded-full hover:bg-green-700">
                                         <TbCreditCardPay className="w-5 h-5" />
                                     </button>

@@ -229,7 +229,13 @@ export default function AgencyListPage() {
         if (result.success && Array.isArray(result.data)) {
           setAgencies(result.data);
         } else {
-          throw new Error(result.message || "Failed to parse agency data.");
+          // This handles cases where the API call is successful but there's no data array
+          // or a specific message indicates no agencies.
+          if (result.data === null || result.data.length === 0) {
+            setAgencies([]);
+          } else {
+            throw new Error(result.message || "Failed to parse agency data.");
+          }
         }
       } catch (e: any) {
         setError(e.message);
@@ -326,7 +332,7 @@ export default function AgencyListPage() {
                   ) : error ? (
                     <TableMessage
                       icon={AlertCircle}
-                      title="Something went wrong"
+                      title="No Agency Found"
                       message={error}
                     />
                   ) : filteredAgencies.length > 0 ? (
@@ -364,7 +370,7 @@ export default function AgencyListPage() {
                     <TableMessage
                       icon={X}
                       title="No Agencies Found"
-                      message="No agencies match your current filters."
+                      message={searchTerm || statusFilter !== 'all' ? "No agencies match your current filters." : "There are no agencies to display."}
                     />
                   )}
                 </tbody>

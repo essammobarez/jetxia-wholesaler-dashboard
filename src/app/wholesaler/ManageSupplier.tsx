@@ -78,6 +78,9 @@ export default function ManageSupplier() {
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [showViewModal, setShowViewModal] = useState<boolean>(false);
 
+  // New state for the active tab
+  const [activeTab, setActiveTab] = useState<"offline" | "online">("offline");
+
   // Dynamic wholesalerId from localStorage
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
@@ -118,6 +121,8 @@ export default function ManageSupplier() {
       );
     }
 
+    // The typeFilter is now handled by the tabs, but we'll keep the logic for backward compatibility
+    // and for the "All Providers" view if it were to be re-added.
     if (typeFilter !== "all") {
       if (typeFilter === "offline") {
         filteredOnline = [];
@@ -350,27 +355,13 @@ export default function ManageSupplier() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Type Filter
-            </label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            >
-              <option value="all">All Types</option>
-              <option value="offline">Offline Suppliers</option>
-              <option value="online">Online Providers</option>
-            </select>
-          </div>
-
-          <div className="flex items-end">
+          {/* Type Filter is now replaced by tabs */}
+          <div className="flex items-end lg:col-span-2">
             <button
               onClick={() => {
                 setSearchTerm("");
                 setStatusFilter("all");
-                setTypeFilter("all");
+                setTypeFilter("all"); // Resetting typeFilter as well for a full reset
               }}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
             >
@@ -457,6 +448,30 @@ export default function ManageSupplier() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab("offline")}
+          className={`py-2 px-6 -mb-px text-sm font-medium transition-colors duration-200 focus:outline-none ${
+            activeTab === "offline"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          }`}
+        >
+          Offline Suppliers ({filteredProviders.offline.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("online")}
+          className={`py-2 px-6 -mb-px text-sm font-medium transition-colors duration-200 focus:outline-none ${
+            activeTab === "online"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          }`}
+        >
+          Online Providers ({filteredProviders.online.length})
+        </button>
+      </div>
+
       {/* Providers Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
@@ -472,9 +487,16 @@ export default function ManageSupplier() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  API Info
-                </th>
+                {activeTab === "online" && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    API Info
+                  </th>
+                )}
+                {activeTab === "offline" && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Contact
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Created
                 </th>
@@ -483,42 +505,36 @@ export default function ManageSupplier() {
                 </th>
               </tr>
             </thead>
-            {/* START: MODIFIED SECTION */}
             <tbody className="bg-white dark:bg-gray-800">
-              {filteredProviders.offline.length === 0 &&
-              filteredProviders.online.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <Building2 className="w-12 h-12 text-gray-400 mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        No providers found
-                      </h3>
-                      <p className="text-gray-500 dark:text-gray-400 mb-4">
-                        {searchTerm ||
-                        statusFilter !== "all" ||
-                        typeFilter !== "all"
-                          ? "Try adjusting your search criteria or filters."
-                          : "Get started by adding your first provider."}
-                      </p>
-                      {!searchTerm &&
-                        statusFilter === "all" &&
-                        typeFilter === "all" && (
+              {/* Display based on active tab */}
+              {activeTab === "offline" &&
+                (filteredProviders.offline.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Building2 className="w-12 h-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                          No offline suppliers found
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                          {searchTerm || statusFilter !== "all"
+                            ? "Try adjusting your search criteria or filters."
+                            : "Get started by adding your first offline supplier."}
+                        </p>
+                        {!searchTerm && statusFilter === "all" && (
                           <button
                             onClick={handleAddProvider}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                           >
                             <Plus className="w-4 h-4" />
-                            Add First Provider
+                            Add First Supplier
                           </button>
                         )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  {/* Offline Suppliers */}
-                  {filteredProviders.offline.map((supplier) => (
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProviders.offline.map((supplier) => (
                     <tr
                       key={`offline-${supplier._id}`}
                       className="border-b border-gray-200 dark:border-gray-700 md:table-row"
@@ -611,8 +627,8 @@ export default function ManageSupplier() {
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          Manual
+                         <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {supplier.phoneNumber || supplier.address || "N/A"}
                         </div>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4">
@@ -628,10 +644,37 @@ export default function ManageSupplier() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ))
+                ))}
 
-                  {/* Online Providers */}
-                  {filteredProviders.online.map((provider) => (
+              {activeTab === "online" &&
+                (filteredProviders.online.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Globe className="w-12 h-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                          No online providers found
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                          {searchTerm || statusFilter !== "all"
+                            ? "Try adjusting your search criteria or filters."
+                            : "Get started by adding your first online provider."}
+                        </p>
+                        {!searchTerm && statusFilter === "all" && (
+                          <button
+                            onClick={handleAddProvider}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add First Provider
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProviders.online.map((provider) => (
                     <tr
                       key={`online-${provider._id}`}
                       className="border-b border-gray-200 dark:border-gray-700 md:table-row"
@@ -752,11 +795,9 @@ export default function ManageSupplier() {
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </>
-              )}
+                  ))
+                ))}
             </tbody>
-            {/* END: MODIFIED SECTION */}
           </table>
         </div>
       </div>
@@ -809,9 +850,7 @@ export default function ManageSupplier() {
                       Type
                     </label>
                     <span
-                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
-                        selectedProvider.type
-                      )}`}
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedProvider.type)}`}
                     >
                       {getTypeIcon(selectedProvider.type)}
                       <span className="capitalize">{selectedProvider.type}</span>

@@ -17,6 +17,8 @@ import {
   XCircle,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // API Response Interfaces
 interface ApiBookingResponse {
@@ -422,24 +424,77 @@ const AdvancedAnalytics: React.FC = () => {
   const exportAnalytics = () => {
     if (!analyticsData) return;
 
-    const reportData = {
-      generatedAt: new Date().toISOString(),
-      dateRange,
-      ...analyticsData,
-    };
+    const doc = new jsPDF();
+    const tableHeadStyles = { fillColor: [22, 163, 74] };
+    const today = new Date();
+    const fileName = `analytics-report-${today.toISOString().split("T")[0]}.pdf`;
+    let lastY = 0; // Keep track of the last Y position
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], {
-      type: "application/json",
+    // --- Header ---
+    doc.setFontSize(20);
+    doc.text("Advanced Analytics Report", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${today.toLocaleDateString()}`, 14, 29);
+
+    // --- Summary Section ---
+    doc.setFontSize(14);
+    doc.text("Key Metrics Summary", 14, 45);
+    doc.setFontSize(10);
+    doc.text(`Total Revenue: $${analyticsData.revenue.total.toLocaleString()}`, 16, 52);
+    doc.text(`Total Bookings: ${analyticsData.bookings.total.toLocaleString()}`, 16, 58);
+    doc.text(`Active Agencies: ${analyticsData.agencies.active}`, 16, 64);
+    doc.text(`Completed Payments: ${analyticsData.payments.completed}`, 16, 70);
+    lastY = 70; // Update lastY after the summary text
+
+    // --- Top Performing Agencies Table ---
+    doc.setFontSize(14);
+    doc.text("Top Performing Agencies", 14, lastY + 15);
+    autoTable(doc, {
+      startY: lastY + 20,
+      head: [["Rank", "Agency Name", "Bookings", "Revenue"]],
+      body: analyticsData.agencies.topPerformers.map((agency, index) => [
+        index + 1,
+        agency.name,
+        agency.bookings.toLocaleString(),
+        `$${agency.revenue.toLocaleString()}`,
+      ]),
+      headStyles: tableHeadStyles,
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `analytics-report-${
-      new Date().toISOString().split("T")[0]
-    }.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    lastY = (doc as any).lastAutoTable.finalY; // Update lastY after the table
+
+    // --- Service Breakdown Table ---
+    doc.setFontSize(14);
+    doc.text("Service Breakdown", 14, lastY + 15);
+    autoTable(doc, {
+      startY: lastY + 20,
+      head: [["Service Type", "Bookings Count", "Revenue"]],
+      body: analyticsData.bookings.byService.map((service) => [
+        service.service,
+        service.count.toLocaleString(),
+        `$${service.revenue.toLocaleString()}`,
+      ]),
+      headStyles: tableHeadStyles,
+    });
+    lastY = (doc as any).lastAutoTable.finalY;
+
+    // --- Region Distribution Table ---
+    doc.setFontSize(14);
+    doc.text("Region Distribution (by Nationality)", 14, lastY + 15);
+    autoTable(doc, {
+      startY: lastY + 20,
+      head: [["Nationality", "Bookings", "Revenue"]],
+      body: analyticsData.geography.topNationalities.map((nat) => [
+        nat.nationality,
+        nat.bookings.toLocaleString(),
+        `$${nat.revenue.toLocaleString()}`,
+      ]),
+      headStyles: tableHeadStyles,
+    });
+
+    doc.save(fileName);
   };
+
 
   if (loading && !analyticsData) {
     return (
