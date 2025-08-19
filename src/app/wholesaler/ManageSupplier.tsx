@@ -13,9 +13,9 @@ import {
   Search,
   Server,
   Shield,
-  Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { TextField, Modal, Box, Typography, Button } from "@mui/material";
 
 interface OfflineSupplier {
   _id: string;
@@ -75,11 +75,16 @@ export default function ManageSupplier() {
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
-  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [showViewModal, setShowViewModal] = useState<boolean>(false);
 
   // New state for the active tab
   const [activeTab, setActiveTab] = useState<"offline" | "online">("offline");
+
+  // State for the edit modal form
+  const [editForm, setEditForm] = useState({
+    name: "",
+    notes: "",
+  });
 
   // Dynamic wholesalerId from localStorage
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
@@ -177,18 +182,45 @@ export default function ManageSupplier() {
   };
 
   const handleEditProvider = (provider: any, type: "offline" | "online") => {
-    setSelectedProvider({ ...provider, type });
-    setShowEditModal(true);
-  };
-
-  const handleDeleteProvider = (provider: any, type: "offline" | "online") => {
-    setSelectedProvider({ ...provider, type });
-    setShowDeleteModal(true);
+    // Only allow editing for offline suppliers
+    if (type === "offline") {
+      setSelectedProvider({ ...provider, type });
+      setEditForm({
+        name: provider.name,
+        notes: provider.notes || "",
+      });
+      setShowEditModal(true);
+    }
   };
 
   const handleViewProvider = (provider: any, type: "offline" | "online") => {
     setSelectedProvider({ ...provider, type });
     setShowViewModal(true);
+  };
+
+  const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Here you would implement the logic to update the provider
+    // For now, we'll just log the updated data and close the modal
+    console.log("Updated Provider:", {
+      ...selectedProvider,
+      ...editForm,
+    });
+    // Optimistically update the state (for demonstration)
+    setProviders((prev) => ({
+      ...prev,
+      offline: prev.offline.map((p) =>
+        p._id === selectedProvider._id
+          ? { ...p, name: editForm.name, notes: editForm.notes }
+          : p
+      ),
+    }));
+    setShowEditModal(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -300,13 +332,13 @@ export default function ManageSupplier() {
             Refresh
           </button>
 
-          {/* <button
+          <button
             onClick={handleAddProvider}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Provider
-          </button> */}
+          </button>
         </div>
       </div>
 
@@ -481,26 +513,26 @@ export default function ManageSupplier() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Provider Details
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Status
                 </th>
                 {activeTab === "online" && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     API Info
                   </th>
                 )}
                 {activeTab === "offline" && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Contact
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Created
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -570,13 +602,6 @@ export default function ManageSupplier() {
                             >
                               <Edit className="w-5 h-5" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteProvider(supplier, "offline")}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete Provider"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -602,7 +627,7 @@ export default function ManageSupplier() {
                       </td>
 
                       {/* Desktop Table View */}
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-left">
                         <div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {supplier.name}
@@ -614,33 +639,32 @@ export default function ManageSupplier() {
                           )}
                         </div>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("offline")}`}>
                           <Building2 className="w-4 h-4" />
                           <span>Offline</span>
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status || "active")}`}>
                           {getStatusIcon(supplier.status || "active")}
                           <span className="capitalize">{supplier.status || "active"}</span>
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
-                         <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                           {supplier.phoneNumber || supplier.address || "N/A"}
                         </div>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           {formatDate(supplier.createdAt)}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
-                        <div className="flex items-center space-x-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
+                        <div className="flex items-center justify-center space-x-4">
                           <button onClick={() => handleViewProvider(supplier, "offline")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
                           <button onClick={() => handleEditProvider(supplier, "offline")} className="text-green-600 hover:text-green-900" title="Edit"><Edit className="w-5 h-5" /></button>
-                          <button onClick={() => handleDeleteProvider(supplier, "offline")} className="text-red-600 hover:text-red-900" title="Delete"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -696,26 +720,12 @@ export default function ManageSupplier() {
                             )}
                           </div>
                           <div className="flex items-center space-x-3 flex-shrink-0">
-                             <button
+                            <button
                               onClick={() => handleViewProvider(provider, "online")}
                               className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                               title="View Details"
                             >
                               <Eye className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleEditProvider(provider, "online")}
-                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                              title="Edit Provider"
-                            >
-                              <Edit className="w-5 h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteProvider(provider, "online")}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete Provider"
-                            >
-                              <Trash2 className="w-5 h-5" />
                             </button>
                           </div>
                         </div>
@@ -738,7 +748,7 @@ export default function ManageSupplier() {
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">API URL</p>
                             <p className="text-gray-700 dark:text-gray-300 break-all">{provider.apiBaseUrl}</p>
                           </div>
-                           <div className="col-span-2">
+                            <div className="col-span-2">
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
                             <p className="text-gray-700 dark:text-gray-300">{formatDate(provider.createdAt)}</p>
                           </div>
@@ -746,7 +756,7 @@ export default function ManageSupplier() {
                       </td>
 
                       {/* Desktop Table View */}
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-left">
                         <div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {provider.name}
@@ -758,19 +768,19 @@ export default function ManageSupplier() {
                           )}
                         </div>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("online")}`}>
                           <Globe className="w-4 h-4" />
                           <span>Online</span>
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(undefined, provider.isActive)}`}>
                           {getStatusIcon(undefined, provider.isActive)}
                           <span className="capitalize">{provider.isActive ? "active" : "inactive"}</span>
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <div className="text-sm text-gray-500 dark:text-gray-400 break-all">
                           <div className="flex items-center gap-1 mb-1">
                             <Link className="w-3 h-3 flex-shrink-0" />
@@ -782,16 +792,14 @@ export default function ManageSupplier() {
                           </div>
                         </div>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           {formatDate(provider.createdAt)}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-6 py-4">
-                        <div className="flex items-center space-x-4">
+                      <td className="hidden md:table-cell px-6 py-4 text-center">
+                        <div className="flex items-center justify-center space-x-4">
                             <button onClick={() => handleViewProvider(provider, "online")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
-                            <button onClick={() => handleEditProvider(provider, "online")} className="text-green-600 hover:text-green-900" title="Edit"><Edit className="w-5 h-5" /></button>
-                            <button onClick={() => handleDeleteProvider(provider, "online")} className="text-red-600 hover:text-red-900" title="Delete"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </td>
                     </tr>
@@ -803,378 +811,443 @@ export default function ManageSupplier() {
       </div>
 
       {/* Modals */}
-      {showViewModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Provider Details
-              </h3>
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+      <Modal open={showViewModal} onClose={() => setShowViewModal(false)}>
+        <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto outline-none">
+          <div className="flex items-center justify-between mb-6">
+            <Typography variant="h6" component="h3" className="text-xl font-semibold text-gray-900 dark:text-white">
+              Provider Details
+            </Typography>
+            <button
+              onClick={() => setShowViewModal(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
 
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                  Basic Information
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Name
-                    </label>
-                    <p className="text-gray-900 dark:text-white font-medium">
-                      {selectedProvider.name}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Type
-                    </label>
-                    <span
-                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedProvider.type)}`}
-                    >
-                      {getTypeIcon(selectedProvider.type)}
-                      <span className="capitalize">{selectedProvider.type}</span>
+          <div className="space-y-6">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                Basic Information
+              </Typography>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Name
+                  </Typography>
+                  <Typography className="text-gray-900 dark:text-white font-medium">
+                    {selectedProvider?.name}
+                  </Typography>
+                </div>
+                <div>
+                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Type
+                  </Typography>
+                  <span
+                    className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedProvider?.type)}`}
+                  >
+                    {getTypeIcon(selectedProvider?.type)}
+                    <span className="capitalize">{selectedProvider?.type}</span>
+                  </span>
+                </div>
+                <div>
+                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Status
+                  </Typography>
+                  <span
+                    className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      selectedProvider?.type === "offline"
+                        ? getStatusColor(selectedProvider?.status || "active")
+                        : getStatusColor(undefined, selectedProvider?.isActive)
+                    }`}
+                  >
+                    {selectedProvider?.type === "offline"
+                      ? getStatusIcon(selectedProvider?.status || "active")
+                      : getStatusIcon(undefined, selectedProvider?.isActive)}
+                    <span className="capitalize">
+                      {selectedProvider?.type === "offline"
+                        ? selectedProvider?.status || "active"
+                        : selectedProvider?.isActive
+                        ? "active"
+                        : "inactive"}
                     </span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Status
-                    </label>
-                    <span
-                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        selectedProvider.type === "offline"
-                          ? getStatusColor(selectedProvider.status || "active")
-                          : getStatusColor(undefined, selectedProvider.isActive)
-                      }`}
-                    >
-                      {selectedProvider.type === "offline"
-                        ? getStatusIcon(selectedProvider.status || "active")
-                        : getStatusIcon(undefined, selectedProvider.isActive)}
-                      <span className="capitalize">
-                        {selectedProvider.type === "offline"
-                          ? selectedProvider.status || "active"
-                          : selectedProvider.isActive
-                          ? "active"
-                          : "inactive"}
-                      </span>
-                    </span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Created
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {formatDate(selectedProvider.createdAt)}
-                    </p>
-                  </div>
+                  </span>
+                </div>
+                <div>
+                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Created
+                  </Typography>
+                  <Typography className="text-gray-900 dark:text-white">
+                    {formatDate(selectedProvider?.createdAt)}
+                  </Typography>
                 </div>
               </div>
+            </div>
 
-              {/* Notes */}
-              {selectedProvider.notes && (
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                    Notes
-                  </h4>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    {selectedProvider.notes}
-                  </p>
-                </div>
-              )}
-
-              {/* Contact Information (Offline only) */}
-              {selectedProvider.type === "offline" && (
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                    Contact Information
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedProvider.phoneNumber && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Phone Number
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {selectedProvider.phoneNumber}
-                        </p>
-                      </div>
-                    )}
-                    {selectedProvider.nationality && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Nationality
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {selectedProvider.nationality}
-                        </p>
-                      </div>
-                    )}
-                    {selectedProvider.address && (
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Address
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {selectedProvider.address}
-                        </p>
-                      </div>
-                    )}
-                    {/* Legacy contact info fallback */}
-                    {selectedProvider.contactInfo && (
-                      <>
-                        {selectedProvider.contactInfo.email && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                              Email (Legacy)
-                            </label>
-                            <p className="text-gray-900 dark:text-white">
-                              {selectedProvider.contactInfo.email}
-                            </p>
-                          </div>
-                        )}
-                        {selectedProvider.contactInfo.phone &&
-                          !selectedProvider.phoneNumber && (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                Phone (Legacy)
-                              </label>
-                              <p className="text-gray-900 dark:text-white">
-                                {selectedProvider.contactInfo.phone}
-                              </p>
-                            </div>
-                          )}
-                        {selectedProvider.contactInfo.address &&
-                          !selectedProvider.address && (
-                            <div className="md:col-span-2">
-                              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                Address (Legacy)
-                              </label>
-                              <p className="text-gray-900 dark:text-white">
-                                {selectedProvider.contactInfo.address}
-                              </p>
-                            </div>
-                          )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Services (Offline only) */}
-              {selectedProvider.type === "offline" &&
-                selectedProvider.services &&
-                selectedProvider.services.length > 0 && (
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                      Services
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedProvider.services.map(
-                        (service: string, index: number) => (
-                          <span
-                            key={index}
-                            className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full"
-                          >
-                            {service}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              {/* API Information (Online only) */}
-              {selectedProvider.type === "online" && (
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                    API Information
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        API Base URL
-                      </label>
-                      <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
-                        {selectedProvider.apiBaseUrl}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Authentication Type
-                      </label>
-                      <p className="text-gray-900 dark:text-white">
-                        {selectedProvider.authType}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Token Expiry (Hours)
-                      </label>
-                      <p className="text-gray-900 dark:text-white">
-                        {selectedProvider.tokenExpiryHours}
-                      </p>
-                    </div>
-                    {selectedProvider.logoUrl && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Logo URL
-                        </label>
-                        <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
-                          {selectedProvider.logoUrl}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Additional Information */}
+            {selectedProvider?.notes && (
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-                  Additional Information
-                </h4>
+                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  Notes
+                </Typography>
+                <Typography className="text-gray-700 dark:text-gray-300">
+                  {selectedProvider?.notes}
+                </Typography>
+              </div>
+            )}
+
+            {selectedProvider?.type === "offline" && (
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  Contact Information
+                </Typography>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Provider ID
-                    </label>
-                    <p className="text-gray-900 dark:text-white font-mono text-sm break-all">
-                      {selectedProvider._id}
-                    </p>
-                  </div>
-                  {selectedProvider.updatedAt && (
+                  {selectedProvider?.phoneNumber && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Last Updated
-                      </label>
-                      <p className="text-gray-900 dark:text-white">
-                        {formatDate(selectedProvider.updatedAt)}
-                      </p>
+                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Phone Number
+                      </Typography>
+                      <Typography className="text-gray-900 dark:text-white">
+                        {selectedProvider?.phoneNumber}
+                      </Typography>
                     </div>
                   )}
-                  {selectedProvider.type === "offline" &&
-                    selectedProvider.rating && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Rating
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {selectedProvider.rating}/5
-                        </p>
-                      </div>
-                    )}
+                  {selectedProvider?.nationality && (
+                    <div>
+                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Nationality
+                      </Typography>
+                      <Typography className="text-gray-900 dark:text-white">
+                        {selectedProvider?.nationality}
+                      </Typography>
+                    </div>
+                  )}
+                  {selectedProvider?.address && (
+                    <div className="md:col-span-2">
+                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Address
+                      </Typography>
+                      <Typography className="text-gray-900 dark:text-white">
+                        {selectedProvider?.address}
+                      </Typography>
+                    </div>
+                  )}
+                  {selectedProvider?.contactInfo && (
+                    <>
+                      {selectedProvider?.contactInfo.email && (
+                        <div>
+                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Email (Legacy)
+                          </Typography>
+                          <Typography className="text-gray-900 dark:text-white">
+                            {selectedProvider?.contactInfo.email}
+                          </Typography>
+                        </div>
+                      )}
+                      {selectedProvider?.contactInfo.phone && !selectedProvider?.phoneNumber && (
+                        <div>
+                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Phone (Legacy)
+                          </Typography>
+                          <Typography className="text-gray-900 dark:text-white">
+                            {selectedProvider?.contactInfo.phone}
+                          </Typography>
+                        </div>
+                      )}
+                      {selectedProvider?.contactInfo.address && !selectedProvider?.address && (
+                        <div className="md:col-span-2">
+                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Address (Legacy)
+                          </Typography>
+                          <Typography className="text-gray-900 dark:text-white">
+                            {selectedProvider?.contactInfo.address}
+                          </Typography>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Close
-              </button>
+            {selectedProvider?.type === "offline" &&
+              selectedProvider?.services &&
+              selectedProvider?.services.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                    Services
+                  </Typography>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProvider?.services.map(
+                      (service: string, index: number) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full"
+                        >
+                          {service}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+            {selectedProvider?.type === "online" && (
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  API Information
+                </Typography>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      API Base URL
+                    </Typography>
+                    <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
+                      {selectedProvider?.apiBaseUrl}
+                    </Typography>
+                  </div>
+                  <div>
+                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Authentication Type
+                    </Typography>
+                    <Typography className="text-gray-900 dark:text-white">
+                      {selectedProvider?.authType}
+                    </Typography>
+                  </div>
+                  <div>
+                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Token Expiry (Hours)
+                    </Typography>
+                    <Typography className="text-gray-900 dark:text-white">
+                      {selectedProvider?.tokenExpiryHours}
+                    </Typography>
+                  </div>
+                  {selectedProvider?.logoUrl && (
+                    <div>
+                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Logo URL
+                      </Typography>
+                      <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
+                        {selectedProvider?.logoUrl}
+                      </Typography>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                Additional Information
+              </Typography>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Provider ID
+                  </Typography>
+                  <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
+                    {selectedProvider?._id}
+                  </Typography>
+                </div>
+                {selectedProvider?.updatedAt && (
+                  <div>
+                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Last Updated
+                    </Typography>
+                    <Typography className="text-gray-900 dark:text-white">
+                      {formatDate(selectedProvider?.updatedAt)}
+                    </Typography>
+                  </div>
+                )}
+                {selectedProvider?.type === "offline" && selectedProvider?.rating && (
+                  <div>
+                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Rating
+                    </Typography>
+                    <Typography className="text-gray-900 dark:text-white">
+                      {selectedProvider?.rating}/5
+                    </Typography>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Add New Provider</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Add provider functionality would be implemented here.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Add Provider
-              </button>
-            </div>
+          <div className="flex justify-end mt-6">
+            <Button
+              onClick={() => setShowViewModal(false)}
+              variant="contained"
+              sx={{ bgcolor: 'gray.600', '&:hover': { bgcolor: 'gray.700' } }}
+            >
+              Close
+            </Button>
           </div>
-        </div>
-      )}
+        </Box>
+      </Modal>
 
-      {showEditModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Edit Provider</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Edit {selectedProvider.type} provider functionality would be
-              implemented here.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
+      <Modal open={showAddModal} onClose={() => setShowAddModal(false)}>
+        <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md outline-none">
+          <Typography variant="h6" component="h3" className="text-lg font-semibold mb-4">Add New Provider</Typography>
+          <Typography className="text-gray-600 dark:text-gray-400 mb-4">
+            Add provider functionality would be implemented here.
+          </Typography>
+          <div className="flex justify-end space-x-3">
+            <Button
+              onClick={() => setShowAddModal(false)}
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => setShowAddModal(false)}
+              variant="contained"
+              sx={{ bgcolor: 'blue.600', '&:hover': { bgcolor: 'blue.700' } }}
+            >
+              Add Provider
+            </Button>
+          </div>
+        </Box>
+      </Modal>
+
+      <Modal open={showEditModal} onClose={() => setShowEditModal(false)}>
+        <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md outline-none">
+          <div className="flex items-center justify-between mb-6">
+            <Typography variant="h6" component="h3" className="text-xl font-semibold text-gray-900 dark:text-white">
+              Edit {selectedProvider?.type} Provider
+            </Typography>
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <TextField
+              fullWidth
+              label="Provider Name"
+              id="name"
+              name="name"
+              value={editForm.name}
+              onChange={handleEditFormChange}
+              variant="outlined"
+              required
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: 'gray.300',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'gray.600',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'indigo.500',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'gray.700',
+                },
+                '& .MuiOutlinedInput-input': {
+                  color: 'black',
+                },
+                '.dark & .MuiOutlinedInput-root': {
+                  backgroundColor: 'gray.700',
+                  '& fieldset': {
+                    borderColor: 'gray.600',
+                  },
+                },
+                '.dark & .MuiInputLabel-root': {
+                  color: 'gray.300',
+                },
+                '.dark & .MuiOutlinedInput-input': {
+                  color: 'white',
+                },
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Notes"
+              id="notes"
+              name="notes"
+              multiline
+              rows={4}
+              value={editForm.notes}
+              onChange={handleEditFormChange}
+              variant="outlined"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': {
+                    borderColor: 'gray.300',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'gray.600',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'indigo.500',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'gray.700',
+                },
+                '& .MuiOutlinedInput-input': {
+                  color: 'black',
+                },
+                '.dark & .MuiOutlinedInput-root': {
+                  backgroundColor: 'gray.700',
+                  '& fieldset': {
+                    borderColor: 'gray.600',
+                  },
+                },
+                '.dark & .MuiInputLabel-root': {
+                  color: 'gray.300',
+                },
+                '.dark & .MuiOutlinedInput-input': {
+                  color: 'white',
+                },
+              }}
+            />
+            <div className="flex justify-end space-x-3 mt-6">
+              <Button
+                type="button"
                 onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                variant="outlined"
               >
                 Cancel
-              </button>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                sx={{ bgcolor: 'green.600', '&:hover': { bgcolor: 'green.700' } }}
               >
                 Save Changes
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteModal && selectedProvider && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Delete Provider</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to delete "{selectedProvider.name}"? This
-              action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </form>
+        </Box>
+      </Modal>
     </div>
   );
 }
