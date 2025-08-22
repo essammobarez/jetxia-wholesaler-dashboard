@@ -4,9 +4,9 @@ import React, { useState, useEffect, ReactNode, useRef } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { TextField, MenuItem, CircularProgress, Typography, IconButton } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import dayjs, { Dayjs } from 'dayjs';
+import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip } from '@mui/material';
+import { Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon } from '@mui/icons-material';
+import { Dayjs } from 'dayjs';
 import { debounce } from 'lodash';
 import axios from 'axios';
 
@@ -15,7 +15,7 @@ const axiosInstance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
 });
 
-// Types
+// --- TYPES ---
 type City = {
   id: string;
   name: string;
@@ -23,7 +23,7 @@ type City = {
   countryName: string;
 };
 
-type Hotel = {
+type HotelFromDestinationSearch = {
   _id: string;
   name: string;
   city: {
@@ -31,13 +31,39 @@ type Hotel = {
   };
 };
 
-type SearchResult = {
-  cities: City[];
-  hotels: Hotel[];
+type Facility = {
+  id: number;
+  name: string;
+  _id: string;
 };
 
-// API call to search destinations
-const hotelDestinationQuery = async (searchTerm: string): Promise<SearchResult> => {
+type HotelFromCitySearch = {
+  _id: string;
+  name: string;
+  address: string;
+  stars: number;
+  mainImageUrl: string;
+  facilities: Facility[];
+  city: {
+    id: string;
+    name: string;
+    countryId: string;
+  };
+  country: {
+    id: string;
+    name: string;
+    iso: string;
+  };
+};
+
+type DestinationSearchResult = {
+  cities: City[];
+  hotels: HotelFromDestinationSearch[];
+};
+
+// --- API CALLS ---
+
+const hotelDestinationQuery = async (searchTerm: string): Promise<DestinationSearchResult> => {
   try {
     const response = await axiosInstance.get(
       `irix/localdb?searchTerm=${searchTerm}`
@@ -49,7 +75,19 @@ const hotelDestinationQuery = async (searchTerm: string): Promise<SearchResult> 
   }
 };
 
-// Section wrapper and form components
+const searchHotelsInCity = async (cityName: string): Promise<HotelFromCitySearch[]> => {
+  try {
+    const response = await axiosInstance.get(
+      `manual-reservation/search?query=${encodeURIComponent(cityName)}`
+    );
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching hotels in city:', error);
+    return [];
+  }
+};
+
+// --- UI COMPONENTS ---
 type FormSectionProps = {
   title: string;
   children: ReactNode;
@@ -63,108 +101,96 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, className = 
   </div>
 );
 
-type MuiSelectSimpleProps = {
-  label: string;
-  placeholder: string;
-  options: Array<{ code: string; name: string }>;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  className?: string;
+// --- ENHANCED HOTEL DETAILS COMPONENT ---
+const HotelDetails: React.FC<{ hotel: HotelFromCitySearch | null }> = ({ hotel }) => {
+  if (!hotel) {
+    return (
+      <div className="bg-white rounded-xl shadow-md h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300">
+        <ApartmentIcon className="text-gray-400" style={{ fontSize: 50 }} />
+        <h3 className="mt-4 text-lg font-semibold text-gray-700">Hotel Details</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Select a destination and a hotel to see its information here.
+        </p>
+      </div>
+    );
+  }
+
+  const renderStars = (count: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <StarIcon key={i} fontSize="small" className={i < count ? 'text-yellow-500' : 'text-gray-300'} />
+    ));
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-md overflow-hidden h-full flex flex-col">
+      {hotel.mainImageUrl && (
+        <div className="w-full h-48 flex-shrink-0">
+          <img
+            src={hotel.mainImageUrl}
+            alt={hotel.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      <div className="p-6 flex-grow flex flex-col space-y-4">
+        <div className="flex items-start justify-between">
+          <h3 className="text-2xl font-bold text-gray-800 leading-tight">{hotel.name}</h3>
+          <div className="flex items-center flex-shrink-0 ml-4 mt-1">{renderStars(hotel.stars)}</div>
+        </div>
+        <div>
+          <p className="text-sm text-gray-600">{hotel.address}</p>
+          <p className="text-sm text-gray-500">{hotel.city.name}, {hotel.country.name}</p>
+        </div>
+        <div>
+          <h4 className="font-semibold text-gray-700 mb-2">Facilities:</h4>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Render the first 3 facilities */}
+            {hotel.facilities.slice(0, 3).map(facility => (
+              <span
+                key={facility._id}
+                className="bg-gray-200 text-gray-800 text-xs font-medium px-2.5 py-1 rounded-full"
+              >
+                {facility.name}
+              </span>
+            ))}
+            {/* If there are more than 3, show a tooltip with the rest */}
+            {hotel.facilities.length > 3 && (
+              <Tooltip title={hotel.facilities.slice(3).map(f => f.name).join(', ')} arrow>
+                <span
+                  className="bg-gray-300 text-gray-900 text-xs font-bold px-2.5 py-1 rounded-full cursor-pointer"
+                >
+                  ...
+                </span>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const FormSelectSimple: React.FC<MuiSelectSimpleProps> = ({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  className = '',
-}) => (
-  <TextField
-    label={label}
-    select
-    value={value}
-    onChange={onChange}
-    SelectProps={{
-      displayEmpty: true,
-      renderValue: (selected: unknown) => {
-        if (!selected) return <span className="text-gray-400">{placeholder}</span>;
-        const selectedOption = options.find(opt => opt.code === selected);
-        return selectedOption ? selectedOption.name : (selected as string);
-      },
-    }}
-    InputLabelProps={{ shrink: true }}
-    inputProps={{ 'aria-label': placeholder }}
-    fullWidth
-    variant="outlined"
-    className={className}
-  >
-    <MenuItem value="" disabled>
-      {placeholder}
-    </MenuItem>
-    {options.map(option => (
-      <MenuItem key={option.code} value={option.code}>
-        {option.name}
-      </MenuItem>
-    ))}
-  </TextField>
-);
-
-type MuiInputProps = {
-  label: string;
-  placeholder: string;
-  type?: string;
-  value?: string | number;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  className?: string;
-};
-
-const FormInput: React.FC<MuiInputProps> = ({
-  label,
-  placeholder,
-  type = 'text',
-  value,
-  onChange,
-  className = '',
-}) => (
-  <TextField
-    label={label}
-    placeholder={placeholder}
-    type={type}
-    value={value}
-    onChange={onChange}
-    InputLabelProps={{ shrink: true }}
-    inputProps={{ placeholder }}
-    fullWidth
-    variant="outlined"
-    className={className}
-  />
-);
-
-// New Destination component
+// --- MAIN COMPONENT ---
 export const Destination = () => {
   const [destination, setDestination] = useState('');
-  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [cities, setCities] = useState<City[]>([]);
+  const [hotels, setHotels] = useState<HotelFromDestinationSearch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const destinationInputRef = useRef<HTMLInputElement>(null);
+
+  const [hotelsFromCitySearch, setHotelsFromCitySearch] = useState<HotelFromCitySearch[]>([]);
+  const [hotelLoading, setHotelLoading] = useState(false);
+  const [selectedHotelId, setSelectedHotelId] = useState('');
+  const [selectedHotelDetails, setSelectedHotelDetails] = useState<HotelFromCitySearch | null>(null);
+
+  const [hotelInputValue, setHotelInputValue] = useState('');
+  const [showHotelSuggestions, setShowHotelSuggestions] = useState(false);
+
   const [checkIn, setCheckIn] = useState<Dayjs | null>(null);
   const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
   const [nights, setNights] = useState<number | ''>('');
-  const [cities, setCities] = useState<City[]>([]);
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Hardcoded hotel list
-  const hotelOptions = [
-    { code: 'hotelA', name: 'Hotel A' },
-    { code: 'hotelB', name: 'Hotel B' },
-    { code: 'hotelC', name: 'Hotel C' },
-  ];
-
-  // State for the new hotel field
-  const [selectedHardcodedHotel, setSelectedHardcodedHotel] = useState('');
-
-  // Debounced API call for destination search
   const debouncedSearch = useRef(
     debounce(async (searchTerm: string) => {
       if (searchTerm.length > 2) {
@@ -182,83 +208,103 @@ export const Destination = () => {
     }, 500)
   ).current;
 
-  // Effect to auto-calculate nights
   useEffect(() => {
     if (checkIn && checkOut) {
       const diff = checkOut.diff(checkIn, 'day');
-      if (diff >= 0) {
-        setNights(diff);
-      } else {
-        setNights(''); // Reset if check-out is before check-in
-      }
+      setNights(diff >= 0 ? diff : '');
     } else {
-      setNights(''); // Reset if either date is cleared
+      setNights('');
     }
   }, [checkIn, checkOut]);
 
-  // Handle destination input changes
+  useEffect(() => {
+    if (selectedHotelId) {
+      const hotel = hotelsFromCitySearch.find(h => h._id === selectedHotelId);
+      setSelectedHotelDetails(hotel || null);
+      if (hotel) {
+        setHotelInputValue(hotel.name);
+      }
+    } else {
+      setSelectedHotelDetails(null);
+      setHotelInputValue('');
+    }
+  }, [selectedHotelId, hotelsFromCitySearch]);
+
   const handleDestinationInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setDestination(value);
+    setSelectedHotelId('');
+    setHotelsFromCitySearch([]);
     debouncedSearch(value);
   };
 
-  // Handle clearing the destination field
   const handleClearDestination = () => {
     setDestination('');
-    setSelectedHotel(null);
     setCities([]);
     setHotels([]);
     setShowSuggestions(false);
-    if (inputRef.current) {
-      inputRef.current.focus();
+    setHotelsFromCitySearch([]);
+    setSelectedHotelId('');
+    if (destinationInputRef.current) {
+      destinationInputRef.current.focus();
     }
   };
 
-  // Handle a city selection
-  const handleCitySelect = (city: City) => {
+  const handleCitySelect = async (city: City) => {
     setDestination(`${city.name}, ${city.countryName}`);
-    setSelectedHotel(null);
     setShowSuggestions(false);
+    setHotelsFromCitySearch([]);
+    setSelectedHotelId('');
+    setHotelLoading(true);
+    const hotelsData = await searchHotelsInCity(city.name);
+    setHotelsFromCitySearch(hotelsData);
+    setHotelLoading(false);
   };
 
-  // Handle a hotel selection
-  const handleHotelSelect = (hotel: Hotel) => {
+  const handleHotelSelect = (hotel: HotelFromDestinationSearch) => {
     setDestination(`${hotel.name}, ${hotel.city.name}`);
-    setSelectedHotel(hotel);
     setShowSuggestions(false);
+    setHotelsFromCitySearch([]);
+    setSelectedHotelId('');
   };
+
+  const filteredHotels = hotelsFromCitySearch.filter(hotel =>
+    hotel.name.toLowerCase().includes(hotelInputValue.toLowerCase())
+  );
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <FormSection title="Destination">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-8">
           <div className="space-y-6">
-            <div className="relative"> {/* Use a relative container for the tooltip */}
+            <div className="relative">
               <TextField
                 label="Destination"
-                placeholder="Search for destination"
+                placeholder="Search for a city or hotel"
                 value={destination}
                 onChange={handleDestinationInputChange}
-                onFocus={() => setShowSuggestions(true)}
+                onFocus={() => destination.length > 2 && setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 InputLabelProps={{ shrink: true }}
                 fullWidth
                 variant="outlined"
-                inputRef={inputRef}
+                inputRef={destinationInputRef}
                 InputProps={{
                   style: destination ? { backgroundColor: '#e0f7fa' } : {},
-                  endAdornment: destination && (
-                    <IconButton onClick={handleClearDestination} edge="end" size="small">
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
+                  endAdornment: (
+                    <>
+                      {loading && <CircularProgress size={20} />}
+                      {destination && !loading && (
+                        <IconButton onClick={handleClearDestination} edge="end" size="small">
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </>
                   ),
                 }}
               />
-              {/* The dropdown tooltip is now positioned absolutely within the relative container */}
-              {loading && <CircularProgress size={24} />}
-              {!loading && showSuggestions && (cities.length > 0 || hotels.length > 0) && (
-                <div className="absolute top-full left-0 z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto mt-2">
+              {showSuggestions && (cities.length > 0 || hotels.length > 0) && (
+                <div className="absolute top-full left-0 z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto mt-2">
                   {cities.length > 0 && (
                     <>
                       <Typography variant="subtitle2" color="text.secondary" className="p-2 font-bold">
@@ -294,18 +340,63 @@ export const Destination = () => {
                 </div>
               )}
             </div>
-
-            {/* New Hotels dropdown field */}
-            <FormSelectSimple
-              label="Hotels"
-              placeholder="Select a hotel"
-              options={hotelOptions}
-              value={selectedHardcodedHotel}
-              onChange={(e) => setSelectedHardcodedHotel(e.target.value)}
-            />
-
+            <div className="relative">
+              <TextField
+                label="Hotel"
+                placeholder={hotelLoading ? 'Loading hotels...' : 'Search and select a hotel'}
+                value={hotelInputValue}
+                onChange={(e) => {
+                  setHotelInputValue(e.target.value);
+                  if (selectedHotelId) {
+                    setSelectedHotelId('');
+                  }
+                }}
+                onFocus={() => {
+                  if (hotelsFromCitySearch.length > 0) {
+                    setShowHotelSuggestions(true);
+                  }
+                }}
+                onBlur={() => setTimeout(() => setShowHotelSuggestions(false), 200)}
+                disabled={hotelLoading || hotelsFromCitySearch.length === 0}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                variant="outlined"
+                InputProps={{
+                  endAdornment: (
+                    <>
+                      {hotelLoading && <CircularProgress size={20} />}
+                      {hotelInputValue && !hotelLoading && (
+                        <IconButton
+                          onClick={() => setSelectedHotelId('')}
+                          edge="end"
+                          size="small"
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </>
+                  ),
+                }}
+              />
+              {showHotelSuggestions && filteredHotels.length > 0 && (
+                <div className="absolute top-full left-0 z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto mt-2">
+                  {filteredHotels.map((hotel) => (
+                    <MenuItem
+                      key={hotel._id}
+                      onClick={() => {
+                        setSelectedHotelId(hotel._id);
+                        setShowHotelSuggestions(false);
+                      }}
+                      className="py-2 px-4 hover:bg-gray-100 cursor-pointer"
+                    >
+                      {hotel.name}
+                    </MenuItem>
+                  ))}
+                </div>
+              )}
+            </div>
             <DatePicker
-              label=""
+              label="Check-in"
               format="DD/MM/YYYY"
               value={checkIn}
               onChange={(newValue) => setCheckIn(newValue)}
@@ -319,10 +410,11 @@ export const Destination = () => {
               }}
             />
             <DatePicker
-              label=""
+              label="Check-out"
               format="DD/MM/YYYY"
               value={checkOut}
               onChange={(newValue) => setCheckOut(newValue)}
+              minDate={checkIn ? checkIn.add(1, 'day') : undefined}
               slotProps={{
                 textField: {
                   InputLabelProps: { shrink: true },
@@ -332,18 +424,18 @@ export const Destination = () => {
                 },
               }}
             />
-            <FormInput
+            <TextField
               label="Nights"
-              placeholder="Enter number of nights"
+              placeholder="Number of nights"
               type="number"
               value={nights}
-              onChange={e => setNights(e.target.value ? Number(e.target.value) : '')}
-              InputProps={{ readOnly: true }}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              variant="outlined"
+              InputProps={{ readOnly: true, style: { backgroundColor: '#f0f0f0' } }}
             />
           </div>
-          <div className="bg-gray-100 p-6 rounded-lg flex items-center justify-center text-center text-gray-500 min-h-[250px] space-y-4">
-            <p>Please select a hotel to see details</p>
-          </div>
+          <HotelDetails hotel={selectedHotelDetails} />
         </div>
       </FormSection>
     </LocalizationProvider>

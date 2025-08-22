@@ -76,6 +76,7 @@ export default function ManageSupplier() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [showViewModal, setShowViewModal] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // New state for the active tab
   const [activeTab, setActiveTab] = useState<"offline" | "online">("offline");
@@ -84,6 +85,9 @@ export default function ManageSupplier() {
   const [editForm, setEditForm] = useState({
     name: "",
     notes: "",
+    phoneNumber: "",
+    nationality: "",
+    address: "",
   });
 
   // Dynamic wholesalerId from localStorage
@@ -188,6 +192,9 @@ export default function ManageSupplier() {
       setEditForm({
         name: provider.name,
         notes: provider.notes || "",
+        phoneNumber: provider.phoneNumber || "",
+        nationality: provider.nationality || "",
+        address: provider.address || "",
       });
       setShowEditModal(true);
     }
@@ -198,29 +205,52 @@ export default function ManageSupplier() {
     setShowViewModal(true);
   };
 
-  const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleEditFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would implement the logic to update the provider
-    // For now, we'll just log the updated data and close the modal
-    console.log("Updated Provider:", {
-      ...selectedProvider,
-      ...editForm,
-    });
-    // Optimistically update the state (for demonstration)
-    setProviders((prev) => ({
-      ...prev,
-      offline: prev.offline.map((p) =>
-        p._id === selectedProvider._id
-          ? { ...p, name: editForm.name, notes: editForm.notes }
-          : p
-      ),
-    }));
-    setShowEditModal(false);
+    if (!selectedProvider) return;
+
+    setIsSubmitting(true);
+    setError("");
+
+    const payload = {
+      name: editForm.name,
+      notes: editForm.notes,
+      phoneNumber: editForm.phoneNumber,
+      nationality: editForm.nationality,
+      address: editForm.address,
+    };
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/${selectedProvider._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (response.ok) {
+        setShowEditModal(false);
+        await fetchAllProviders(); // Refresh data after successful update
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || "Failed to update provider.");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -589,14 +619,18 @@ export default function ManageSupplier() {
                           </div>
                           <div className="flex items-center space-x-3 flex-shrink-0">
                             <button
-                              onClick={() => handleViewProvider(supplier, "offline")}
+                              onClick={() =>
+                                handleViewProvider(supplier, "offline")
+                              }
                               className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                               title="View Details"
                             >
                               <Eye className="w-5 h-5" />
                             </button>
                             <button
-                              onClick={() => handleEditProvider(supplier, "offline")}
+                              onClick={() =>
+                                handleEditProvider(supplier, "offline")
+                              }
                               className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                               title="Edit Provider"
                             >
@@ -606,22 +640,40 @@ export default function ManageSupplier() {
                         </div>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
-                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status || "active")}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Status
+                            </p>
+                            <span
+                              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                                supplier.status || "active"
+                              )}`}
+                            >
                               {getStatusIcon(supplier.status || "active")}
-                              <span className="capitalize">{supplier.status || "active"}</span>
+                              <span className="capitalize">
+                                {supplier.status || "active"}
+                              </span>
                             </span>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Type</p>
-                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("offline")}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Type
+                            </p>
+                            <span
+                              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                                "offline"
+                              )}`}
+                            >
                               <Building2 className="w-4 h-4" />
                               <span>Offline</span>
                             </span>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
-                            <p className="text-gray-700 dark:text-gray-300">{formatDate(supplier.createdAt)}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Created
+                            </p>
+                            <p className="text-gray-700 dark:text-gray-300">
+                              {formatDate(supplier.createdAt)}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -640,15 +692,25 @@ export default function ManageSupplier() {
                         </div>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
-                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("offline")}`}>
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                            "offline"
+                          )}`}
+                        >
                           <Building2 className="w-4 h-4" />
                           <span>Offline</span>
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
-                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(supplier.status || "active")}`}>
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                            supplier.status || "active"
+                          )}`}
+                        >
                           {getStatusIcon(supplier.status || "active")}
-                          <span className="capitalize">{supplier.status || "active"}</span>
+                          <span className="capitalize">
+                            {supplier.status || "active"}
+                          </span>
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
@@ -663,8 +725,24 @@ export default function ManageSupplier() {
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
                         <div className="flex items-center justify-center space-x-4">
-                          <button onClick={() => handleViewProvider(supplier, "offline")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
-                          <button onClick={() => handleEditProvider(supplier, "offline")} className="text-green-600 hover:text-green-900" title="Edit"><Edit className="w-5 h-5" /></button>
+                          <button
+                            onClick={() =>
+                              handleViewProvider(supplier, "offline")
+                            }
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleEditProvider(supplier, "offline")
+                            }
+                            className="text-green-600 hover:text-green-900"
+                            title="Edit"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -721,7 +799,9 @@ export default function ManageSupplier() {
                           </div>
                           <div className="flex items-center space-x-3 flex-shrink-0">
                             <button
-                              onClick={() => handleViewProvider(provider, "online")}
+                              onClick={() =>
+                                handleViewProvider(provider, "online")
+                              }
                               className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                               title="View Details"
                             >
@@ -731,26 +811,49 @@ export default function ManageSupplier() {
                         </div>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
-                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(undefined, provider.isActive)}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Status
+                            </p>
+                            <span
+                              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                                undefined,
+                                provider.isActive
+                              )}`}
+                            >
                               {getStatusIcon(undefined, provider.isActive)}
-                              <span className="capitalize">{provider.isActive ? "active" : "inactive"}</span>
+                              <span className="capitalize">
+                                {provider.isActive ? "active" : "inactive"}
+                              </span>
                             </span>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Type</p>
-                            <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("online")}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Type
+                            </p>
+                            <span
+                              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                                "online"
+                              )}`}
+                            >
                               <Globe className="w-4 h-4" />
                               <span>Online</span>
                             </span>
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">API URL</p>
-                            <p className="text-gray-700 dark:text-gray-300 break-all">{provider.apiBaseUrl}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              API URL
+                            </p>
+                            <p className="text-gray-700 dark:text-gray-300 break-all">
+                              {provider.apiBaseUrl}
+                            </p>
                           </div>
-                            <div className="col-span-2">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
-                            <p className="text-gray-700 dark:text-gray-300">{formatDate(provider.createdAt)}</p>
+                          <div className="col-span-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Created
+                            </p>
+                            <p className="text-gray-700 dark:text-gray-300">
+                              {formatDate(provider.createdAt)}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -769,15 +872,26 @@ export default function ManageSupplier() {
                         </div>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
-                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor("online")}`}>
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                            "online"
+                          )}`}
+                        >
                           <Globe className="w-4 h-4" />
                           <span>Online</span>
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
-                        <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(undefined, provider.isActive)}`}>
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                            undefined,
+                            provider.isActive
+                          )}`}
+                        >
                           {getStatusIcon(undefined, provider.isActive)}
-                          <span className="capitalize">{provider.isActive ? "active" : "inactive"}</span>
+                          <span className="capitalize">
+                            {provider.isActive ? "active" : "inactive"}
+                          </span>
                         </span>
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
@@ -799,7 +913,15 @@ export default function ManageSupplier() {
                       </td>
                       <td className="hidden md:table-cell px-6 py-4 text-center">
                         <div className="flex items-center justify-center space-x-4">
-                            <button onClick={() => handleViewProvider(provider, "online")} className="text-blue-600 hover:text-blue-900" title="View"><Eye className="w-5 h-5" /></button>
+                          <button
+                            onClick={() =>
+                              handleViewProvider(provider, "online")
+                            }
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -814,7 +936,11 @@ export default function ManageSupplier() {
       <Modal open={showViewModal} onClose={() => setShowViewModal(false)}>
         <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto outline-none">
           <div className="flex items-center justify-between mb-6">
-            <Typography variant="h6" component="h3" className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Typography
+              variant="h6"
+              component="h3"
+              className="text-xl font-semibold text-gray-900 dark:text-white"
+            >
               Provider Details
             </Typography>
             <button
@@ -839,12 +965,18 @@ export default function ManageSupplier() {
 
           <div className="space-y-6">
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+              <Typography
+                variant="subtitle1"
+                className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+              >
                 Basic Information
               </Typography>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Typography
+                    variant="body2"
+                    className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Name
                   </Typography>
                   <Typography className="text-gray-900 dark:text-white font-medium">
@@ -852,18 +984,26 @@ export default function ManageSupplier() {
                   </Typography>
                 </div>
                 <div>
-                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Typography
+                    variant="body2"
+                    className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Type
                   </Typography>
                   <span
-                    className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedProvider?.type)}`}
+                    className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(
+                      selectedProvider?.type
+                    )}`}
                   >
                     {getTypeIcon(selectedProvider?.type)}
                     <span className="capitalize">{selectedProvider?.type}</span>
                   </span>
                 </div>
                 <div>
-                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Typography
+                    variant="body2"
+                    className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Status
                   </Typography>
                   <span
@@ -886,7 +1026,10 @@ export default function ManageSupplier() {
                   </span>
                 </div>
                 <div>
-                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Typography
+                    variant="body2"
+                    className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Created
                   </Typography>
                   <Typography className="text-gray-900 dark:text-white">
@@ -898,7 +1041,10 @@ export default function ManageSupplier() {
 
             {selectedProvider?.notes && (
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                <Typography
+                  variant="subtitle1"
+                  className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+                >
                   Notes
                 </Typography>
                 <Typography className="text-gray-700 dark:text-gray-300">
@@ -909,13 +1055,19 @@ export default function ManageSupplier() {
 
             {selectedProvider?.type === "offline" && (
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                <Typography
+                  variant="subtitle1"
+                  className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+                >
                   Contact Information
                 </Typography>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedProvider?.phoneNumber && (
                     <div>
-                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      <Typography
+                        variant="body2"
+                        className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                      >
                         Phone Number
                       </Typography>
                       <Typography className="text-gray-900 dark:text-white">
@@ -925,7 +1077,10 @@ export default function ManageSupplier() {
                   )}
                   {selectedProvider?.nationality && (
                     <div>
-                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      <Typography
+                        variant="body2"
+                        className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                      >
                         Nationality
                       </Typography>
                       <Typography className="text-gray-900 dark:text-white">
@@ -935,7 +1090,10 @@ export default function ManageSupplier() {
                   )}
                   {selectedProvider?.address && (
                     <div className="md:col-span-2">
-                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      <Typography
+                        variant="body2"
+                        className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                      >
                         Address
                       </Typography>
                       <Typography className="text-gray-900 dark:text-white">
@@ -947,7 +1105,10 @@ export default function ManageSupplier() {
                     <>
                       {selectedProvider?.contactInfo.email && (
                         <div>
-                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          <Typography
+                            variant="body2"
+                            className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                          >
                             Email (Legacy)
                           </Typography>
                           <Typography className="text-gray-900 dark:text-white">
@@ -955,26 +1116,34 @@ export default function ManageSupplier() {
                           </Typography>
                         </div>
                       )}
-                      {selectedProvider?.contactInfo.phone && !selectedProvider?.phoneNumber && (
-                        <div>
-                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            Phone (Legacy)
-                          </Typography>
-                          <Typography className="text-gray-900 dark:text-white">
-                            {selectedProvider?.contactInfo.phone}
-                          </Typography>
-                        </div>
-                      )}
-                      {selectedProvider?.contactInfo.address && !selectedProvider?.address && (
-                        <div className="md:col-span-2">
-                          <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            Address (Legacy)
-                          </Typography>
-                          <Typography className="text-gray-900 dark:text-white">
-                            {selectedProvider?.contactInfo.address}
-                          </Typography>
-                        </div>
-                      )}
+                      {selectedProvider?.contactInfo.phone &&
+                        !selectedProvider?.phoneNumber && (
+                          <div>
+                            <Typography
+                              variant="body2"
+                              className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                            >
+                              Phone (Legacy)
+                            </Typography>
+                            <Typography className="text-gray-900 dark:text-white">
+                              {selectedProvider?.contactInfo.phone}
+                            </Typography>
+                          </div>
+                        )}
+                      {selectedProvider?.contactInfo.address &&
+                        !selectedProvider?.address && (
+                          <div className="md:col-span-2">
+                            <Typography
+                              variant="body2"
+                              className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                            >
+                              Address (Legacy)
+                            </Typography>
+                            <Typography className="text-gray-900 dark:text-white">
+                              {selectedProvider?.contactInfo.address}
+                            </Typography>
+                          </div>
+                        )}
                     </>
                   )}
                 </div>
@@ -985,7 +1154,10 @@ export default function ManageSupplier() {
               selectedProvider?.services &&
               selectedProvider?.services.length > 0 && (
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                  <Typography
+                    variant="subtitle1"
+                    className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+                  >
                     Services
                   </Typography>
                   <div className="flex flex-wrap gap-2">
@@ -1005,12 +1177,18 @@ export default function ManageSupplier() {
 
             {selectedProvider?.type === "online" && (
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                <Typography
+                  variant="subtitle1"
+                  className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+                >
                   API Information
                 </Typography>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    <Typography
+                      variant="body2"
+                      className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       API Base URL
                     </Typography>
                     <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
@@ -1018,7 +1196,10 @@ export default function ManageSupplier() {
                     </Typography>
                   </div>
                   <div>
-                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    <Typography
+                      variant="body2"
+                      className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       Authentication Type
                     </Typography>
                     <Typography className="text-gray-900 dark:text-white">
@@ -1026,7 +1207,10 @@ export default function ManageSupplier() {
                     </Typography>
                   </div>
                   <div>
-                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    <Typography
+                      variant="body2"
+                      className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       Token Expiry (Hours)
                     </Typography>
                     <Typography className="text-gray-900 dark:text-white">
@@ -1035,7 +1219,10 @@ export default function ManageSupplier() {
                   </div>
                   {selectedProvider?.logoUrl && (
                     <div>
-                      <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      <Typography
+                        variant="body2"
+                        className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                      >
                         Logo URL
                       </Typography>
                       <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
@@ -1048,12 +1235,18 @@ export default function ManageSupplier() {
             )}
 
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <Typography variant="subtitle1" className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+              <Typography
+                variant="subtitle1"
+                className="text-lg font-medium text-gray-900 dark:text-white mb-3"
+              >
                 Additional Information
               </Typography>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  <Typography
+                    variant="body2"
+                    className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Provider ID
                   </Typography>
                   <Typography className="text-gray-900 dark:text-white font-mono text-sm break-all">
@@ -1062,7 +1255,10 @@ export default function ManageSupplier() {
                 </div>
                 {selectedProvider?.updatedAt && (
                   <div>
-                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    <Typography
+                      variant="body2"
+                      className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       Last Updated
                     </Typography>
                     <Typography className="text-gray-900 dark:text-white">
@@ -1070,16 +1266,20 @@ export default function ManageSupplier() {
                     </Typography>
                   </div>
                 )}
-                {selectedProvider?.type === "offline" && selectedProvider?.rating && (
-                  <div>
-                    <Typography variant="body2" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Rating
-                    </Typography>
-                    <Typography className="text-gray-900 dark:text-white">
-                      {selectedProvider?.rating}/5
-                    </Typography>
-                  </div>
-                )}
+                {selectedProvider?.type === "offline" &&
+                  selectedProvider?.rating && (
+                    <div>
+                      <Typography
+                        variant="body2"
+                        className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1"
+                      >
+                        Rating
+                      </Typography>
+                      <Typography className="text-gray-900 dark:text-white">
+                        {selectedProvider?.rating}/5
+                      </Typography>
+                    </div>
+                  )}
               </div>
             </div>
           </div>
@@ -1088,7 +1288,7 @@ export default function ManageSupplier() {
             <Button
               onClick={() => setShowViewModal(false)}
               variant="contained"
-              sx={{ bgcolor: 'gray.600', '&:hover': { bgcolor: 'gray.700' } }}
+              sx={{ bgcolor: "gray.600", "&:hover": { bgcolor: "gray.700" } }}
             >
               Close
             </Button>
@@ -1098,21 +1298,24 @@ export default function ManageSupplier() {
 
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)}>
         <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md outline-none">
-          <Typography variant="h6" component="h3" className="text-lg font-semibold mb-4">Add New Provider</Typography>
+          <Typography
+            variant="h6"
+            component="h3"
+            className="text-lg font-semibold mb-4"
+          >
+            Add New Provider
+          </Typography>
           <Typography className="text-gray-600 dark:text-gray-400 mb-4">
             Add provider functionality would be implemented here.
           </Typography>
           <div className="flex justify-end space-x-3">
-            <Button
-              onClick={() => setShowAddModal(false)}
-              variant="outlined"
-            >
+            <Button onClick={() => setShowAddModal(false)} variant="outlined">
               Cancel
             </Button>
             <Button
               onClick={() => setShowAddModal(false)}
               variant="contained"
-              sx={{ bgcolor: 'blue.600', '&:hover': { bgcolor: 'blue.700' } }}
+              sx={{ bgcolor: "blue.600", "&:hover": { bgcolor: "blue.700" } }}
             >
               Add Provider
             </Button>
@@ -1121,9 +1324,13 @@ export default function ManageSupplier() {
       </Modal>
 
       <Modal open={showEditModal} onClose={() => setShowEditModal(false)}>
-        <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md outline-none">
+        <Box className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md outline-none max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <Typography variant="h6" component="h3" className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Typography
+              variant="h6"
+              component="h3"
+              className="text-xl font-semibold text-gray-900 dark:text-white"
+            >
               Edit {selectedProvider?.type} Provider
             </Typography>
             <button
@@ -1156,34 +1363,156 @@ export default function ManageSupplier() {
               variant="outlined"
               required
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': {
-                    borderColor: 'gray.300',
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": {
+                    borderColor: "gray.300",
                   },
-                  '&:hover fieldset': {
-                    borderColor: 'gray.600',
+                  "&:hover fieldset": {
+                    borderColor: "gray.600",
                   },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'indigo.500',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'gray.700',
-                },
-                '& .MuiOutlinedInput-input': {
-                  color: 'black',
-                },
-                '.dark & .MuiOutlinedInput-root': {
-                  backgroundColor: 'gray.700',
-                  '& fieldset': {
-                    borderColor: 'gray.600',
+                  "&.Mui-focused fieldset": {
+                    borderColor: "indigo.500",
                   },
                 },
-                '.dark & .MuiInputLabel-root': {
-                  color: 'gray.300',
+                "& .MuiInputLabel-root": {
+                  color: "gray.700",
                 },
-                '.dark & .MuiOutlinedInput-input': {
-                  color: 'white',
+                "& .MuiOutlinedInput-input": {
+                  color: "black",
+                },
+                ".dark & .MuiOutlinedInput-root": {
+                  backgroundColor: "gray.700",
+                  "& fieldset": {
+                    borderColor: "gray.600",
+                  },
+                },
+                ".dark & .MuiInputLabel-root": {
+                  color: "gray.300",
+                },
+                ".dark & .MuiOutlinedInput-input": {
+                  color: "white",
+                },
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Phone Number"
+              id="phoneNumber"
+              name="phoneNumber"
+              value={editForm.phoneNumber}
+              onChange={handleEditFormChange}
+              variant="outlined"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": {
+                    borderColor: "gray.300",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "gray.600",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "indigo.500",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "gray.700",
+                },
+                "& .MuiOutlinedInput-input": {
+                  color: "black",
+                },
+                ".dark & .MuiOutlinedInput-root": {
+                  backgroundColor: "gray.700",
+                  "& fieldset": {
+                    borderColor: "gray.600",
+                  },
+                },
+                ".dark & .MuiInputLabel-root": {
+                  color: "gray.300",
+                },
+                ".dark & .MuiOutlinedInput-input": {
+                  color: "white",
+                },
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Nationality"
+              id="nationality"
+              name="nationality"
+              value={editForm.nationality}
+              onChange={handleEditFormChange}
+              variant="outlined"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": {
+                    borderColor: "gray.300",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "gray.600",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "indigo.500",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "gray.700",
+                },
+                "& .MuiOutlinedInput-input": {
+                  color: "black",
+                },
+                ".dark & .MuiOutlinedInput-root": {
+                  backgroundColor: "gray.700",
+                  "& fieldset": {
+                    borderColor: "gray.600",
+                  },
+                },
+                ".dark & .MuiInputLabel-root": {
+                  color: "gray.300",
+                },
+                ".dark & .MuiOutlinedInput-input": {
+                  color: "white",
+                },
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Address"
+              id="address"
+              name="address"
+              multiline
+              rows={2}
+              value={editForm.address}
+              onChange={handleEditFormChange}
+              variant="outlined"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": {
+                    borderColor: "gray.300",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "gray.600",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "indigo.500",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "gray.700",
+                },
+                "& .MuiOutlinedInput-input": {
+                  color: "black",
+                },
+                ".dark & .MuiOutlinedInput-root": {
+                  backgroundColor: "gray.700",
+                  "& fieldset": {
+                    borderColor: "gray.600",
+                  },
+                },
+                ".dark & .MuiInputLabel-root": {
+                  color: "gray.300",
+                },
+                ".dark & .MuiOutlinedInput-input": {
+                  color: "white",
                 },
               }}
             />
@@ -1198,34 +1527,34 @@ export default function ManageSupplier() {
               onChange={handleEditFormChange}
               variant="outlined"
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': {
-                    borderColor: 'gray.300',
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": {
+                    borderColor: "gray.300",
                   },
-                  '&:hover fieldset': {
-                    borderColor: 'gray.600',
+                  "&:hover fieldset": {
+                    borderColor: "gray.600",
                   },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'indigo.500',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'gray.700',
-                },
-                '& .MuiOutlinedInput-input': {
-                  color: 'black',
-                },
-                '.dark & .MuiOutlinedInput-root': {
-                  backgroundColor: 'gray.700',
-                  '& fieldset': {
-                    borderColor: 'gray.600',
+                  "&.Mui-focused fieldset": {
+                    borderColor: "indigo.500",
                   },
                 },
-                '.dark & .MuiInputLabel-root': {
-                  color: 'gray.300',
+                "& .MuiInputLabel-root": {
+                  color: "gray.700",
                 },
-                '.dark & .MuiOutlinedInput-input': {
-                  color: 'white',
+                "& .MuiOutlinedInput-input": {
+                  color: "black",
+                },
+                ".dark & .MuiOutlinedInput-root": {
+                  backgroundColor: "gray.700",
+                  "& fieldset": {
+                    borderColor: "gray.600",
+                  },
+                },
+                ".dark & .MuiInputLabel-root": {
+                  color: "gray.300",
+                },
+                ".dark & .MuiOutlinedInput-input": {
+                  color: "white",
                 },
               }}
             />
@@ -1234,15 +1563,27 @@ export default function ManageSupplier() {
                 type="button"
                 onClick={() => setShowEditModal(false)}
                 variant="outlined"
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 variant="contained"
-                sx={{ bgcolor: 'green.600', '&:hover': { bgcolor: 'green.700' } }}
+                disabled={isSubmitting}
+                sx={{
+                  bgcolor: "green.600",
+                  "&:hover": { bgcolor: "green.700" },
+                  "&.Mui-disabled": {
+                    bgcolor: "gray.400",
+                  },
+                }}
               >
-                Save Changes
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
             </div>
           </form>
