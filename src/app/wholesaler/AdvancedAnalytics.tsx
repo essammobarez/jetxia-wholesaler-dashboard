@@ -10,6 +10,8 @@ import {
   DollarSign,
   Download,
   Globe,
+  Hotel,
+  MapPin,
   PieChart,
   RefreshCw,
   TrendingUp,
@@ -19,6 +21,39 @@ import {
 import React, { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+
+// --- START: New Interfaces for API Responses ---
+interface TopHotel {
+  hotelName: string;
+  totalBookings: number;
+  city: string;
+  country: string;
+  stars: number;
+  lastBooking: string;
+  totalRevenue: number;
+  avgPrice: number;
+}
+
+interface TopHotelsData {
+  data: TopHotel[];
+  totalHotels: number;
+}
+
+interface TopDestination {
+  city: string;
+  country: string;
+  totalBookings: number;
+  lastBooking: string;
+  hotelCount: number;
+  totalRevenue: number;
+  avgPrice: number;
+}
+
+interface TopDestinationsData {
+  data: TopDestination[];
+  totalDestinations: number;
+}
+// --- END: New Interfaces ---
 
 // API Response Interfaces
 interface ApiBookingResponse {
@@ -155,7 +190,6 @@ interface AnalyticsData {
   bookings: {
     total: number;
     growth: number;
-    byService: { service: string; count: number; revenue: number }[];
   };
   agencies: {
     total: number;
@@ -181,21 +215,21 @@ const AdvancedAnalytics: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
     null
   );
+  const [topHotels, setTopHotels] = useState<TopHotelsData | null>(null);
+  const [topDestinations, setTopDestinations] =
+    useState<TopDestinationsData | null>(null);
   const [dateRange, setDateRange] = useState("30days");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dynamic wholesalerId from localStorage
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
-  // Load stored wholesaler ID on mount
   useEffect(() => {
     const stored = localStorage.getItem("wholesalerId");
     setWholesalerId(stored);
   }, []);
 
-  // Transform API data to analytics format
   const transformApiDataToAnalytics = (
     apiData: ApiBookingResponse[]
   ): AnalyticsData => {
@@ -203,7 +237,6 @@ const AdvancedAnalytics: React.FC = () => {
       throw new Error("No booking data available");
     }
 
-    // Calculate total revenue
     const totalRevenue = apiData.reduce((sum, booking) => {
       const amount =
         booking.priceDetails?.price?.value ||
@@ -212,7 +245,6 @@ const AdvancedAnalytics: React.FC = () => {
       return sum + amount;
     }, 0);
 
-    // Group by month for revenue trend
     const monthlyRevenue = apiData.reduce((acc, booking) => {
       const createdAt = new Date(booking.createdAt);
       const monthKey = createdAt.toLocaleDateString("en-US", {
@@ -231,27 +263,6 @@ const AdvancedAnalytics: React.FC = () => {
       return acc;
     }, {} as Record<string, number>);
 
-    // Group by service type
-    const serviceBreakdown = apiData.reduce((acc, booking) => {
-      const serviceType =
-        booking.bookingData?.detailedInfo?.service?.type?.toUpperCase() ||
-        booking.bookingData?.initialResponse?.type?.toUpperCase() ||
-        "UNKNOWN";
-      const amount =
-        booking.priceDetails?.price?.value ||
-        booking.bookingData?.initialResponse?.price?.selling?.value ||
-        0;
-
-      if (acc[serviceType]) {
-        acc[serviceType].count += 1;
-        acc[serviceType].revenue += amount;
-      } else {
-        acc[serviceType] = { count: 1, revenue: amount };
-      }
-      return acc;
-    }, {} as Record<string, { count: number; revenue: number }>);
-
-    // Group by agency
     const agencyPerformance = apiData.reduce((acc, booking) => {
       const agencyName = booking.agency?.agencyName || "Unknown Agency";
       const amount =
@@ -268,7 +279,6 @@ const AdvancedAnalytics: React.FC = () => {
       return acc;
     }, {} as Record<string, { bookings: number; revenue: number }>);
 
-    // Group by nationality
     const nationalityData = apiData.reduce((acc, booking) => {
       const nationality =
         booking.bookingData?.detailedInfo?.nationality?.name || "Unknown";
@@ -286,7 +296,6 @@ const AdvancedAnalytics: React.FC = () => {
       return acc;
     }, {} as Record<string, { bookings: number; revenue: number }>);
 
-    // Calculate payment status
     const paymentStatus = apiData.reduce(
       (acc, booking) => {
         if (booking.status === "confirmed") {
@@ -304,11 +313,8 @@ const AdvancedAnalytics: React.FC = () => {
       { completed: 0, pending: 0, refunded: 0 }
     );
 
-    // Calculate growth (simplified - could be based on previous period)
-    const growth = 8.5; // Placeholder - could calculate based on date comparison
-
-    // Calculate average processing time (simplified)
-    const averageProcessingTime = 2.3; // Placeholder
+    const growth = 8.5;
+    const averageProcessingTime = 2.3;
 
     return {
       revenue: {
@@ -322,11 +328,6 @@ const AdvancedAnalytics: React.FC = () => {
       bookings: {
         total: apiData.length,
         growth: growth,
-        byService: Object.entries(serviceBreakdown).map(([service, data]) => ({
-          service,
-          count: data.count,
-          revenue: data.revenue,
-        })),
       },
       agencies: {
         total: Object.keys(agencyPerformance).length,
@@ -365,25 +366,62 @@ const AdvancedAnalytics: React.FC = () => {
       return;
     }
 
+    // --- START: Fetch authentication token ---
+    const token =
+      document.cookie
+        .split("; ")
+        .find((r) => r.startsWith("authToken="))
+        ?.split("=")[1] || localStorage.getItem("authToken");
+
+    if (!token) {
+      setError("Authorization failed. Please log in again.");
+      setLoading(false);
+      return;
+    }
+    // --- END: Fetch authentication token ---
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        `https://api.jetixia.com/api/v1/booking/wholesaler/${wholesalerId}`
-      );
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.jetixia.com/api/v1";
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // --- START: Define headers for authenticated requests ---
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+      // --- END: Define headers ---
 
-      const apiData: ApiBookingResponse[] = await response.json();
+      const [
+        bookingsResponse,
+        topHotelsResponse,
+        topDestinationsResponse,
+      ] = await Promise.all([
+        fetch(`${baseUrl}/booking/wholesaler/${wholesalerId}`),
+        // Pass headers to the fetch call
+        fetch(`${baseUrl}/reports/top-hotels-by-revenue`, { headers }),
+        // Pass headers to the fetch call
+        fetch(`${baseUrl}/reports/top-destinations-by-bookings`, { headers }),
+      ]);
 
-      if (!Array.isArray(apiData)) {
-        throw new Error("Invalid API response format");
-      }
+      if (!bookingsResponse.ok)
+        throw new Error(`HTTP error! status: ${bookingsResponse.status}`);
+      if (!topHotelsResponse.ok)
+        throw new Error(`HTTP error! status: ${topHotelsResponse.status}`);
+      if (!topDestinationsResponse.ok)
+        throw new Error(
+          `HTTP error! status: ${topDestinationsResponse.status}`
+        );
 
-      // Filter out invalid entries
+      const apiData: ApiBookingResponse[] = await bookingsResponse.json();
+      const topHotelsJson = await topHotelsResponse.json();
+      const topDestinationsJson = await topDestinationsResponse.json();
+
+      if (!Array.isArray(apiData))
+        throw new Error("Invalid booking API response format");
+
       const validBookings = apiData.filter(
         (booking) =>
           booking &&
@@ -394,18 +432,25 @@ const AdvancedAnalytics: React.FC = () => {
           booking.agency.agencyName
       );
 
-      // If there's no data, set state to null and return to show the 'No Data' message
-      if (validBookings.length === 0) {
+      if (validBookings.length > 0) {
+        const transformedData = transformApiDataToAnalytics(validBookings);
+        setAnalyticsData(transformedData);
+      } else {
         setAnalyticsData(null);
-        return;
       }
 
-      const transformedData = transformApiDataToAnalytics(validBookings);
-      setAnalyticsData(transformedData);
+      if (topHotelsJson.success) {
+        setTopHotels(topHotelsJson.data);
+      }
+      if (topDestinationsJson.success) {
+        setTopDestinations(topDestinationsJson.data);
+      }
     } catch (error) {
       console.error("Error fetching analytics data:", error);
       setError(error instanceof Error ? error.message : "Failed to fetch data");
       setAnalyticsData(null);
+      setTopHotels(null);
+      setTopDestinations(null);
     } finally {
       setLoading(false);
     }
@@ -428,26 +473,31 @@ const AdvancedAnalytics: React.FC = () => {
     const tableHeadStyles = { fillColor: [22, 163, 74] };
     const today = new Date();
     const fileName = `analytics-report-${today.toISOString().split("T")[0]}.pdf`;
-    let lastY = 0; // Keep track of the last Y position
+    let lastY = 0;
 
-    // --- Header ---
     doc.setFontSize(20);
     doc.text("Advanced Analytics Report", 14, 22);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${today.toLocaleDateString()}`, 14, 29);
 
-    // --- Summary Section ---
     doc.setFontSize(14);
     doc.text("Key Metrics Summary", 14, 45);
     doc.setFontSize(10);
-    doc.text(`Total Revenue: $${analyticsData.revenue.total.toLocaleString()}`, 16, 52);
-    doc.text(`Total Bookings: ${analyticsData.bookings.total.toLocaleString()}`, 16, 58);
+    doc.text(
+      `Total Revenue: $${analyticsData.revenue.total.toLocaleString()}`,
+      16,
+      52
+    );
+    doc.text(
+      `Total Bookings: ${analyticsData.bookings.total.toLocaleString()}`,
+      16,
+      58
+    );
     doc.text(`Active Agencies: ${analyticsData.agencies.active}`, 16, 64);
     doc.text(`Completed Payments: ${analyticsData.payments.completed}`, 16, 70);
-    lastY = 70; // Update lastY after the summary text
+    lastY = 70;
 
-    // --- Top Performing Agencies Table ---
     doc.setFontSize(14);
     doc.text("Top Performing Agencies", 14, lastY + 15);
     autoTable(doc, {
@@ -461,24 +511,41 @@ const AdvancedAnalytics: React.FC = () => {
       ]),
       headStyles: tableHeadStyles,
     });
-    lastY = (doc as any).lastAutoTable.finalY; // Update lastY after the table
-
-    // --- Service Breakdown Table ---
-    doc.setFontSize(14);
-    doc.text("Service Breakdown", 14, lastY + 15);
-    autoTable(doc, {
-      startY: lastY + 20,
-      head: [["Service Type", "Bookings Count", "Revenue"]],
-      body: analyticsData.bookings.byService.map((service) => [
-        service.service,
-        service.count.toLocaleString(),
-        `$${service.revenue.toLocaleString()}`,
-      ]),
-      headStyles: tableHeadStyles,
-    });
     lastY = (doc as any).lastAutoTable.finalY;
 
-    // --- Region Distribution Table ---
+    if (topDestinations && topDestinations.data.length > 0) {
+      doc.setFontSize(14);
+      doc.text("Top Destinations", 14, lastY + 15);
+      autoTable(doc, {
+        startY: lastY + 20,
+        head: [["Destination", "Total Bookings", "Revenue"]],
+        body: topDestinations.data.map((dest) => [
+          `${dest.city || "N/A"}, ${dest.country || "N/A"}`,
+          dest.totalBookings.toLocaleString(),
+          `$${dest.totalRevenue.toLocaleString()}`,
+        ]),
+        headStyles: tableHeadStyles,
+      });
+      lastY = (doc as any).lastAutoTable.finalY;
+    }
+
+    if (topHotels && topHotels.data.length > 0) {
+      doc.setFontSize(14);
+      doc.text("Top Hotels", 14, lastY + 15);
+      autoTable(doc, {
+        startY: lastY + 20,
+        head: [["Hotel Name", "Location", "Bookings", "Revenue"]],
+        body: topHotels.data.map((hotel) => [
+          hotel.hotelName || "N/A",
+          `${hotel.city || "N/A"}, ${hotel.country || "N/A"}`,
+          hotel.totalBookings.toLocaleString(),
+          `$${hotel.totalRevenue.toLocaleString()}`,
+        ]),
+        headStyles: tableHeadStyles,
+      });
+      lastY = (doc as any).lastAutoTable.finalY;
+    }
+
     doc.setFontSize(14);
     doc.text("Region Distribution (by Nationality)", 14, lastY + 15);
     autoTable(doc, {
@@ -494,7 +561,6 @@ const AdvancedAnalytics: React.FC = () => {
 
     doc.save(fileName);
   };
-
 
   if (loading && !analyticsData) {
     return (
@@ -730,55 +796,42 @@ const AdvancedAnalytics: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Service Breakdown */}
+        {/* New: Top Destinations */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-            Service Breakdown
+            Top Destinations
           </h3>
-          {analyticsData.bookings.byService.length > 0 ? (
+          {topDestinations && topDestinations.data.length > 0 ? (
             <div className="space-y-4">
-              {analyticsData.bookings.byService.map((service, index) => {
-                const totalRevenue = analyticsData.bookings.byService.reduce(
-                  (sum, s) => sum + s.revenue,
-                  0
-                );
-                const percentage =
-                  totalRevenue > 0 ? (service.revenue / totalRevenue) * 100 : 0;
-
-                return (
-                  <div key={service.service} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {service.service}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {service.count} bookings • $
-                        {service.revenue.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          index === 0
-                            ? "bg-blue-600"
-                            : index === 1
-                            ? "bg-purple-600"
-                            : index === 2
-                            ? "bg-green-600"
-                            : "bg-orange-600"
-                        }`}
-                        style={{ width: `${percentage}%` }}
-                      ></div>
+              {topDestinations.data.map((dest, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-blue-500" />
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {dest.city || "Unknown City"}, {dest.country}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {dest.totalBookings} bookings
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="text-right">
+                    <p className="font-bold text-gray-900 dark:text-white">
+                      ${dest.totalRevenue.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-8">
-              <PieChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500 dark:text-gray-400">
-                No service data available
+                No destination data available
               </p>
             </div>
           )}
@@ -823,7 +876,7 @@ const AdvancedAnalytics: React.FC = () => {
                     <p className="font-bold text-gray-900 dark:text-white">
                       ${agency.revenue.toLocaleString()}
                     </p>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       <Award className="w-3 h-3 text-green-500" />
                       <span className="text-xs text-green-600">
                         Top performer
@@ -842,6 +895,50 @@ const AdvancedAnalytics: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* New: Top Hotels */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+          Top Hotels by Revenue
+        </h3>
+        {topHotels && topHotels.data.length > 0 ? (
+          <div className="space-y-4">
+            {topHotels.data.map((hotel, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <Hotel className="w-5 h-5 text-purple-500" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {hotel.hotelName || "Unknown Hotel"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {hotel.city}, {hotel.country}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-gray-900 dark:text-white">
+                    ${hotel.totalRevenue.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {hotel.totalBookings} bookings
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Hotel className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              No hotel data available
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Payment Status Overview */}

@@ -10,7 +10,6 @@ import Schedule from './Schedule'; // Import the new component
 
 // Main App component
 export default function App() {
-  const [selectedType, setSelectedType] = useState('plain');
   const [selectedLists, setSelectedLists] = useState<string[]>(['Booking Desk Turizm']);
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -59,33 +58,6 @@ export default function App() {
           <>
             <div className="flex w-full space-x-8">
               <div className="flex-1 space-y-8">
-                <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-                  <h2 className="text-xl font-medium text-gray-800 mb-4">Select Campaign Type</h2>
-                  <div className="flex rounded-xl bg-gray-100 p-1">
-                    <button
-                      className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
-                        selectedType === 'plain'
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'text-gray-600 hover:bg-white'
-                      }`}
-                      onClick={() => setSelectedType('plain')}
-                    >
-                      <FaCheckCircle className="mr-2 text-blue-200" />
-                      Plain Text Type
-                    </button>
-                    <button
-                      className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
-                        selectedType === 'html'
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'text-gray-600 hover:bg-white'
-                      }`}
-                      onClick={() => setSelectedType('html')}
-                    >
-                      <span className="mr-2">{'</>'}</span>
-                      HTML Type
-                    </button>
-                  </div>
-                </div>
                 <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
                   <h2 className="text-xl font-medium text-gray-800 mb-4">Campaign Info</h2>
                   <div className="mb-4">
