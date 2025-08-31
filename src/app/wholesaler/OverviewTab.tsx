@@ -7,7 +7,7 @@ import {
   FaBuilding,
   FaCarSide,
   FaCheckCircle,
-  FaChevronDown, // <-- Icon for the toggle button
+  FaChevronDown,
   FaCommentAlt,
   FaTimesCircle,
   FaTrain,
@@ -26,7 +26,7 @@ const navItems = [
   { label: "Car Rentals", Icon: FaCarSide },
   { label: "Train Tickets", Icon: FaTrain },
 ];
-const tabs = ["All", "Upcoming", "Active", "Completed", "Cancelled"];
+
 const statusMap = {
   upcoming: { icon: FaCommentAlt, color: "text-yellow-500", label: "Upcoming" },
   active: { icon: FaCheckCircle, color: "text-green-500", label: "Active" },
@@ -48,9 +48,6 @@ const BookingsPage: NextPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedNav, setSelectedNav] = useState(0);
-  const [activeTab, setActiveTab] = useState<
-    "All" | "Upcoming" | "Active" | "Completed" | "Cancelled"
-  >("All");
   const [viewModalRes, setViewModalRes] = useState<Reservation | null>(null);
   const [editModalRes, setEditModalRes] = useState<Reservation | null>(null);
   const [editMarkup, setEditMarkup] = useState<string>("0.00");
@@ -60,6 +57,15 @@ const BookingsPage: NextPage = () => {
   const [cancelModalRes, setCancelModalRes] = useState<Reservation | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
+
+  // Search and filter states
+  const [searchHotelName, setSearchHotelName] = useState("");
+  const [searchBookingId, setSearchBookingId] = useState("");
+  const [searchCheckInDate, setSearchCheckInDate] = useState("");
+  const [searchCheckOutDate, setSearchCheckOutDate] = useState("");
+  const [searchGuestName, setSearchGuestName] = useState("");
+  const [searchAgencyName, setSearchAgencyName] = useState("");
+  const [searchStatus, setSearchStatus] = useState(""); // Empty string means "All"
 
   // State to manage which card is expanded on mobile
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -135,7 +141,7 @@ const BookingsPage: NextPage = () => {
       if (res.ok) {
         const responseData = await res.json();
 
-        // **MODIFIED**: Handle both direct array and nested { data: [...] } structures
+        // Handle both direct array and nested { data: [...] } structures
         let bookingsArray: any[] = [];
         if (responseData && Array.isArray(responseData.data)) {
           bookingsArray = responseData.data; // For "sales" role
@@ -157,7 +163,6 @@ const BookingsPage: NextPage = () => {
             const dbId = String(item._id ?? "");
             const agencyName = item.agency?.agencyName ?? "N/A";
             
-            // **MODIFIED**: Handle different data structures for wholesaler and provider
             const wholesaler = item.wholesaler;
             const wholesalerName = wholesaler?.wholesalerName ?? (typeof wholesaler === 'string' ? wholesaler : "N/A");
             const provider = item.provider;
@@ -333,13 +338,65 @@ const BookingsPage: NextPage = () => {
     fetchReservations();
   }, [fetchReservations]);
 
+  // --- Start of Filtering Logic ---
   const filteredReservations = reservations.filter((r) => {
-    const status = r.topStatus.toLowerCase();
-    if (activeTab === "All") return true;
-    if (activeTab === "Cancelled")
-      return status === "cancelled" || status === "cancelled";
-    return status === activeTab.toLowerCase();
+    // Hotel Name Filter
+    const hotelNameMatch =
+      !searchHotelName ||
+      r.hotelInfo.name.toLowerCase().includes(searchHotelName.toLowerCase());
+
+    // Booking ID Filter
+    const bookingIdMatch =
+      !searchBookingId ||
+      r.bookingId.toLowerCase().includes(searchBookingId.toLowerCase());
+
+    // Check-in Date Filter
+    const checkInDateMatch =
+      !searchCheckInDate || r.checkIn.startsWith(searchCheckInDate);
+
+    // Check-out Date Filter
+    const checkOutDateMatch =
+      !searchCheckOutDate || r.checkOut.startsWith(searchCheckOutDate);
+      
+    // Guest Name Filter
+    const guestNameMatch =
+      !searchGuestName ||
+      r.passengers.some(p =>
+        `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchGuestName.toLowerCase())
+      );
+
+    // Agency Name Filter
+    const agencyNameMatch =
+      !searchAgencyName ||
+      r.agencyName.toLowerCase().includes(searchAgencyName.toLowerCase());
+
+    // Status Filter for PAYLATER, Credit, and cancelled
+    const statusMatch = (() => {
+        if (!searchStatus) {
+            return true; // "All Statuses" selected, so no filter is applied
+        }
+        const status = searchStatus.toLowerCase();
+        if (status === 'cancelled') {
+            return r.topStatus.toLowerCase() === 'cancelled';
+        }
+        // For PAYLATER and Credit, we check the separate paymentType field
+        if (status === 'paylater' || status === 'credit') {
+            return r.paymentType.toLowerCase() === status;
+        }
+        return true; // Fallback to not filter if status is unrecognized
+    })();
+
+    return (
+      hotelNameMatch &&
+      bookingIdMatch &&
+      checkInDateMatch &&
+      checkOutDateMatch &&
+      guestNameMatch &&
+      agencyNameMatch &&
+      statusMatch
+    );
   });
+  // --- End of Filtering Logic ---
 
   const handleCancelClick = (reservation: Reservation) => {
     setCancelModalRes(reservation);
@@ -500,38 +557,62 @@ const BookingsPage: NextPage = () => {
       </header>
 
       <main className="px-6 py-8">
-        <div className="flex flex-wrap justify-between items-center mb-8">
-          <div className="flex flex-wrap gap-2">
-            {tabs.map((t) => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t as any)}
-                className={`relative px-6 py-3 text-sm font-medium rounded-2xl transition-all duration-300 ${
-                  activeTab === t
-                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 transform scale-105"
-                    : "bg-white/70 dark:bg-gray-800/70 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md hover:scale-105 border border-white/50 dark:border-gray-700/50"
-                }`}
-              >
-                {t}
-                {activeTab === t && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur opacity-30 -z-10"></div>
-                )}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-4 mt-4 lg:mt-0">
-            <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/50 dark:border-gray-700/50">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Total Revenue
-              </div>
-              <div className="text-lg font-bold text-green-600">$52,420</div>
-            </div>
-            <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/50 dark:border-gray-700/50">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                This Month
-              </div>
-              <div className="text-lg font-bold text-blue-600">+12.5%</div>
-            </div>
+        {/* Search and Filter Form */}
+        <div className="mb-8 p-6 bg-white/70 dark:bg-gray-800/70 rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Search & Filter</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <input
+              type="text"
+              placeholder="Search by Hotel Name"
+              value={searchHotelName}
+              onChange={(e) => setSearchHotelName(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+            <input
+              type="text"
+              placeholder="Search by Booking ID"
+              value={searchBookingId}
+              onChange={(e) => setSearchBookingId(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+            <input
+              type="date"
+              placeholder="Check-in Date"
+              value={searchCheckInDate}
+              onChange={(e) => setSearchCheckInDate(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+            <input
+              type="date"
+              placeholder="Check-out Date"
+              value={searchCheckOutDate}
+              onChange={(e) => setSearchCheckOutDate(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+             <input
+              type="text"
+              placeholder="Search by Guest Name"
+              value={searchGuestName}
+              onChange={(e) => setSearchGuestName(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+            <input
+              type="text"
+              placeholder="Search by Agency Name"
+              value={searchAgencyName}
+              onChange={(e) => setSearchAgencyName(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            />
+            <select
+              value={searchStatus}
+              onChange={(e) => setSearchStatus(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
+            >
+              <option value="">All Statuses</option>
+              <option value="PAYLATER">PAYLATER</option>
+              <option value="Credit">Credit</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
         </div>
 
@@ -549,7 +630,7 @@ const BookingsPage: NextPage = () => {
               <p className="text-gray-500 dark:text-gray-400">
                 {reservations.length === 0
                   ? "There is no booking information to display at the moment."
-                  : "No bookings match the selected filters. Try switching to a different tab."}
+                  : "No bookings match the selected filters. Try clearing your search."}
               </p>
             </div>
           </div>
@@ -658,8 +739,8 @@ const BookingsPage: NextPage = () => {
                       <p className="font-semibold text-gray-900 dark:text-gray-100">{guestName}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Provider Name</p>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">{r.providerName}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Agency</p>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">{r.agencyName}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Created On</p>

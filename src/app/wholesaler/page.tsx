@@ -19,6 +19,8 @@ import HistoryTab from './HistoryTab';
 import HistoryTabElite from './HistoryTabElite';
 import CompanyDetailsTab from './CompanyDetailsTab';
 import ManualReservationsTab from './ManualReservationsTab';
+// NEW: Import the Manual Reservations Offline page
+import ManualReservationsOfflineTab from './ManualReservationsOfflineTab';
 import ManageAgentPage from './registration';
 import CreateAgent from './agency-panel';
 import ManageRequestPage from './admin-approve';
@@ -62,8 +64,9 @@ import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
-// ✨ NEW: Import for Campaign Pages
+// ✨ UPDATED: Import for Campaign Pages & new subscriber page
 import CreateCampaign from './CreateCampaign';
+import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
 
 // This is the full list of all possible menu items
 const allMenuItems = [
@@ -409,7 +412,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Booking' && item === 'Booking' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['Overview', 'History', 'Company', 'ManualReservations'].map((tab) => (
+                  {['Overview', 'History', 'Company', 'ManualReservationsOnline', 'ManualReservationsOffline'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -427,7 +430,8 @@ export default function WholesalerPage() {
                         {tab === 'Overview' && 'Overview'}
                         {tab === 'History' && 'History'}
                         {tab === 'Company' && 'Company Details'}
-                        {tab === 'ManualReservations' && 'Manual Reservations'}
+                        {tab === 'ManualReservationsOnline' && 'Manual Reservation Online'}
+                        {tab === 'ManualReservationsOffline' && 'Manual Reservation Offline'}
                       </span>
                     </button>
                   ))}
@@ -456,7 +460,7 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateAgent' && 'Create Agency'}
                         {tab === 'SalesAgency' && 'Sales Agency'}
-                         {tab === 'GetSalesAgency' && 'Get Sales Agency'}
+                        {tab === 'GetSalesAgency' && 'Get Sales Agency'}
                         {tab === 'ManageAgent' && 'Manage Agency'}
                         {tab === 'ManageRequest' && 'Manage Request'}
                       </span>
@@ -467,7 +471,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Campaign' && item === 'Campaign' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['CreateCampaign'].map((tab) => (
+                  {['CreateCampaign', 'CreateSubscriber'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -483,6 +487,7 @@ export default function WholesalerPage() {
                       <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
                       <span className="text-sm">
                         {tab === 'CreateCampaign' && 'Create Campaign'}
+                        {tab === 'CreateSubscriber' && 'Create Subscriber'}
                       </span>
                     </button>
                   ))}
@@ -595,7 +600,7 @@ export default function WholesalerPage() {
               )}
             </div>
           ))}
-        </nav>
+          </nav>
         </div>
 
         {/* Enhanced Footer - Fixed at bottom */}
@@ -696,7 +701,8 @@ export default function WholesalerPage() {
               {activeTab === 'Overview' && <OverviewTab />}
               {activeTab === 'History' && <HistoryTab />}
               {activeTab === 'Company' && <CompanyDetailsTab />}
-              {activeTab === 'ManualReservations' && <ManualReservationsTab />}
+              {activeTab === 'ManualReservationsOnline' && <ManualReservationsTab />}
+              {activeTab === 'ManualReservationsOffline' && <ManualReservationsOfflineTab />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -712,7 +718,7 @@ export default function WholesalerPage() {
           {activePage === 'Customers' && (
             <div className="animate-fade-scale">
               {activeTab === 'SalesAgency' && <SalesAgencyPage />}
-                {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
+              {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
               {activeTab === 'ManageRequest' && <ManageRequestPage />}
@@ -731,6 +737,7 @@ export default function WholesalerPage() {
           {activePage === 'Campaign' && (
             <div className="animate-fade-scale">
               {activeTab === 'CreateCampaign' && <CreateCampaign />}
+              {activeTab === 'CreateSubscriber' && <CreateSubscriber />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mx-auto mb-4">

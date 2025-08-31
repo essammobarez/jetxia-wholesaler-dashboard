@@ -2,7 +2,7 @@ import React, { useState, useEffect, ReactNode, useRef } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip, Button, Alert } from '@mui/material';
+import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip, Button } from '@mui/material';
 import { Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon, Search as SearchIcon } from '@mui/icons-material';
 import { Dayjs } from 'dayjs';
 import { debounce } from 'lodash';
@@ -101,18 +101,6 @@ const searchHotels = async (params: HotelSearchParams): Promise<HotelFromCitySea
     return [];
   }
 };
-
-// --- CHANGE 1: ADD NEW API FUNCTION FOR ROOMS WITH UPDATED URL ---
-const fetchRoomData = async (payload: any) => {
-    try {
-        const response = await axiosInstance.post('hotel/rooms', payload); // URL is now 'hotel/rooms'
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching room data:', error);
-        throw error; // Re-throw to be caught in the handler
-    }
-};
-
 
 // --- UI COMPONENTS ---
 type FormSectionProps = {
@@ -215,11 +203,6 @@ export const Destination = () => {
   const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
   const [nights, setNights] = useState<number | ''>('');
 
-  const [roomApiLoading, setRoomApiLoading] = useState(false);
-  const [roomApiStatus, setRoomApiStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [availableRoomsData, setAvailableRoomsData] = useState<any | null>(null);
-
-
   const debouncedSearch = useRef(
     debounce(async (searchTerm: string) => {
       if (searchTerm.length > 2) {
@@ -257,19 +240,13 @@ export const Destination = () => {
       setSelectedHotelDetails(null);
       setHotelInputValue('');
     }
-    setRoomApiStatus('idle');
   }, [selectedHotelId, hotelsFromCitySearch]);
-  
-  useEffect(() => {
-      setRoomApiStatus('idle');
-  }, [checkIn, checkOut])
 
   const handleDestinationInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setDestination(value);
     setSelectedHotelId('');
     setHotelsFromCitySearch([]);
-    setRoomApiStatus('idle');
     debouncedSearch(value);
   };
 
@@ -280,7 +257,6 @@ export const Destination = () => {
     setShowSuggestions(false);
     setHotelsFromCitySearch([]);
     setSelectedHotelId('');
-    setRoomApiStatus('idle');
     if (destinationInputRef.current) {
       destinationInputRef.current.focus();
     }
@@ -314,64 +290,9 @@ export const Destination = () => {
     setHotelLoading(false);
   };
 
-  const handleCheckAvailability = async () => {
-    if (!selectedHotelDetails || !checkIn || !checkOut) {
-      console.error("Missing required information to check availability.");
-      setRoomApiStatus('error');
-      return;
-    }
-
-    const firstSupplier = selectedHotelDetails.mappedSuppliers?.[0];
-
-    if (!firstSupplier) {
-      console.error('No supplier information found for this hotel.');
-      setRoomApiStatus('error');
-      return;
-    }
-
-    const payload = {
-      supplierId: firstSupplier.supplier,
-      hotelId: String(firstSupplier.supplierHotelId),
-      checkIn: checkIn.format('YYYY-MM-DD'),
-      checkOut: checkOut.format('YYYY-MM-DD'),
-      occupancy: {
-        leaderNationality: 526,
-        rooms: [
-          {
-            adults: 1,
-            childrenAges: []
-          }
-        ]
-      },
-      sellingChannel: "B2B"
-    };
-
-    setRoomApiLoading(true);
-    setRoomApiStatus('idle');
-    setAvailableRoomsData(null);
-
-    try {
-      console.log("Sending payload to hotel/rooms:", payload);
-      const data = await fetchRoomData(payload);
-      console.log("SUCCESS: Received room data:", data);
-      
-      setAvailableRoomsData(data);
-      setRoomApiStatus('success');
-
-    } catch (error) {
-      console.error('Failed to fetch room availability:', error);
-      setRoomApiStatus('error');
-    } finally {
-      setRoomApiLoading(false);
-    }
-  };
-
-
   const filteredHotels = hotelsFromCitySearch.filter(hotel =>
     hotel.name.toLowerCase().includes(hotelInputValue.toLowerCase())
   );
-
-  const isCheckAvailabilityDisabled = !selectedHotelId || !checkIn || !checkOut;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -535,26 +456,6 @@ export const Destination = () => {
               variant="outlined"
               InputProps={{ readOnly: true, style: { backgroundColor: '#f0f0f0' } }}
             />
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              fullWidth
-              disabled={isCheckAvailabilityDisabled || roomApiLoading}
-              onClick={handleCheckAvailability}
-              startIcon={roomApiLoading ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-              sx={{ py: 1.5, mt: 2, fontWeight: 'bold' }}
-            >
-              {roomApiLoading ? 'Searching for Rooms...' : 'Check Room Availability'}
-            </Button>
-            <div className="mt-4 text-center">
-              {roomApiStatus === 'success' && (
-                <Alert severity="success">Room data fetched successfully! Check the console for data.</Alert>
-              )}
-              {roomApiStatus === 'error' && (
-                <Alert severity="error">Failed to fetch rooms. Please check details and try again.</Alert>
-              )}
-            </div>
           </div>
           <HotelDetails hotel={selectedHotelDetails} />
         </div>
