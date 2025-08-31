@@ -349,20 +349,20 @@ const AdminApprove: NextPage = () => {
         <table className="min-w-full">
             <thead className="hidden md:table-header-group md:bg-gray-100">
                 <tr>
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Select</th>
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Agency</th>
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Contact</th>
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Status</th>
-                    {title === "Approved Registrations" && <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Markup</th>}
-                    <th className="px-6 py-3 text-left font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Select</th>
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Agency</th>
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Status</th>
+                    {title === "Approved Registrations" && <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Markup</th>}
+                    <th className="px-6 py-3 text-center font-medium text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
             </thead>
             <tbody className="bg-transparent">
                 {slice.map(r => (
                     // --- RESPONSIVE CHANGE: Row is now a visually distinct card on mobile ---
                     <tr key={r.id} className="block bg-white p-4 rounded-lg shadow-md border mb-4 md:table-row md:p-0 md:bg-transparent md:shadow-none md:border-none md:mb-0">
-                        <td data-label="Select" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                        <td data-label="Select" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
                             <input
                                 type="checkbox"
                                 className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
@@ -370,21 +370,21 @@ const AdminApprove: NextPage = () => {
                                 onChange={() => toggleSelect(r.id)}
                             />
                         </td>
-                        <td data-label="Agency" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none font-medium text-gray-900">{r.agencyName}</td>
-                        <td data-label="Contact" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.contactName}</td>
-                        <td data-label="Email" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.email}</td>
-                        <td data-label="Status" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                        <td data-label="Agency" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none font-medium text-gray-900">{r.agencyName}</td>
+                        <td data-label="Contact" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.contactName}</td>
+                        <td data-label="Email" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">{r.email}</td>
+                        <td data-label="Status" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${r.status === "pending" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
                                 {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                             </span>
                         </td>
                         {title === "Approved Registrations" && (
-                            <td data-label="Markup" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                            <td data-label="Markup" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center border-b md:border-none last:border-none before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
                                 {r.markupPlan?.name || 'N/A'}
                             </td>
                         )}
-                        <td data-label="Actions" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-left before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
-                            <div className="flex items-center justify-end md:justify-start space-x-3">
+                        <td data-label="Actions" className="block md:table-cell py-2 md:px-6 md:py-4 text-right md:text-center before:content-[attr(data-label)] before:font-bold before:float-left md:before:content-none">
+                            <div className="flex items-center justify-end md:justify-center space-x-3">
                                 <button onClick={() => setModalItem(r)} title="View" className="p-1 hover:bg-gray-100 rounded">
                                     <FiFileText size={20} className="text-indigo-600" />
                                 </button>

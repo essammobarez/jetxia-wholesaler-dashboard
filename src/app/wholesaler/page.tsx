@@ -19,6 +19,8 @@ import HistoryTab from './HistoryTab';
 import HistoryTabElite from './HistoryTabElite';
 import CompanyDetailsTab from './CompanyDetailsTab';
 import ManualReservationsTab from './ManualReservationsTab';
+// NEW: Import the Manual Reservations Offline page
+import ManualReservationsOfflineTab from './ManualReservationsOfflineTab';
 import ManageAgentPage from './registration';
 import CreateAgent from './agency-panel';
 import ManageRequestPage from './admin-approve';
@@ -62,11 +64,16 @@ import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
+// ✨ UPDATED: Import for Campaign Pages & new subscriber page
+import CreateCampaign from './CreateCampaign';
+import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
+
 // This is the full list of all possible menu items
 const allMenuItems = [
   'Dashboard',
   'Booking',
   'Customers',
+  'Campaign', // ✨ NEW: Added Campaign menu
   'Markup',
   'Supplier',
   'Sales Person',
@@ -80,7 +87,7 @@ const allMenuItems = [
   // 'Visa',
   // 'Settings',
   'Reports',
-  'Analytics',
+  // 'Analytics',
   'Users',
   'Permissions',
   // 'Notifications',
@@ -392,7 +399,7 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Markup', 'Supplier', 'Reports', 'Sales Person'].includes(item) && (
+                {['Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -405,7 +412,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Booking' && item === 'Booking' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['Overview', 'History', 'Company', 'ManualReservations'].map((tab) => (
+                  {['Overview', 'History', 'Company', 'ManualReservationsOnline', 'ManualReservationsOffline'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -423,7 +430,8 @@ export default function WholesalerPage() {
                         {tab === 'Overview' && 'Overview'}
                         {tab === 'History' && 'History'}
                         {tab === 'Company' && 'Company Details'}
-                        {tab === 'ManualReservations' && 'Manual Reservations'}
+                        {tab === 'ManualReservationsOnline' && 'Manual Reservation Online'}
+                        {tab === 'ManualReservationsOffline' && 'Manual Reservation Offline'}
                       </span>
                     </button>
                   ))}
@@ -452,9 +460,34 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateAgent' && 'Create Agency'}
                         {tab === 'SalesAgency' && 'Sales Agency'}
-                         {tab === 'GetSalesAgency' && 'Get Sales Agency'}
+                        {tab === 'GetSalesAgency' && 'Get Sales Agency'}
                         {tab === 'ManageAgent' && 'Manage Agency'}
                         {tab === 'ManageRequest' && 'Manage Request'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {expandedMenu === 'Campaign' && item === 'Campaign' && (
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['CreateCampaign', 'CreateSubscriber'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Campaign');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
+                        {tab === 'CreateCampaign' && 'Create Campaign'}
+                        {tab === 'CreateSubscriber' && 'Create Subscriber'}
                       </span>
                     </button>
                   ))}
@@ -567,7 +600,7 @@ export default function WholesalerPage() {
               )}
             </div>
           ))}
-        </nav>
+          </nav>
         </div>
 
         {/* Enhanced Footer - Fixed at bottom */}
@@ -668,7 +701,8 @@ export default function WholesalerPage() {
               {activeTab === 'Overview' && <OverviewTab />}
               {activeTab === 'History' && <HistoryTab />}
               {activeTab === 'Company' && <CompanyDetailsTab />}
-              {activeTab === 'ManualReservations' && <ManualReservationsTab />}
+              {activeTab === 'ManualReservationsOnline' && <ManualReservationsTab />}
+              {activeTab === 'ManualReservationsOffline' && <ManualReservationsOfflineTab />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -684,7 +718,7 @@ export default function WholesalerPage() {
           {activePage === 'Customers' && (
             <div className="animate-fade-scale">
               {activeTab === 'SalesAgency' && <SalesAgencyPage />}
-                {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
+              {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
               {activeTab === 'ManageRequest' && <ManageRequestPage />}
@@ -695,6 +729,22 @@ export default function WholesalerPage() {
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Customer Management</h3>
                   <p className="text-gray-500 dark:text-gray-400">Select a customer management option from the sidebar.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activePage === 'Campaign' && (
+            <div className="animate-fade-scale">
+              {activeTab === 'CreateCampaign' && <CreateCampaign />}
+              {activeTab === 'CreateSubscriber' && <CreateSubscriber />}
+              {!activeTab && (
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-teal-600 dark:text-teal-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Campaign Management</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Select an option to create or manage your campaigns.</p>
                 </div>
               )}
             </div>

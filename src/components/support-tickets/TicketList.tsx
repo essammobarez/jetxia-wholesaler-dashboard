@@ -4,22 +4,14 @@ import { Ticket } from './types';
 
 type TicketListProps = {
   tickets: Ticket[];
-  selectedTicket: Ticket | null;
-  onSelect: (ticket: Ticket) => void;
-  isDropdownOpen: string | null;
-  onDropdownToggle: (id: string | null) => void;
-  onEdit: (ticket: Ticket) => void;
-  onDelete: (ticket: Ticket) => void;
+  onSelect: (id: string | null) => void;
+  selectedTicketId: string | null;
 };
 
 const TicketList: React.FC<TicketListProps> = ({
   tickets,
-  selectedTicket,
   onSelect,
-  isDropdownOpen,
-  onDropdownToggle,
-  onEdit,
-  onDelete
+  selectedTicketId
 }) => {
   if (!tickets.length) {
     return (
@@ -43,12 +35,8 @@ const TicketList: React.FC<TicketListProps> = ({
         <TicketCard
           key={ticket._id}
           ticket={ticket}
-          selected={ticket._id === selectedTicket?._id}
-          onClick={() => onSelect(ticket)}
-          isDropdownOpen={isDropdownOpen === ticket._id}
-          onDropdownToggle={() => onDropdownToggle(isDropdownOpen === ticket._id ? null : ticket._id)}
-          onEdit={onEdit}
-          onDelete={onDelete}
+          selected={selectedTicketId === ticket._id}
+          onClick={() => onSelect(ticket?._id)}
         />
       ))}
     </div>

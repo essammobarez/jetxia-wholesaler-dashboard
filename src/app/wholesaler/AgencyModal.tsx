@@ -11,6 +11,7 @@ export type Registration = {
   submittedAt: string;
   address: string;
   phone: string;
+  displaySupplierName?: boolean;
 };
 
 export type Agency = Registration & {
@@ -148,8 +149,8 @@ export function AgencyModal({
                 {mode === 'view'
                   ? 'Agency Profile'
                   : mode === 'edit'
-                  ? 'Edit Agency Info'
-                  : 'Assign Markup Plan'}
+                    ? 'Edit Agency Info'
+                    : 'Assign Markup Plan'}
               </Dialog.Title>
               {mode === 'view' && (
                 <div className="space-y-2 text-gray-700">
@@ -165,6 +166,10 @@ export function AgencyModal({
                   <p>
                     <span className="font-medium">Status:</span>{' '}
                     {agency.suspended ? 'Suspended' : 'Active'}
+                  </p>
+                  <p>
+                    <span className="font-medium">Show suppliers:</span>{' '}
+                    {agency.displaySupplierName ? 'Yes' : 'No'}
                   </p>
                   <div className="flex items-center space-x-2 pt-1">
                     <span className="font-medium">Plan:</span>
@@ -220,7 +225,36 @@ export function AgencyModal({
                         </div>
                       )
                     )}
+                                         <div>
+                       <label className="block text-sm font-medium text-gray-700">
+                         Show suppliers
+                       </label>
+                       <div className="mt-1 block w-full border-gray-300 rounded-md shadow-sm  focus:ring-0 p-2 bg-white">
+                         <div className="flex items-center justify-start gap-2">
+                                                        <button
+                               type="button"
+                               onClick={() =>
+                                 setFormState({ ...formState, displaySupplierName: !formState.displaySupplierName })
+                               }
+                               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-0 focus:ring-blue-500 focus:ring-offset-0 ${
+                                 formState.displaySupplierName ? 'bg-blue-600' : 'bg-gray-300'
+                               }`}
+                             >
+                               <span
+                                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                   formState.displaySupplierName ? 'translate-x-6' : 'translate-x-1'
+                                 }`}
+                               />
+                             </button>
+                             <span className="text-sm text-gray-700">
+                               {formState.displaySupplierName ? 'Yes' : 'No'}
+                             </span>
+                         </div>
+
+                       </div>
+                     </div>
                   </div>
+
                   <div className="pt-4 flex justify-end space-x-2">
                     <button
                       type="button"

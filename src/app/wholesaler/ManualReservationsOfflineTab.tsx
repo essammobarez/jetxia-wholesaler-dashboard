@@ -18,11 +18,11 @@ import ReactCountryFlag from 'react-country-flag';
 import isoCountries from 'i18n-iso-countries';
 
 // Import the newly created component
-import ResellerAndAgent from './manual-reservation/ResellerAndAgent'; 
+import Agency from './manual-reservation/Agency';
 
 import { CancellationPolicy } from './manual-reservation/CancellationPolicy';
 import BackofficeRemarks from './manual-reservation/BackofficeRemarks';
-import { Destination } from './manual-reservation/Destination';
+import { Destination } from './manual-reservation/Destination2';
 import { Travellers } from './manual-reservation/Travellers';
 import { ExternalDetails } from './manual-reservation/ExternalDetails';
 
@@ -248,9 +248,8 @@ const ManualReservation: NextPage = () => {
   const [nextRoomId, setNextRoomId] = useState<number>(initialRoomId + 1);
 
   // Form fields
-  const [reseller, setReseller] = useState('');
-  const [supervisor, setSupervisor] = useState('');
-  const [agent, setAgent] = useState('');
+  const [selectedAgencyId, setSelectedAgencyId] = useState(''); // New state for selected agency ID
+  const [agencyName, setAgencyName] = useState(''); // New state for the agency name
   const [externalId, setExternalId] = useState('');
   const [reservationStatus, setReservationStatus] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -391,17 +390,14 @@ const ManualReservation: NextPage = () => {
           </h1>
 
           <main className="space-y-8">
-            {/* 1. Reseller & Agent + Destination */}
+            {/* 1. Select Agency & Destination */}
             <div className="space-y-8">
-              
               {/* Use the new component here */}
-              <ResellerAndAgent
-                reseller={reseller}
-                setReseller={setReseller}
-                supervisor={supervisor}
-                setSupervisor={setSupervisor}
-                agent={agent}
-                setAgent={setAgent}
+              <Agency
+                selectedAgencyId={selectedAgencyId}
+                setSelectedAgencyId={setSelectedAgencyId}
+                agencyName={agencyName}
+                setAgencyName={setAgencyName}
               />
 
               {/* Destination Section - Now a separate component */}
@@ -409,7 +405,7 @@ const ManualReservation: NextPage = () => {
             </div>
 
             {/* External Details Section - Now a separate component */}
-            {/* <ExternalDetails
+            <ExternalDetails
               externalId={externalId}
               setExternalId={setExternalId}
               reservationStatus={reservationStatus}
@@ -430,7 +426,7 @@ const ManualReservation: NextPage = () => {
               setSupplierConfirmation={setSupplierConfirmation}
               currencies={currencies}
               languages={languages}
-            /> */}
+            />
 
             {/* 3. Travellers & Rooms */}
             <Travellers

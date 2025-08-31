@@ -171,12 +171,14 @@ export default function Login() {
   const [countdown, setCountdown] = useState(300);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null);
+  const [isLoadingLogo, setIsLoadingLogo] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
-  // --- Effects (Unchanged) ---
+  // --- Effects (UPDATED) ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (authStep === 'email-verify-pending' && countdown > 0) {
@@ -201,6 +203,25 @@ export default function Login() {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [authStep, router]);
+
+  // --- New Effect Hook to fetch wholesaler logo ---
+  useEffect(() => {
+    const fetchWholesalerLogo = async () => {
+      try {
+        const website = "http://www.bdesktravel.com";
+        const res = await fetch(`${API_URL}wholesaler/getbywebsite/?website=${website}`);
+        const json = await res.json();
+        if (res.ok && json.success && json.data?.logo) {
+          setWholesalerLogo(json.data.logo);
+        }
+      } catch (err) {
+        console.error('Failed to fetch wholesaler logo:', err);
+      } finally {
+        setIsLoadingLogo(false);
+      }
+    };
+    fetchWholesalerLogo();
+  }, [API_URL]);
 
   // --- Helpers & Handlers (UPDATED) ---
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -245,7 +266,7 @@ export default function Login() {
           body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
         });
         const json = await res.json();
-        
+          
         if (!res.ok || !json.success) {
           throw new Error(json.message || 'Invalid credentials or server error.');
         }
@@ -299,9 +320,9 @@ export default function Login() {
       if (twoFactorToken.length !== 6) {
         throw new Error('Please enter a valid 6-digit code.');
       }
-      
+        
       const isValid = authenticator.verify({ token: twoFactorToken, secret: setupSecret });
-      
+        
       if (!isValid) {
         throw new Error('Invalid 2FA code. Please try again.');
       }
@@ -321,7 +342,7 @@ export default function Login() {
         if (!saveRes.ok || !saveData.success) {
           throw new Error(saveData.message || 'Failed to save 2FA setup.');
         }
-        
+          
         toast.success('2FA set up successfully! Redirecting...');
         router.push('/wholesaler');
 
@@ -339,7 +360,7 @@ export default function Login() {
         setIsLoading(false);
     }
   };
-  
+    
   // --- Render logic for different authentication steps ---
   const renderAuthStep = () => {
     const buttonClassName = `w-full py-3 rounded-lg text-white font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
@@ -370,7 +391,7 @@ export default function Login() {
               required
               placeholder="Password"
             />
-            
+              
             <div className="pt-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">Verification Method</label>
               <div className="grid grid-cols-2 gap-2">
@@ -425,7 +446,7 @@ export default function Login() {
             <h2 className="mb-1 text-xl font-bold text-gray-800">Set Up 2-Factor Authentication</h2>
             <p className="mb-2 text-sm text-gray-600">Scan QR or enter code manually.</p>
             {qrCodeDataUrl && <Image src={qrCodeDataUrl} alt="2FA QR Code" width={160} height={160} className="mx-auto my-2 rounded-lg border p-1 bg-white" />}
-            
+              
             <p className="text-xs text-gray-500 mt-3">Manual Setup Code:</p>
             <div className="my-1 bg-gray-100 p-2 rounded-md">
               <p className="text-base font-mono tracking-wider text-gray-800 break-all select-all">
@@ -479,6 +500,14 @@ export default function Login() {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
+  if (isLoadingLogo) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <ThemeProvider theme={muiTheme}>
       <div className="font-sans antialiased  min-h-screen flex flex-col items-center justify-center p-4">
@@ -486,7 +515,7 @@ export default function Login() {
 
         <div className="w-full max-w-6xl mx-auto">
           <div className="bg-white grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-            
+              
             {/* Left Panel (Unchanged) */}
             <div className="relative p-8 md:p-12 flex flex-col justify-center">
               <div className="absolute -top-5 left-12 w-[320px] h-[90px]">
@@ -500,31 +529,35 @@ export default function Login() {
                 <p className="text-gray-600 text-sm mb-8 max-w-md">
                   Welcome to Booking Desk, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, Booking Desk helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.
                 </p>
-                <button type="button" className="text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+                {/* <button type="button" className="text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
                   Register For Free
-                </button>
+                </button> */}
               </div>
             </div>
 
-            {/* Right Login Panel (Unchanged) */}
+            {/* Right Login Panel (UPDATED) */}
             <div className="relative flex items-center justify-center">
               <div className="absolute inset-0 w-full h-full">
                 <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
               </div>
-              
+                
               <div className="relative bg-white rounded-xl shadow-lg p-8 w-full max-w-sm m-4">
                 {authStep === 'credentials' && (
-                  <div className="flex justify-center mb-6">
-                    <Image src="/images/bdesk.jpg" alt="Booking Desk Logo" width={160} height={55} priority />
+                  <div className="flex justify-center mb-0">
+                    {wholesalerLogo ? (
+                      <Image src={wholesalerLogo} alt="Wholesaler Logo" width={160} height={55} priority />
+                    ) : (
+                      null
+                    )}
                   </div>
                 )}
-                
+                  
                 {message && (
                   <div className={`w-full p-2 rounded text-center mb-4 text-sm ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {message}
                   </div>
                 )}
-                
+                  
                 {renderAuthStep()}
               </div>
 

@@ -149,12 +149,9 @@ const StatementOfAccount: React.FC = () => {
   const [agencies, setAgencies] = useState<
     Array<{ id: string; agencyName: string }>
   >([]);
-  const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    to: new Date().toISOString().split("T")[0],
-  });
+  const [selectedMonth, setSelectedMonth] = useState(
+    new Date().toISOString().slice(0, 7)
+  );
 
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
@@ -280,7 +277,10 @@ const StatementOfAccount: React.FC = () => {
         email: "contact@agency.com",
         phone: "+1234567890",
         address: "Agency Address",
-        statementPeriod: { from: dateRange.from, to: dateRange.to },
+        statementPeriod: { 
+          from: `${selectedMonth}-01`, 
+          to: new Date(new Date(selectedMonth + '-01').getFullYear(), new Date(selectedMonth + '-01').getMonth() + 1, 0).toISOString().split('T')[0] 
+        },
         openingBalance,
         closingBalance,
         totalDebits,
@@ -341,7 +341,7 @@ const StatementOfAccount: React.FC = () => {
       }
     };
     fetchStatementData();
-  }, [dateRange, wholesalerId]);
+  }, [selectedMonth, wholesalerId]);
 
   const filteredStatements =
     selectedAgency === "all"
@@ -514,7 +514,7 @@ STATEMENT OF ACCOUNT
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Agency
@@ -522,7 +522,7 @@ STATEMENT OF ACCOUNT
             <select
               value={selectedAgency}
               onChange={(e) => setSelectedAgency(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="w-full px-3 py-2.5 border border-gray-300 bg-white dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white outline-none"
             >
               <option value="all">All Agencies</option>
               {agencies.map((agency) => (
@@ -534,34 +534,24 @@ STATEMENT OF ACCOUNT
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Date From
+              Month
             </label>
             <input
-              type="date"
-              value={dateRange.from}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, from: e.target.value }))
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Date To
-            </label>
-            <input
-              type="date"
-              value={dateRange.to}
-              onChange={(e) =>
-                setDateRange((prev) => ({ ...prev, to: e.target.value }))
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              type="month"
+              placeholder="Select month"
+              value={selectedMonth}
+              max={new Date().toISOString().slice(0, 7)}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white outline-none"
             />
           </div>
           <div className="w-full">
             <button
-              onClick={() => setSelectedAgency("all")}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+              onClick={() => {
+                setSelectedAgency("all");
+                setSelectedMonth(new Date().toISOString().slice(0, 7));
+              }}
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 outline-none bg-white"
             >
               Clear Filters
             </button>
