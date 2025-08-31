@@ -63,7 +63,7 @@ interface HistoryRow {
 
 // --- CONSTANTS & HELPERS from code2 ---
 const stageConfig = [
-  { key: 'LOGIN', label: 'User Login', color: 'bg-indigo-500', description: 'User logged in' },
+  { key: 'LG', label: 'User Login', color: 'bg-lime-600', description: 'User logged in' },
   { key: 'HS', label: 'Hotel Search', color: 'bg-blue-500', description: 'Initial search performed' },
   { key: 'AV', label: 'Availability', color: 'bg-purple-500', description: 'Availability checked' },
   { key: 'PB', label: 'Pre-booking', color: 'bg-orange-500', description: 'Pre-booking initiated' },
@@ -177,7 +177,7 @@ const HistoryPage: NextPage = () => {
             let status: HistoryRow['status'] = 'processing';
             if (row.BookingStages.includes('OK')) status = 'completed';
             else if (row.BookingStages.includes('PB')) status = 'pending';
-            else if (row.BookingStages.includes('LOGIN')) status = 'processing';
+            else if (row.BookingStages.includes('LG')) status = 'processing';
             else if (row.BookingStages.length === 0) status = 'cancelled';
 
             return {
@@ -519,7 +519,14 @@ const HistoryPage: NextPage = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress:</span>
                     <div className="flex items-center space-x-3">
-                      {stageConfig.map((stage) => (<StatusBadge key={stage.key} stage={stage} active={record.BookingStages.includes(stage.key)} />))}
+                      {stageConfig.map((stage) => {
+                        // If HS is available, LG state will be colored by default
+                        let isActive = record.BookingStages.includes(stage.key);
+                        if (stage.key === 'LG' && record.BookingStages.includes('HS')) {
+                          isActive = true;
+                        }
+                        return <StatusBadge key={stage.key} stage={stage} active={isActive} />;
+                      })}
                     </div>
                   </div>
                   {record.Citizenship && (
