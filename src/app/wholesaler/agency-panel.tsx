@@ -32,6 +32,7 @@ type AgencyWithState = BaseAgency & {
   markupPlanName: string;
   markupPercentage: number;
   suspended: boolean;
+  displaySupplierName?: boolean;
   walletBalance: {
     mainBalance: number;
     availableCredit: number;
@@ -133,9 +134,8 @@ export default function AgencyAdminPanel() {
         if (!json.success || !Array.isArray(json.data)) return;
 
         const enriched: AgencyWithState[] = json.data.map((item: any) => {
-          const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${
-            item.lastName ?? ''
-          }`.trim();
+          const contactName = `${item.title ?? ''} ${item.firstName ?? ''} ${item.lastName ?? ''
+            }`.trim();
           const status =
             (item.status as 'pending' | 'approved' | 'suspended') || 'pending';
           const suspended = status !== 'approved';
@@ -167,6 +167,7 @@ export default function AgencyAdminPanel() {
             markupPlanName,
             markupPercentage,
             suspended,
+            displaySupplierName: item.displaySupplierName || false,
             walletBalance: item.walletBalance || { mainBalance: 0, availableCredit: 0 },
           };
         });
@@ -273,6 +274,7 @@ export default function AgencyAdminPanel() {
         email: agency.email,
         address: agency.address,
         phone: agency.phone,
+        displaySupplierName: agency.displaySupplierName,
       });
     }
 
@@ -283,20 +285,43 @@ export default function AgencyAdminPanel() {
 
   const saveEdit = async () => {
     if (!selected) return;
+    const token =
+      document.cookie
+        .split('; ')
+        .find((r) => r.startsWith('authToken='))
+        ?.split('=')[1] || localStorage.getItem('authToken');
     try {
-      const payload = { agencyName: formState.agencyName };
+      const payload = {
+        agencyName: formState.agencyName,
+      };
       const res = await fetch(`${API_URL}agency/admin/agencies/${selected.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
+
+      await fetch(`${API_URL}agency/${selected.id}/display-supplier-name`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ displaySupplierName: formState.displaySupplierName }),
+      });
+
       const json = await res.json();
       if (!json.success) return;
 
       setAgencies((prev) =>
         prev.map((a) =>
           a.id === selected.id
-            ? { ...a, agencyName: formState.agencyName || a.agencyName }
+            ? {
+              ...a,
+              agencyName: formState.agencyName || a.agencyName,
+              displaySupplierName: formState.displaySupplierName
+            }
             : a
         )
       );
@@ -317,6 +342,7 @@ export default function AgencyAdminPanel() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
+
       const json = await res.json();
       if (!json.success) return;
 
@@ -324,10 +350,10 @@ export default function AgencyAdminPanel() {
         prev.map((a) =>
           a.id === selected.id
             ? {
-                ...a,
-                markupPlanName: profileForm.markupPlanName,
-                markupPercentage: profileForm.markupPercentage,
-              }
+              ...a,
+              markupPlanName: profileForm.markupPlanName,
+              markupPercentage: profileForm.markupPercentage,
+            }
             : a
         )
       );
@@ -428,11 +454,11 @@ export default function AgencyAdminPanel() {
                 ))}
             </div>
 
-            <div className="p-4 space-y-4 lg:p-0 lg:space-y-0 lg:contents">
-                {agencies.map((a) => {
-                    const words = a.markupPlanName.split(' ');
-                    const isPlanNameTruncated = words.length > 2;
-                    const planNameDisplayText = isPlanNameTruncated ? `${words.slice(0, 2).join(' ')}...` : a.markupPlanName;
+          <div className="p-4 space-y-4 lg:p-0 lg:space-y-0 lg:contents">
+            {agencies.map((a) => {
+              const words = a.markupPlanName.split(' ');
+              const isPlanNameTruncated = words.length > 2;
+              const planNameDisplayText = isPlanNameTruncated ? `${words.slice(0, 2).join(' ')}...` : a.markupPlanName;
 
                     return (
                         <div key={a.id} className="bg-white p-4 rounded-lg shadow-md space-y-4 lg:p-0 lg:shadow-none lg:rounded-none lg:bg-transparent lg:contents lg:group">
@@ -478,22 +504,22 @@ export default function AgencyAdminPanel() {
                                                         ${activeTooltip === a.id ? 'visible opacity-100' : 'invisible opacity-0'}
                                                         lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
                                                     `}
-                                                >
-                                                    <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
-                                                        Providers & Markups
-                                                    </h4>
-                                                    <ul className="space-y-1">
-                                                        {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
-                                                            <li key={markup._id} className="flex justify-between items-center space-x-4">
-                                                                <span>{markup.provider?.name ?? 'Default'}</span>
-                                                                <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
-                                                                    {markup.value}%
-                                                                </span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                    <div
-                                                        className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
+                            >
+                              <h4 className="font-bold border-b border-gray-600 pb-1 mb-1">
+                                Providers & Markups
+                              </h4>
+                              <ul className="space-y-1">
+                                {getPlanByName(a.markupPlanName)?.markups.map((markup) => (
+                                  <li key={markup._id} className="flex justify-between items-center space-x-4">
+                                    <span>{markup.provider?.name ?? 'Default'}</span>
+                                    <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
+                                      {markup.value}%
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                              <div
+                                className="absolute left-1/2 -translate-x-1/2 top-full mt-[-1px] w-0 h-0
                                                                     border-x-8 border-x-transparent border-t-8 border-t-gray-800"
                                                     />
                                                 </div>

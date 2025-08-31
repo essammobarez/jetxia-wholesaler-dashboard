@@ -6,6 +6,7 @@ interface DeleteConfirmModalProps {
   onClose: () => void;
   onConfirm: (id: string) => void;
   ticket: Ticket | null;
+  isLoading?: boolean;
 }
 
 const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
@@ -13,6 +14,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   onClose,
   onConfirm,
   ticket,
+  isLoading = false,
 }) => {
   const [confirmText, setConfirmText] = useState('');
 
@@ -28,7 +30,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-[9999]">
       <div className="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -100,10 +102,10 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={confirmText.toLowerCase() !== 'delete'}
+              disabled={confirmText.toLowerCase() !== 'delete' || isLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Delete Ticket
+              {isLoading ? 'Deleting...' : 'Delete Ticket'}
             </button>
           </div>
         </form>
