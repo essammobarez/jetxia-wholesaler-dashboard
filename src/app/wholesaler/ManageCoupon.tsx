@@ -59,6 +59,7 @@ export default function ManageCoupon() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [showViewModal, setShowViewModal] = useState<boolean>(false);
+  const [showAgencyModal, setShowAgencyModal] = useState<boolean>(false);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
@@ -118,16 +119,112 @@ export default function ManageCoupon() {
     setError('');
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/coupon/by-wholesaler/${wholesalerId}`
-      );
-      const data = await response.json();
+      // Dummy data for testing
+      const dummyCoupons: Coupon[] = [
+        {
+          _id: '1',
+          couponCode: 'SUMMER2024',
+          description: 'Summer vacation discount for all bookings',
+          status: 'active',
+          validFrom: '2024-06-01T00:00:00.000Z',
+          validUntil: '2024-08-31T23:59:59.000Z',
+          limit: 100,
+          discountType: 'percentage',
+          discountValue: 15,
+          applicableAgencies: ['agency1', 'agency2'],
+          applicableBookingType: ['hotel', 'flight', 'package'],
+          createdByWholesaler: wholesalerId,
+          agencyUsageLimits: [
+            { agencyId: 'agency1', usageLimit: 50 },
+            { agencyId: 'agency2', usageLimit: 30 }
+          ],
+          createdAt: '2024-05-15T10:00:00.000Z',
+          updatedAt: '2024-05-15T10:00:00.000Z'
+        },
+        {
+          _id: '2',
+          couponCode: 'WELCOME10',
+          description: 'Welcome bonus for new customers',
+          status: 'active',
+          validFrom: '2024-01-01T00:00:00.000Z',
+          validUntil: '2024-12-31T23:59:59.000Z',
+          limit: 500,
+          discountType: 'fixed_amount',
+          discountValue: 50,
+          applicableAgencies: ['agency1', 'agency3'],
+          applicableBookingType: ['hotel'],
+          createdByWholesaler: wholesalerId,
+          agencyUsageLimits: [
+            { agencyId: 'agency1', usageLimit: 200 },
+            { agencyId: 'agency3', usageLimit: 150 }
+          ],
+          createdAt: '2024-01-01T08:00:00.000Z',
+          updatedAt: '2024-01-01T08:00:00.000Z'
+        },
+        {
+          _id: '3',
+          couponCode: 'EXPIRED20',
+          description: 'Expired promotional coupon',
+          status: 'expired',
+          validFrom: '2024-03-01T00:00:00.000Z',
+          validUntil: '2024-03-31T23:59:59.000Z',
+          limit: 50,
+          discountType: 'percentage',
+          discountValue: 20,
+          applicableAgencies: ['agency2'],
+          applicableBookingType: ['flight', 'car'],
+          createdByWholesaler: wholesalerId,
+          agencyUsageLimits: [
+            { agencyId: 'agency2', usageLimit: 25 }
+          ],
+          createdAt: '2024-02-15T12:00:00.000Z',
+          updatedAt: '2024-02-15T12:00:00.000Z'
+        },
+        {
+          _id: '4',
+          couponCode: 'SUSPENDED',
+          description: 'Temporarily suspended coupon',
+          status: 'suspended',
+          validFrom: '2024-04-01T00:00:00.000Z',
+          validUntil: '2024-06-30T23:59:59.000Z',
+          limit: 75,
+          discountType: 'percentage',
+          discountValue: 25,
+          applicableAgencies: ['agency1', 'agency2', 'agency3'],
+          applicableBookingType: ['package', 'activity'],
+          createdByWholesaler: wholesalerId,
+          agencyUsageLimits: [
+            { agencyId: 'agency1', usageLimit: 30 },
+            { agencyId: 'agency2', usageLimit: 25 },
+            { agencyId: 'agency3', usageLimit: 20 }
+          ],
+          createdAt: '2024-03-20T14:30:00.000Z',
+          updatedAt: '2024-03-20T14:30:00.000Z'
+        },
+        {
+          _id: '5',
+          couponCode: 'INACTIVE5',
+          description: 'Inactive test coupon',
+          status: 'inactive',
+          validFrom: '2024-05-01T00:00:00.000Z',
+          validUntil: '2024-07-31T23:59:59.000Z',
+          limit: 25,
+          discountType: 'fixed_amount',
+          discountValue: 25,
+          applicableAgencies: ['agency3'],
+          applicableBookingType: ['car'],
+          createdByWholesaler: wholesalerId,
+          agencyUsageLimits: [
+            { agencyId: 'agency3', usageLimit: 15 }
+          ],
+          createdAt: '2024-04-25T09:15:00.000Z',
+          updatedAt: '2024-04-25T09:15:00.000Z'
+        }
+      ];
 
-      if (response.ok) {
-        setCoupons(data || []);
-      } else {
-        setError('Failed to load coupons');
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCoupons(dummyCoupons);
     } catch (err) {
       setError('Failed to fetch coupons. Please try again later.');
     } finally {
@@ -139,14 +236,38 @@ export default function ManageCoupon() {
     if (!wholesalerId) return;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/agency/by-wholesaler/${wholesalerId}`
-      );
-      const data = await response.json();
+      // Dummy data for testing
+      const dummyAgencies: Agency[] = [
+        {
+          _id: 'agency1',
+          name: 'Travel Pro Agency',
+          email: 'contact@travelpro.com'
+        },
+        {
+          _id: 'agency2',
+          name: 'Global Travel Solutions',
+          email: 'info@globaltravel.com'
+        },
+        {
+          _id: 'agency3',
+          name: 'Elite Travel Services',
+          email: 'support@elitetravel.com'
+        },
+        {
+          _id: 'agency4',
+          name: 'Budget Travel Co.',
+          email: 'hello@budgettravel.com'
+        },
+        {
+          _id: 'agency5',
+          name: 'Luxury Travel Partners',
+          email: 'contact@luxurytravel.com'
+        }
+      ];
 
-      if (response.ok) {
-        setAgencies(data || []);
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAgencies(dummyAgencies);
     } catch (err) {
       console.error('Failed to fetch agencies:', err);
     }
@@ -190,6 +311,11 @@ export default function ManageCoupon() {
   const handleViewCoupon = (coupon: Coupon) => {
     setSelectedCoupon(coupon);
     setShowViewModal(true);
+  };
+
+  const handleManageAgencies = (coupon: Coupon) => {
+    setSelectedCoupon(coupon);
+    setShowAgencyModal(true);
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -248,28 +374,33 @@ export default function ManageCoupon() {
     };
 
     try {
-      const url = showEditModal && selectedCoupon
-        ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/coupon/${selectedCoupon._id}`
-        : `${process.env.NEXT_PUBLIC_BACKEND_URL}/coupon`;
-      
-      const method = showEditModal ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      if (response.ok) {
-        setShowAddModal(false);
-        setShowEditModal(false);
-        await fetchCoupons();
+      if (showEditModal && selectedCoupon) {
+        // Simulate edit
+        setCoupons(prev => prev.map(coupon => 
+          coupon._id === selectedCoupon._id 
+            ? {
+                ...coupon,
+                ...payload,
+                updatedAt: new Date().toISOString()
+              }
+            : coupon
+        ));
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to save coupon');
+        // Simulate create
+        const newCoupon: Coupon = {
+          _id: Date.now().toString(),
+          ...payload,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setCoupons(prev => [...prev, newCoupon]);
       }
+
+      setShowAddModal(false);
+      setShowEditModal(false);
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
     } finally {
@@ -281,16 +412,11 @@ export default function ManageCoupon() {
     if (!confirm('Are you sure you want to delete this coupon?')) return;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/coupon/${couponId}`,
-        { method: 'DELETE' }
-      );
-
-      if (response.ok) {
-        await fetchCoupons();
-      } else {
-        setError('Failed to delete coupon');
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Simulate delete
+      setCoupons(prev => prev.filter(coupon => coupon._id !== couponId));
     } catch (err) {
       setError('An unexpected error occurred while deleting the coupon.');
     }
@@ -409,50 +535,50 @@ export default function ManageCoupon() {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Percent className="w-6 h-6 text-blue-600" />
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Coupons</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalCoupons}</p>
             </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Percent className="w-6 h-6 text-blue-600" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Active</p>
               <p className="text-2xl font-bold text-green-600">{activeCoupons}</p>
             </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Expired</p>
               <p className="text-2xl font-bold text-red-600">{expiredCoupons}</p>
             </div>
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Suspended</p>
               <p className="text-2xl font-bold text-yellow-600">{suspendedCoupons}</p>
+            </div>
+            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <Clock className="w-6 h-6 text-yellow-600" />
             </div>
           </div>
         </div>
@@ -460,7 +586,7 @@ export default function ManageCoupon() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 justify-center items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Search Coupons
@@ -479,12 +605,12 @@ export default function ManageCoupon() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Status Filter
+              Status
             </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-600 dark:text-gray-100"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -500,7 +626,7 @@ export default function ManageCoupon() {
                 setSearchTerm('');
                 setStatusFilter('all');
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+              className="px-6 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
             >
               Clear Filters
             </button>
@@ -608,7 +734,7 @@ export default function ManageCoupon() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center space-x-4">
+                      <div className="flex items-center justify-center space-x-3">
                         <button
                           onClick={() => handleViewCoupon(coupon)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
@@ -622,6 +748,13 @@ export default function ManageCoupon() {
                           title="Edit"
                         >
                           <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleManageAgencies(coupon)}
+                          className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
+                          title="Manage Agencies"
+                        >
+                          <Users className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDeleteCoupon(coupon._id)}
@@ -811,47 +944,7 @@ export default function ManageCoupon() {
                   </div>
                 </div>
 
-                {/* Agency Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Applicable Agencies
-                  </label>
-                  <div className="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                    {agencies.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        No agencies available
-                      </p>
-                    ) : (
-                      agencies.map((agency) => (
-                        <div key={agency._id} className="flex items-center justify-between py-2">
-                          <label className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.applicableAgencies.includes(agency._id)}
-                              onChange={(e) => handleAgencySelection(agency._id, e.target.checked)}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {agency.name}
-                            </span>
-                          </label>
-                          {formData.applicableAgencies.includes(agency._id) && (
-                            <input
-                              type="number"
-                              placeholder="Usage limit"
-                              min="1"
-                              value={
-                                formData.agencyUsageLimits.find(item => item.agencyId === agency._id)?.usageLimit || ''
-                              }
-                              onChange={(e) => handleAgencyUsageLimitChange(agency._id, Number(e.target.value))}
-                              className="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                            />
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+
 
                 <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <button
@@ -1036,6 +1129,160 @@ export default function ManageCoupon() {
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Agency Management Modal */}
+      {showAgencyModal && selectedCoupon && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg shadow-lg">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Manage Agencies for {selectedCoupon.couponCode}
+                </h2>
+                <button
+                  onClick={() => setShowAgencyModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Select Applicable Agencies
+                  </label>
+                  <div className="max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                    {agencies.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        No agencies available
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {agencies.map((agency) => {
+                          const isSelected = selectedCoupon.applicableAgencies.includes(agency._id);
+                          const usageLimit = selectedCoupon.agencyUsageLimits.find(
+                            item => item.agencyId === agency._id
+                          )?.usageLimit || 0;
+                          
+                          return (
+                            <div key={agency._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setSelectedCoupon(prev => {
+                                      if (!prev) return prev;
+                                      return {
+                                        ...prev,
+                                        applicableAgencies: checked
+                                          ? [...prev.applicableAgencies, agency._id]
+                                          : prev.applicableAgencies.filter(id => id !== agency._id),
+                                        agencyUsageLimits: checked
+                                          ? [...prev.agencyUsageLimits, { agencyId: agency._id, usageLimit: 1 }]
+                                          : prev.agencyUsageLimits.filter(item => item.agencyId !== agency._id)
+                                      };
+                                    });
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div>
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {agency.name}
+                                  </span>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {agency.email}
+                                  </p>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <div className="flex items-center space-x-2">
+                                  <label className="text-xs text-gray-500 dark:text-gray-400">
+                                    Usage Limit:
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={usageLimit}
+                                    onChange={(e) => {
+                                      const newLimit = Number(e.target.value);
+                                      setSelectedCoupon(prev => {
+                                        if (!prev) return prev;
+                                        return {
+                                          ...prev,
+                                          agencyUsageLimits: prev.agencyUsageLimits.map(item =>
+                                            item.agencyId === agency._id
+                                              ? { ...item, usageLimit: newLimit }
+                                              : item
+                                          )
+                                        };
+                                      });
+                                    }}
+                                    className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-600 dark:text-white"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedCoupon.applicableAgencies.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Selected Agencies Summary
+                    </label>
+                    <div className="space-y-2">
+                      {selectedCoupon.applicableAgencies.map((agencyId) => {
+                        const agency = agencies.find(a => a._id === agencyId);
+                        const usageLimit = selectedCoupon.agencyUsageLimits.find(
+                          item => item.agencyId === agencyId
+                        )?.usageLimit;
+                        return (
+                          <div key={agencyId} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/30 rounded">
+                            <span className="text-sm text-gray-900 dark:text-white">
+                              {agency?.name || 'Unknown Agency'}
+                            </span>
+                            <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                              Limit: {usageLimit}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowAgencyModal(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Update the coupon in the main list
+                    setCoupons(prev => prev.map(coupon => 
+                      coupon._id === selectedCoupon._id ? selectedCoupon : coupon
+                    ));
+                    setShowAgencyModal(false);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Save Changes
                 </button>
               </div>
             </div>
