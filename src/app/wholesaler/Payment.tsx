@@ -1308,12 +1308,8 @@ const PaymentLogPage: FC = () => {
               </div>
               )}
 
-              {/* 3) Outstanding Selection - Only shown when agency's outstanding > payment amount */}
-              {selectedAgencyId && paymentAmount && parseFloat(paymentAmount) > 0 && (() => {
-                const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
-                const showOutstandingSelection = selectedAgency && selectedAgency.totalOutstanding > parseFloat(paymentAmount);
-                
-                return showOutstandingSelection ? (
+              {/* 3) Outstanding Selection */}
+              {selectedAgencyId && paymentAmount && parseFloat(paymentAmount) > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -1416,8 +1412,7 @@ const PaymentLogPage: FC = () => {
                       </div>
                     )}
                   </div>
-                ) : null;
-              })()}
+              )}
 
 
 

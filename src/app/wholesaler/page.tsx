@@ -64,6 +64,9 @@ import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
 
+// Import for Coupon management
+import ManageCoupon from './ManageCoupon';
+
 // ✨ UPDATED: Import for Campaign Pages & new subscriber page
 import CreateCampaign from './CreateCampaign';
 import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
@@ -74,6 +77,7 @@ const allMenuItems = [
   'Booking',
   'Customers',
   'Campaign', // ✨ NEW: Added Campaign menu
+  'Coupon',
   'Markup',
   'Supplier',
   'Sales Person',
@@ -749,6 +753,8 @@ export default function WholesalerPage() {
               )}
             </div>
           )}
+
+          {activePage === 'Coupon' && <ManageCoupon />}
 
           {activePage === 'Markup' && (
             <div className="animate-fade-scale">
