@@ -1209,6 +1209,14 @@ const PaymentLogPage: FC = () => {
             <div className="p-6 space-y-6">
               {/* 1) Payment Amount - Always shown first */}
               <div className="space-y-2">
+                {selectedAgencyId && (() => {
+                  const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                  return selectedAgency ? (
+                    <div className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                      You're paying for ${selectedAgency.totalOutstanding.toFixed(2)} outstanding
+                    </div>
+                  ) : null;
+                })()}
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Payment Amount
                 </label>
