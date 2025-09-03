@@ -37,8 +37,8 @@ const statusMap = {
     color: "text-green-500",
     label: "Completed",
   },
-  pending: { icon: FaCommentAlt, color: "text-yellow-500", label: "PR" },
-  confirmed: { icon: FaCheckCircle, color: "text-green-500", label: "Paid" },
+  pending: { icon: FaCommentAlt, color: "text-yellow-500", label: "Pending" },
+  confirmed: { icon: FaCheckCircle, color: "text-green-500", label: "Confirmed" },
   ok: { icon: FaCheckCircle, color: "text-green-500", label: "OK" },
 };
 
@@ -148,67 +148,60 @@ const BookingsPage: NextPage = () => {
         } else if (Array.isArray(responseData)) {
           bookingsArray = responseData; // For other roles
         }
-
+        
         if (bookingsArray.length > 0) {
           const mapped: Reservation[] = bookingsArray.map((item: any) => {
-            const priceDetails = item.priceDetails || {};
-            const bookingData = item.bookingData || {};
-            const init = bookingData.initialResponse || {};
-            const det = bookingData.detailedInfo?.service || {};
+            const room = item.rooms?.[0] || {};
+            const detailedService = room.bookingData?.detailedInfo?.service || {};
+
             const bookingId = String(item.bookingId ?? "");
             const sequenceNumber = Number(item.sequenceNumber ?? 0);
-            const reservationId = Number(item.reservationId ?? 0);
+            const reservationId = Number(room.reservationId ?? 0);
             const topStatus = String(item.status ?? "").toLowerCase();
             const createdAt = String(item.createdAt ?? "");
             const dbId = String(item._id ?? "");
             const agencyName = item.agency?.agencyName ?? "N/A";
-            
-            const wholesaler = item.wholesaler;
-            const wholesalerName = wholesaler?.wholesalerName ?? (typeof wholesaler === 'string' ? wholesaler : "N/A");
-            const provider = item.provider;
-            const providerId = typeof provider === 'string' ? provider : provider?._id ?? "N/A";
-            const providerName = typeof provider === 'object' && provider !== null ? provider.name ?? "N/A" : "N/A";
 
-            const clientRef = String(init.clientRef ?? "");
-            const serviceType = String(init.type ?? "");
-            const initStatus = String(init.status ?? "").toLowerCase();
-            const addedTime = String(init.added?.time ?? "");
-            const addedUser = String(init.added?.user?.name ?? "");
-            const paymentType = String(det.payment?.type ?? "");
-            const paymentStatus = String(det.payment?.status ?? "");
+            const wholesaler = item.wholesaler;
+            const wholesalerName =
+              typeof wholesaler === "object" && wholesaler !== null
+                ? wholesaler.wholesalerName
+                : typeof wholesaler === "string"
+                ? wholesaler
+                : "N/A";
+            const providerId = item.providers?.[0] ?? "N/A";
+            const providerName = "N/A"; // Name is not in the new structure directly
+
+            const clientRef = String(item.clientReference ?? "");
+            const serviceType = "hotel"; // Assuming 'hotel' as it's not explicitly in the new structure
+            const initStatus = String(room.status ?? "").toLowerCase();
+
+            const addedTime = String(detailedService.added?.time ?? "");
+            const addedUser = String(detailedService.added?.user?.name ?? "");
+
+            const paymentType = String(item.bookingType ?? "");
+            const paymentStatus = String(item.status ?? ""); // Using top-level status
+
             const rateDescription = String(
-              det.rateDetails?.description ?? ""
+              detailedService.rateDetails?.name ?? room.board ?? ""
             );
-            const priceIssueSelling = Number(
-              priceDetails.price?.value ??
-                det.prices?.issue?.selling?.value ??
-                0
-            );
+
+            const priceIssueSelling = Number(item.totalPrice?.value ?? 0);
             const priceIssueNet = Number(
-              priceDetails.originalPrice?.value ??
-                det.prices?.issue?.net?.value ??
-                0
+              detailedService.prices?.total?.net?.value ?? 0
             );
             const priceIssueCommission = Number(
-              det.prices?.issue?.commission?.value ?? 0
+              detailedService.prices?.total?.commission?.value ?? 0
             );
-            const price =
-              priceIssueSelling > 0
-                ? priceIssueSelling
-                : Number(init.price?.selling?.value ?? 0);
-            const currency = String(
-              priceDetails.price?.currency ||
-                det.prices?.issue?.selling?.currency ||
-                init.price?.selling?.currency ||
-                "USD"
-            );
-            const cancellationDate = String(
-              det.cancellationPolicy?.date ?? ""
-            );
-            const checkIn = String(det.serviceDates?.startDate ?? "");
-            const checkOut = String(det.serviceDates?.endDate ?? "");
-            let durationNights = Number(det.serviceDates?.duration ?? 0);
-            let nights = durationNights;
+            
+            const price = priceIssueSelling;
+            const currency = String(item.totalPrice?.currency ?? "USD");
+            
+            const cancellationDate = String(room.cancellationPolicy?.date ?? "");
+
+            const checkIn = String(item.serviceDates?.startDate ?? "");
+            const checkOut = String(item.serviceDates?.endDate ?? "");
+            let nights = Number(item.serviceDates?.duration ?? 0);
             if ((!nights || nights <= 0) && checkIn && checkOut) {
               const d1 = new Date(checkIn);
               const d2 = new Date(checkOut);
@@ -216,15 +209,19 @@ const BookingsPage: NextPage = () => {
               nights =
                 diffMs > 0 ? Math.round(diffMs / (1000 * 60 * 60 * 24)) : 0;
             }
-            const destinationCity = det.destination?.city?.name ?? "";
-            const destinationCountry = det.destination?.country?.name ?? "";
-            const nationality = det.nationality?.name ?? "";
-            const passengers = Array.isArray(det.passengers)
-              ? det.passengers.map((p: any) => ({
-                  paxId: Number(p.paxId ?? 0),
+
+            const destinationCity = item.hotel?.city ?? "";
+            const destinationCountry = item.hotel?.country ?? "";
+            
+            const firstGuest = room.guests?.[0];
+            const nationality = firstGuest?.nationality ?? "";
+            
+            const passengers = Array.isArray(room.guests)
+              ? room.guests.map((p: any) => ({
+                  paxId: 0, // Not available in new structure, default to 0
                   type: String(p.type ?? ""),
                   lead: !!p.lead,
-                  title: String(p.title ?? ""),
+                  title: "", // Not available, default to empty
                   firstName: String(p.firstName ?? ""),
                   lastName: String(p.lastName ?? ""),
                   email: p.email ?? null,
@@ -232,36 +229,20 @@ const BookingsPage: NextPage = () => {
                   phonePrefix: p.phonePrefix ?? null,
                 }))
               : [];
-            const remarks: {
-              code: string;
-              name: string;
-              list: string[];
-            }[] = Array.isArray(det.remarks)
-              ? det.remarks.map((r: any) => ({
-                  code: String(r.code ?? ""),
-                  name: String(r.name ?? ""),
-                  list: Array.isArray(r.list)
-                    ? r.list.map((s: any) => String(s))
-                    : [],
-                }))
-              : [];
+            
+            const remarks: any[] = []; // Not available in new structure
+            
             const hotelInfo = {
-              id: String(det.hotel?.id ?? ""),
-              name: String(det.hotel?.name ?? "N/A"),
-              stars: Number(det.hotel?.stars ?? 0),
-              lastUpdated: String(det.hotel?.lastUpdated ?? ""),
-              cityId: String(det.hotel?.cityId ?? ""),
-              countryId: String(det.hotel?.countryId ?? ""),
+              id: String(detailedService.hotel?.id ?? ""),
+              name: String(item.hotel?.name ?? "N/A"),
+              stars: Number(item.hotel?.stars ?? 0),
+              lastUpdated: String(detailedService.hotel?.lastUpdated ?? ""),
+              cityId: String(detailedService.hotel?.cityId ?? ""),
+              countryId: String(detailedService.hotel?.countryId ?? ""),
             };
-            const rooms: {
-              id: string;
-              name: string;
-              board: string;
-              boardBasis: string;
-              info: string;
-              passengerIds: number[];
-            }[] = Array.isArray(det.rooms)
-              ? det.rooms.map((rm: any) => ({
+            
+            const detailedRooms = Array.isArray(detailedService.rooms)
+              ? detailedService.rooms.map((rm: any) => ({
                   id: String(rm.id ?? ""),
                   name: String(rm.name ?? ""),
                   board: String(rm.board ?? ""),
@@ -272,7 +253,9 @@ const BookingsPage: NextPage = () => {
                     : [],
                 }))
               : [];
+
             const freeCancellation = cancellationDate;
+            
             return {
               dbId,
               bookingId,
@@ -308,7 +291,7 @@ const BookingsPage: NextPage = () => {
               passengers,
               remarks,
               hotelInfo,
-              rooms,
+              rooms: detailedRooms,
               freeCancellation,
               priceDetails: item.priceDetails,
             };
@@ -333,6 +316,7 @@ const BookingsPage: NextPage = () => {
       setLoading(false);
     }
   }, [wholesalerId]);
+
 
   useEffect(() => {
     fetchReservations();
@@ -639,7 +623,7 @@ const BookingsPage: NextPage = () => {
         {filteredReservations.map((r) => {
           const isExpanded = expandedCardId === r.bookingId;
           const statusKey = r.topStatus.toLowerCase() as keyof typeof statusMap;
-          const statusDetails = statusMap[statusKey] || statusMap.confirmed;
+          const statusDetails = statusMap[statusKey] || statusMap.pending;
           const IconStatus = statusDetails.icon;
           const leadPassenger =
             r.passengers.find((p) => p.lead) || r.passengers[0];
@@ -667,7 +651,7 @@ const BookingsPage: NextPage = () => {
 
           return (
             <div
-              key={r.reservationId}
+              key={r.bookingId} // Using bookingId as key since reservationId might not be unique in all contexts
               className="bg-white dark:bg-gray-800 rounded-lg mb-4 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
             >
               {/* --- Card Header (Always Visible) --- */}

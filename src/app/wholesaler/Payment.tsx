@@ -535,27 +535,11 @@ const PaymentLogPage: FC = () => {
     setSelectedPayment(null)
   }
 
-  // Payment Modal open/close (unchanged)
-  // const openPaymentModal = () => {
-  //   setShowPaymentModal(true)
-  //   setSelectedAgencyId('')
-  //   setPaymentAmount('')
-  //   setPaymentError(null)
-  //   setAgencySearchTerm('')
-  // }
-  // const closePaymentModal = () => {
-  //   setShowPaymentModal(false)
-  //   setSelectedAgencyId('')
-  //   setPaymentAmount('')
-  //   setPaymentError(null)
-  //   setAgencySearchTerm('')
-  // }
-
   // Outstanding Payment Modal open/close
   const openOutstandingPaymentModal = () => {
     setShowOutstandingPaymentModal(true)
     setSelectedAgencyId('')
-    // Don't reset paymentAmount - keep it independent
+    setPaymentAmount('')
     setPaymentError(null)
     setAgencySearchTerm('')
     setLedgerLoading(false)
@@ -569,7 +553,7 @@ const PaymentLogPage: FC = () => {
   const closeOutstandingPaymentModal = () => {
     setShowOutstandingPaymentModal(false)
     setSelectedAgencyId('')
-    // Don't reset paymentAmount - keep it independent
+    setPaymentAmount('')
     setPaymentError(null)
     setAgencySearchTerm('')
     setLedgerLoading(false)
@@ -635,56 +619,6 @@ const PaymentLogPage: FC = () => {
       setPaymentError(null)
     }
   }
-
-  // Submit for regular Make Payment (unchanged behavior: pays all outstanding if no ledgerIds specified)
-  // const handlePaymentSubmit = async () => {
-  //   if (!selectedAgencyId) {
-  //     setPaymentError('Please select an agency')
-  //     return
-  //   }
-  //   if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-  //     setPaymentError('Please enter a valid payment amount')
-  //     return
-  //   }
-  //   const amount = parseFloat(paymentAmount)
-  //   if (isNaN(amount)) {
-  //     setPaymentError('Please enter a valid number')
-  //     return
-  //   }
-
-  //   const selectedAgency = agencies.find(a => a._id === selectedAgencyId)
-  //   if (!selectedAgency) {
-  //     setPaymentError('Selected agency not found')
-  //     return
-  //   }
-
-  //   setPaymentLoading(true)
-  //   setPaymentError(null)
-
-  //   try {
-  //     const result = await makePaymentToAgency(selectedAgency._id, amount)
-  //     console.log('Payment successful:', result)
-
-  //     closePaymentModal()
-
-  //     if (wholesalerId) {
-  //       const agenciesData = await fetchAgencies(wholesalerId)
-  //       setAgencies(agenciesData)
-
-  //       const paymentResponse = await fetchPayments(wholesalerId, pagination.currentPage, pagination.limit)
-  //       if (paymentResponse.success && paymentResponse.data.payments) {
-  //         setPayments(paymentResponse.data.payments)
-  //         setPagination(paymentResponse.data.pagination)
-  //       }
-  //     }
-
-  //     setError(null)
-  //   } catch (err: any) {
-  //     setPaymentError(err.message || 'Payment failed. Please try again.')
-  //   } finally {
-  //     setPaymentLoading(false)
-  //   }
-  // }
 
   // Submit for Outstanding Payment (uses selected ledgerIds)
   const handleOutstandingPaymentSubmit = async () => {
@@ -844,16 +778,8 @@ const PaymentLogPage: FC = () => {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-2 sm:space-y-0 w-full sm:w-auto">
-          {/* <button
-            onClick={openOutstandingPaymentModal}
-            className="bg-stone-600 hover:bg-stone-700 text-white w-full sm:w-auto px-4 py-2 rounded-xl font-medium transition-colors duration-200"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Outstanding Payment
-          </button> */}
           <button
             onClick={openOutstandingPaymentModal}
-            // onClick={openPaymentModal}
             className="bg-purple-600 hover:bg-purple-700 text-white w-full sm:w-auto px-4 py-2 rounded-xl font-medium transition-colors duration-200"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -1209,6 +1135,14 @@ const PaymentLogPage: FC = () => {
             <div className="p-6 space-y-6">
               {/* 1) Payment Amount - Always shown first */}
               <div className="space-y-2">
+                {selectedAgencyId && (() => {
+                  const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                  return selectedAgency ? (
+                    <div className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                      You're paying for ${selectedAgency.totalOutstanding.toFixed(2)} outstanding
+                    </div>
+                  ) : null;
+                })()}
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Payment Amount
                 </label>
@@ -1234,190 +1168,185 @@ const PaymentLogPage: FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                     Select Agency
                   </label>
-                <div className="relative agency-dropdown">
-                  <button
-                    type="button"
-                    onClick={toggleAgencyDropdown}
-                    disabled={agenciesLoading}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 transition-colors text-left flex items-center justify-between"
-                  >
-                    <span className={selectedAgencyId ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}>
-                      {selectedAgencyId
-                        ? (() => {
-                          const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
-                          return selectedAgency ? `${selectedAgency.agencyName} ($${selectedAgency.totalOutstanding.toFixed(2)})` : 'Choose an agency...';
-                        })()
-                        : 'Choose an agency...'
-                      }
-                    </span>
-                    <svg className={`w-5 h-5 text-gray-400 transition-transform ${showAgencyDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {showAgencyDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden">
-                      {/* Search Input */}
-                      <div className="sticky top-0 bg-white dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 p-3">
-                        <div className="relative">
-                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                          <input
-                            type="text"
-                            value={agencySearchTerm}
-                            onChange={(e) => setAgencySearchTerm(e.target.value)}
-                            placeholder="Search agencies..."
-                            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 focus:bg-white dark:focus:bg-gray-700 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Agency List */}
-                      <div className="max-h-48 overflow-y-auto">
-                        {filteredAgencies.length > 0 ? (
-                          filteredAgencies.map((agency) => (
-                            <button
-                              key={agency._id}
-                              type="button"
-                              onClick={() => handleAgencySelect(agency._id)}
-                              className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                            >
-                              <div className="font-medium text-gray-900 dark:text-white">
-                                {agency.agencyName}
-                              </div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                Total Outstanding: ${agency.totalOutstanding.toFixed(2)} ({agency.totalItems} items)
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-4 py-6 text-center">
-                            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                              <Search className="w-6 h-6 text-gray-400" />
-                            </div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No agencies found</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              Try adjusting your search terms
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              )}
-
-              {/* 3) Outstanding Selection - Only shown when agency's outstanding > payment amount */}
-              {selectedAgencyId && paymentAmount && parseFloat(paymentAmount) > 0 && (() => {
-                const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
-                const showOutstandingSelection = selectedAgency && selectedAgency.totalOutstanding > parseFloat(paymentAmount);
-                
-                return showOutstandingSelection ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Select Outstanding Items to Prioritize
-                      </label>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {agencyLedgers.length} items found
+                  <div className="relative agency-dropdown">
+                    <button
+                      type="button"
+                      onClick={toggleAgencyDropdown}
+                      disabled={agenciesLoading}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 transition-colors text-left flex items-center justify-between"
+                    >
+                      <span className={selectedAgencyId ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}>
+                        {selectedAgencyId
+                          ? (() => {
+                            const selectedAgency = agencies.find(a => a._id === selectedAgencyId);
+                            return selectedAgency ? `${selectedAgency.agencyName} ($${selectedAgency.totalOutstanding.toFixed(2)})` : 'Choose an agency...';
+                          })()
+                          : 'Choose an agency...'
+                        }
                       </span>
-                    </div>
-                    {ledgerLoading && (
-                      <div className="flex items-center space-x-3 text-sm text-gray-600 dark:text-gray-300">
-                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                        <span>Loading outstanding items…</span>
-                      </div>
-                    )}
+                      <svg className={`w-5 h-5 text-gray-400 transition-transform ${showAgencyDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
 
-                    {!ledgerLoading && ledgerError && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
-                        {ledgerError}
-                      </div>
-                    )}
-
-                    {!ledgerLoading && !ledgerError && agencyLedgers.length > 0 && (
-                      <div className="space-y-3">
-                        {/* Search + Select All */}
-                        <div className="flex flex-col md:flex-row md:items-center gap-3">
-                          <div className="relative md:w-80">
+                    {showAgencyDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden">
+                        {/* Search Input */}
+                        <div className="sticky top-0 bg-white dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 p-3">
+                          <div className="relative">
                             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                               type="text"
-                              value={ledgerSearchTerm}
-                              onChange={(e) => setLedgerSearchTerm(e.target.value)}
-                              placeholder="Search by booking/ref/description…"
-                              className="input-modern pl-9 pr-3 py-2 w-full"
+                              value={agencySearchTerm}
+                              onChange={(e) => setAgencySearchTerm(e.target.value)}
+                              placeholder="Search agencies..."
+                              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-green-500 dark:focus:border-green-400 focus:bg-white dark:focus:bg-gray-700 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
                             />
-                          </div>
-                          <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              className="accent-blue-600"
-                              checked={selectAll}
-                              onChange={toggleSelectAll}
-                            />
-                            <span className="text-gray-700 dark:text-gray-300">Select all</span>
-                          </label>
-                          <div className="ml-auto text-sm text-gray-600 dark:text-gray-300">
-                            Selected total:&nbsp;
-                            <span className="font-semibold">
-                              ${selectedTotal.toFixed(2)}
-                            </span>
                           </div>
                         </div>
 
-                        {/* List */}
-                        <div className="max-h-72 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
-                          {searchedLedgers.length === 0 && (
-                            <div className="p-4 text-sm text-gray-500 dark:text-gray-400">
-                              No items match your search.
+                        {/* Agency List */}
+                        <div className="max-h-48 overflow-y-auto">
+                          {filteredAgencies.length > 0 ? (
+                            filteredAgencies.map((agency) => (
+                              <button
+                                key={agency._id}
+                                type="button"
+                                onClick={() => handleAgencySelect(agency._id)}
+                                className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                              >
+                                <div className="font-medium text-gray-900 dark:text-white">
+                                  {agency.agencyName}
+                                </div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  Total Outstanding: ${agency.totalOutstanding.toFixed(2)} ({agency.totalItems} items)
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-4 py-6 text-center">
+                              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Search className="w-6 h-6 text-gray-400" />
+                              </div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No agencies found</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                Try adjusting your search terms
+                              </p>
                             </div>
                           )}
-                          {searchedLedgers.map((l) => {
-                            const outstanding = l.outstanding ?? Math.max(0, (l.amount || 0) - (l.paidAmount || 0))
-                            const checked = selectedLedgerIds.includes(l._id)
-                            return (
-                              <label
-                                key={l._id}
-                                className="flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="mt-1 accent-blue-600"
-                                  checked={checked}
-                                  onChange={() => toggleLedger(l._id)}
-                                />
-                                <div className="flex-1">
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                      {l.referenceType}: {l.referenceId || '-'}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {format(new Date(l.date), 'yyyy-MM-dd')}
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
-                                    {l.description}
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-bold text-gray-900 dark:text-white">
-                                    ${outstanding.toFixed(2)}
-                                  </div>
-                                  <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                                    {l.currency || 'USD'}
-                                  </div>
-                                </div>
-                              </label>
-                            )
-                          })}
                         </div>
                       </div>
                     )}
                   </div>
-                ) : null;
-              })()}
+                </div>
+              )}
+
+              {/* 3) Outstanding Selection */}
+              {selectedAgencyId && paymentAmount && parseFloat(paymentAmount) > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Select Outstanding Items to Prioritize
+                    </label>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {agencyLedgers.length} items found
+                    </span>
+                  </div>
+                  {ledgerLoading && (
+                    <div className="flex items-center space-x-3 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading outstanding items…</span>
+                    </div>
+                  )}
+
+                  {!ledgerLoading && ledgerError && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400">
+                      {ledgerError}
+                    </div>
+                  )}
+
+                  {!ledgerLoading && !ledgerError && agencyLedgers.length > 0 && (
+                    <div className="space-y-3">
+                      {/* Search + Select All */}
+                      <div className="flex flex-col md:flex-row md:items-center gap-3">
+                        <div className="relative md:w-80">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            value={ledgerSearchTerm}
+                            onChange={(e) => setLedgerSearchTerm(e.target.value)}
+                            placeholder="Search by booking/ref/description…"
+                            className="input-modern pl-9 pr-3 py-2 w-full"
+                          />
+                        </div>
+                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="accent-blue-600"
+                            checked={selectAll}
+                            onChange={toggleSelectAll}
+                          />
+                          <span className="text-gray-700 dark:text-gray-300">Select all</span>
+                        </label>
+                        <div className="ml-auto text-sm text-gray-600 dark:text-gray-300">
+                          Selected total:&nbsp;
+                          <span className="font-semibold">
+                            ${selectedTotal.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* List */}
+                      <div className="max-h-72 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                        {searchedLedgers.length === 0 && (
+                          <div className="p-4 text-sm text-gray-500 dark:text-gray-400">
+                            No items match your search.
+                          </div>
+                        )}
+                        {searchedLedgers.map((l) => {
+                          const outstanding = l.outstanding ?? Math.max(0, (l.amount || 0) - (l.paidAmount || 0))
+                          const checked = selectedLedgerIds.includes(l._id)
+                          return (
+                            <label
+                              key={l._id}
+                              className="flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-1 accent-blue-600"
+                                checked={checked}
+                                onChange={() => toggleLedger(l._id)}
+                              />
+                              <div className="flex-1">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {l.referenceType}: {l.referenceId || '-'}
+                                  </span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {format(new Date(l.date), 'yyyy-MM-dd')}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                                  {l.description}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                  ${outstanding.toFixed(2)}
+                                </div>
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                  {l.currency || 'USD'}
+                                </div>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
 
 
