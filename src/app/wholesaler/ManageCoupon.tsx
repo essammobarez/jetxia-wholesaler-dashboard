@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { Switch } from '@headlessui/react';
 import {
   Plus,
   Search,
@@ -20,6 +21,8 @@ import {
   Loader2,
 } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
 // Types based on the provided schema
 interface Coupon {
   _id: string;
@@ -31,13 +34,15 @@ interface Coupon {
   limit: number;
   discountType: 'percentage' | 'fixed_amount';
   discountValue: number;
-  applicableAgencies: string[];
+  applicableAgencies: Array<string | { _id: string; agencyName?: string; name?: string; email?: string }>; // supports API returning objects
   applicableBookingType: string[];
-  createdByWholesaler: string;
+  createdByWholesaler: string | { _id: string; wholesalerName?: string };
   agencyUsageLimits: Array<{
     agencyId: string;
     usageLimit: number;
+    usedCount?: number;
   }>;
+  usedCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,7 +67,13 @@ export default function ManageCoupon() {
   const [showAgencyModal, setShowAgencyModal] = useState<boolean>(false);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [viewLoading, setViewLoading] = useState<boolean>(false);
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
+  const [isAssigning, setIsAssigning] = useState<boolean>(false);
+
+  // Helpers to work with agency IDs (API can return IDs or objects)
+  const asAgencyId = (agency: string | { _id: string; [key: string]: any }) =>
+    typeof agency === 'string' ? agency : agency._id;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -119,114 +130,35 @@ export default function ManageCoupon() {
     setError('');
 
     try {
-      // Dummy data for testing
-      const dummyCoupons: Coupon[] = [
-        {
-          _id: '1',
-          couponCode: 'SUMMER2024',
-          description: 'Summer vacation discount for all bookings',
-          status: 'active',
-          validFrom: '2024-06-01T00:00:00.000Z',
-          validUntil: '2024-08-31T23:59:59.000Z',
-          limit: 100,
-          discountType: 'percentage',
-          discountValue: 15,
-          applicableAgencies: ['agency1', 'agency2'],
-          applicableBookingType: ['hotel', 'flight', 'package'],
-          createdByWholesaler: wholesalerId,
-          agencyUsageLimits: [
-            { agencyId: 'agency1', usageLimit: 50 },
-            { agencyId: 'agency2', usageLimit: 30 }
-          ],
-          createdAt: '2024-05-15T10:00:00.000Z',
-          updatedAt: '2024-05-15T10:00:00.000Z'
-        },
-        {
-          _id: '2',
-          couponCode: 'WELCOME10',
-          description: 'Welcome bonus for new customers',
-          status: 'active',
-          validFrom: '2024-01-01T00:00:00.000Z',
-          validUntil: '2024-12-31T23:59:59.000Z',
-          limit: 500,
-          discountType: 'fixed_amount',
-          discountValue: 50,
-          applicableAgencies: ['agency1', 'agency3'],
-          applicableBookingType: ['hotel'],
-          createdByWholesaler: wholesalerId,
-          agencyUsageLimits: [
-            { agencyId: 'agency1', usageLimit: 200 },
-            { agencyId: 'agency3', usageLimit: 150 }
-          ],
-          createdAt: '2024-01-01T08:00:00.000Z',
-          updatedAt: '2024-01-01T08:00:00.000Z'
-        },
-        {
-          _id: '3',
-          couponCode: 'EXPIRED20',
-          description: 'Expired promotional coupon',
-          status: 'expired',
-          validFrom: '2024-03-01T00:00:00.000Z',
-          validUntil: '2024-03-31T23:59:59.000Z',
-          limit: 50,
-          discountType: 'percentage',
-          discountValue: 20,
-          applicableAgencies: ['agency2'],
-          applicableBookingType: ['flight', 'car'],
-          createdByWholesaler: wholesalerId,
-          agencyUsageLimits: [
-            { agencyId: 'agency2', usageLimit: 25 }
-          ],
-          createdAt: '2024-02-15T12:00:00.000Z',
-          updatedAt: '2024-02-15T12:00:00.000Z'
-        },
-        {
-          _id: '4',
-          couponCode: 'SUSPENDED',
-          description: 'Temporarily suspended coupon',
-          status: 'suspended',
-          validFrom: '2024-04-01T00:00:00.000Z',
-          validUntil: '2024-06-30T23:59:59.000Z',
-          limit: 75,
-          discountType: 'percentage',
-          discountValue: 25,
-          applicableAgencies: ['agency1', 'agency2', 'agency3'],
-          applicableBookingType: ['package', 'activity'],
-          createdByWholesaler: wholesalerId,
-          agencyUsageLimits: [
-            { agencyId: 'agency1', usageLimit: 30 },
-            { agencyId: 'agency2', usageLimit: 25 },
-            { agencyId: 'agency3', usageLimit: 20 }
-          ],
-          createdAt: '2024-03-20T14:30:00.000Z',
-          updatedAt: '2024-03-20T14:30:00.000Z'
-        },
-        {
-          _id: '5',
-          couponCode: 'INACTIVE5',
-          description: 'Inactive test coupon',
-          status: 'inactive',
-          validFrom: '2024-05-01T00:00:00.000Z',
-          validUntil: '2024-07-31T23:59:59.000Z',
-          limit: 25,
-          discountType: 'fixed_amount',
-          discountValue: 25,
-          applicableAgencies: ['agency3'],
-          applicableBookingType: ['car'],
-          createdByWholesaler: wholesalerId,
-          agencyUsageLimits: [
-            { agencyId: 'agency3', usageLimit: 15 }
-          ],
-          createdAt: '2024-04-25T09:15:00.000Z',
-          updatedAt: '2024-04-25T09:15:00.000Z'
-        }
-      ];
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error("Auth token missing. Please login again.");
+      }
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setCoupons(dummyCoupons);
-    } catch (err) {
-      setError('Failed to fetch coupons. Please try again later.');
+      const response = await fetch(`${API_URL}coupons`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Unauthorized. Please login again.");
+        }
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setCoupons(data.data);
+      } else {
+        setError('Failed to fetch coupons');
+      }
+    } catch (err: any) {
+      console.error('Error fetching coupons:', err);
+      setError(err.message || 'Failed to fetch coupons');
     } finally {
       setLoading(false);
     }
@@ -236,40 +168,36 @@ export default function ManageCoupon() {
     if (!wholesalerId) return;
 
     try {
-      // Dummy data for testing
-      const dummyAgencies: Agency[] = [
-        {
-          _id: 'agency1',
-          name: 'Travel Pro Agency',
-          email: 'contact@travelpro.com'
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${API_URL}agency/wholesaler/${wholesalerId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        {
-          _id: 'agency2',
-          name: 'Global Travel Solutions',
-          email: 'info@globaltravel.com'
-        },
-        {
-          _id: 'agency3',
-          name: 'Elite Travel Services',
-          email: 'support@elitetravel.com'
-        },
-        {
-          _id: 'agency4',
-          name: 'Budget Travel Co.',
-          email: 'hello@budgettravel.com'
-        },
-        {
-          _id: 'agency5',
-          name: 'Luxury Travel Partners',
-          email: 'contact@luxurytravel.com'
-        }
-      ];
+      });
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setAgencies(dummyAgencies);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch agencies: ${res.status}`);
+      }
+
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const activeAgencies: Agency[] = json.data
+          .filter((item: any) => item.status === 'approved')
+          .map((item: any) => ({
+            _id: item._id,
+            name: item.agencyName || item.name || 'Unnamed Agency',
+            email: item.email || '',
+          }));
+
+        setAgencies(activeAgencies);
+      } else {
+        setAgencies([]);
+      }
     } catch (err) {
       console.error('Failed to fetch agencies:', err);
+      setAgencies([]);
     }
   };
 
@@ -301,16 +229,51 @@ export default function ManageCoupon() {
       limit: coupon.limit,
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
-      applicableAgencies: coupon.applicableAgencies,
+      applicableAgencies: (coupon.applicableAgencies || []).map((a: any) => asAgencyId(a)),
       applicableBookingType: coupon.applicableBookingType,
       agencyUsageLimits: coupon.agencyUsageLimits,
     });
     setShowEditModal(true);
   };
 
-  const handleViewCoupon = (coupon: Coupon) => {
+  const handleViewCoupon = async (coupon: Coupon) => {
+    // Open modal immediately with current row data and show loader
     setSelectedCoupon(coupon);
     setShowViewModal(true);
+    setViewLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error("Auth token missing. Please login again.");
+      }
+
+      const response = await fetch(`${API_URL}coupons/${coupon._id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Unauthorized. Please login again.");
+        }
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setSelectedCoupon(data.data);
+      } else {
+        throw new Error('Failed to fetch coupon details');
+      }
+    } catch (err: any) {
+      console.error('Error fetching coupon details:', err);
+      setError(err.message || 'Failed to fetch coupon details');
+    } finally {
+      setViewLoading(false);
+    }
   };
 
   const handleManageAgencies = (coupon: Coupon) => {
@@ -320,7 +283,7 @@ export default function ManageCoupon() {
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       if (name === 'applicableBookingType') {
@@ -333,9 +296,23 @@ export default function ManageCoupon() {
         }));
       }
     } else {
+      // Convert text inputs to numbers for numeric fields
+      if (name === 'limit') {
+        const raw = value.trim();
+        const parsed = raw === '' ? 0 : parseInt(raw, 10);
+        setFormData(prev => ({ ...prev, limit: isNaN(parsed) ? 0 : parsed }));
+        return;
+      }
+      if (name === 'discountValue') {
+        const raw = value.trim();
+        const parsed = raw === '' ? 0 : parseFloat(raw);
+        setFormData(prev => ({ ...prev, discountValue: isNaN(parsed) ? 0 : parsed }));
+        return;
+      }
+
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'number' ? Number(value) : value
+        [name]: value
       }));
     }
   };
@@ -367,44 +344,107 @@ export default function ManageCoupon() {
     setIsSubmitting(true);
     setError('');
 
-    const payload = {
-      ...formData,
-      couponCode: formData.couponCode.toUpperCase(),
-      createdByWholesaler: wholesalerId,
-    };
-
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error("Auth token missing. Please login again.");
+      }
 
       if (showEditModal && selectedCoupon) {
-        // Simulate edit
+        // Keep existing edit simulation for now
         setCoupons(prev => prev.map(coupon => 
           coupon._id === selectedCoupon._id 
             ? {
                 ...coupon,
-                ...payload,
+                ...formData,
+                couponCode: formData.couponCode.toUpperCase(),
                 updatedAt: new Date().toISOString()
               }
             : coupon
         ));
       } else {
-        // Simulate create
-        const newCoupon: Coupon = {
-          _id: Date.now().toString(),
-          ...payload,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        // Real API call for create
+        const createPayload = {
+          couponCode: formData.couponCode.toUpperCase(),
+          description: formData.description,
+          validFrom: formData.validFrom,
+          validUntil: formData.validUntil,
+          limit: formData.limit,
+          discountType: formData.discountType,
+          discountValue: formData.discountValue,
+          applicableBookingType: formData.applicableBookingType
         };
-        setCoupons(prev => [...prev, newCoupon]);
+
+        const response = await fetch(`${API_URL}coupons`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(createPayload)
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error("Unauthorized. Please login again.");
+          }
+          const errorData = await response.json();
+          throw new Error(errorData.message || `API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.data) {
+          await fetchCoupons(); // Refresh the list
+        } else {
+          throw new Error('Failed to create coupon');
+        }
       }
 
       setShowAddModal(false);
       setShowEditModal(false);
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err: any) {
+      console.error('Error creating/updating coupon:', err);
+      setError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (coupon: Coupon) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error("Auth token missing. Please login again.");
+      }
+
+      const newStatus = coupon.status === 'active' ? 'inactive' : 'active';
+
+      const response = await fetch(`${API_URL}coupons/${coupon._id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Unauthorized. Please login again.");
+        }
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        // Refresh the coupons list
+        await fetchCoupons();
+      } else {
+        throw new Error('Failed to update coupon status');
+      }
+    } catch (err: any) {
+      console.error('Error updating coupon status:', err);
+      setError(err.message || 'Failed to update coupon status');
     }
   };
 
@@ -419,6 +459,43 @@ export default function ManageCoupon() {
       setCoupons(prev => prev.filter(coupon => coupon._id !== couponId));
     } catch (err) {
       setError('An unexpected error occurred while deleting the coupon.');
+    }
+  };
+
+  const assignAgenciesToCoupon = async (coupon: Coupon) => {
+    if (!coupon || !coupon._id) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('Auth token missing. Please login again.');
+      }
+
+      const assignments = coupon.applicableAgencies.map((agencyLike) => {
+        const agencyId = asAgencyId(agencyLike as any);
+        const usageLimit = coupon.agencyUsageLimits.find(
+          (item) => item.agencyId === agencyId
+        )?.usageLimit || 1;
+
+        return fetch(`${API_URL}coupons/${coupon._id}/assign-agency`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ agencyId, usageLimit }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || `Failed to assign agency: ${res.status}`);
+          }
+          return res.json();
+        });
+      });
+
+      await Promise.all(assignments);
+    } catch (err) {
+      console.error('Error assigning agencies to coupon:', err);
+      throw err;
     }
   };
 
@@ -756,6 +833,22 @@ export default function ManageCoupon() {
                         >
                           <Users className="w-5 h-5" />
                         </button>
+                        <Switch
+                          checked={coupon.status === 'active'}
+                          onChange={() => handleToggleStatus(coupon)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            coupon.status === 'active' ? 'bg-green-400' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span className="sr-only">
+                            {coupon.status === 'active' ? 'Deactivate' : 'Activate'} Coupon
+                          </span>
+                          <span 
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              coupon.status === 'active' ? 'translate-x-6' : 'translate-x-1'
+                            }`} 
+                          />
+                        </Switch>
                         <button
                           onClick={() => handleDeleteCoupon(coupon._id)}
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -876,12 +969,13 @@ export default function ManageCoupon() {
                       Usage Limit *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       name="limit"
-                      value={formData.limit}
+                      value={formData.limit === 0 ? '' : String(formData.limit)}
                       onChange={handleFormChange}
                       required
-                      min="1"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     />
                   </div>
@@ -907,14 +1001,13 @@ export default function ManageCoupon() {
                       Discount Value *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode={formData.discountType === 'percentage' ? 'decimal' : 'numeric'}
+                      pattern={formData.discountType === 'percentage' ? '\\d*(\\.\\d*)?' : '[0-9]*'}
                       name="discountValue"
-                      value={formData.discountValue}
+                      value={formData.discountValue === 0 ? '' : String(formData.discountValue)}
                       onChange={handleFormChange}
                       required
-                      min="0"
-                      step={formData.discountType === 'percentage' ? '0.01' : '1'}
-                      max={formData.discountType === 'percentage' ? '100' : undefined}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     />
                   </div>
@@ -990,6 +1083,11 @@ export default function ManageCoupon() {
               </div>
 
               <div className="space-y-6">
+                {viewLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -1084,7 +1182,9 @@ export default function ManageCoupon() {
                       Applicable Agencies
                     </label>
                     <div className="space-y-2">
-                      {selectedCoupon.applicableAgencies.map((agencyId) => {
+                      {selectedCoupon.applicableAgencies.map((agencyLike: any) => {
+                        const agencyId = asAgencyId(agencyLike);
+                        const agencyName = typeof agencyLike === 'string' ? undefined : (agencyLike.agencyName || agencyLike.name);
                         const agency = agencies.find(a => a._id === agencyId);
                         const usageLimit = selectedCoupon.agencyUsageLimits.find(
                           item => item.agencyId === agencyId
@@ -1092,7 +1192,7 @@ export default function ManageCoupon() {
                         return (
                           <div key={agencyId} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
                             <span className="text-sm text-gray-900 dark:text-white">
-                              {agency?.name || 'Unknown Agency'}
+                              {agencyName || agency?.name || 'Unknown Agency'}
                             </span>
                             {usageLimit && (
                               <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -1166,7 +1266,8 @@ export default function ManageCoupon() {
                     ) : (
                       <div className="space-y-3">
                         {agencies.map((agency) => {
-                          const isSelected = selectedCoupon.applicableAgencies.includes(agency._id);
+                          const selectedIds = selectedCoupon.applicableAgencies.map((a: any) => asAgencyId(a));
+                          const isSelected = selectedIds.includes(agency._id);
                           const usageLimit = selectedCoupon.agencyUsageLimits.find(
                             item => item.agencyId === agency._id
                           )?.usageLimit || 0;
@@ -1181,14 +1282,19 @@ export default function ManageCoupon() {
                                     const checked = e.target.checked;
                                     setSelectedCoupon(prev => {
                                       if (!prev) return prev;
+                                      const currentIds = prev.applicableAgencies.map((a: any) => asAgencyId(a));
+                                      const nextIds = checked
+                                        ? Array.from(new Set([...currentIds, agency._id]))
+                                        : currentIds.filter(id => id !== agency._id);
+                                      const nextUsageLimits = checked
+                                        ? (prev.agencyUsageLimits.some(item => item.agencyId === agency._id)
+                                          ? prev.agencyUsageLimits
+                                          : [...prev.agencyUsageLimits, { agencyId: agency._id, usageLimit: 1 }])
+                                        : prev.agencyUsageLimits.filter(item => item.agencyId !== agency._id);
                                       return {
                                         ...prev,
-                                        applicableAgencies: checked
-                                          ? [...prev.applicableAgencies, agency._id]
-                                          : prev.applicableAgencies.filter(id => id !== agency._id),
-                                        agencyUsageLimits: checked
-                                          ? [...prev.agencyUsageLimits, { agencyId: agency._id, usageLimit: 1 }]
-                                          : prev.agencyUsageLimits.filter(item => item.agencyId !== agency._id)
+                                        applicableAgencies: nextIds,
+                                        agencyUsageLimits: nextUsageLimits,
                                       };
                                     });
                                   }}
@@ -1209,18 +1315,20 @@ export default function ManageCoupon() {
                                     Usage Limit:
                                   </label>
                                   <input
-                                    type="number"
-                                    min="1"
-                                    value={usageLimit}
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={usageLimit === 0 ? '' : String(usageLimit)}
                                     onChange={(e) => {
-                                      const newLimit = Number(e.target.value);
+                                      const raw = e.target.value.trim();
+                                      const newLimit = raw === '' ? 0 : parseInt(raw, 10);
                                       setSelectedCoupon(prev => {
                                         if (!prev) return prev;
                                         return {
                                           ...prev,
                                           agencyUsageLimits: prev.agencyUsageLimits.map(item =>
                                             item.agencyId === agency._id
-                                              ? { ...item, usageLimit: newLimit }
+                                              ? { ...item, usageLimit: isNaN(newLimit) ? 0 : newLimit }
                                               : item
                                           )
                                         };
@@ -1244,7 +1352,9 @@ export default function ManageCoupon() {
                       Selected Agencies Summary
                     </label>
                     <div className="space-y-2">
-                      {selectedCoupon.applicableAgencies.map((agencyId) => {
+                      {selectedCoupon.applicableAgencies.map((agencyLike: any) => {
+                        const agencyId = asAgencyId(agencyLike);
+                        const agencyName = typeof agencyLike === 'string' ? undefined : (agencyLike.agencyName || agencyLike.name);
                         const agency = agencies.find(a => a._id === agencyId);
                         const usageLimit = selectedCoupon.agencyUsageLimits.find(
                           item => item.agencyId === agencyId
@@ -1252,7 +1362,7 @@ export default function ManageCoupon() {
                         return (
                           <div key={agencyId} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/30 rounded">
                             <span className="text-sm text-gray-900 dark:text-white">
-                              {agency?.name || 'Unknown Agency'}
+                              {agencyName || agency?.name || 'Unknown Agency'}
                             </span>
                             <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                               Limit: {usageLimit}
@@ -1273,15 +1383,24 @@ export default function ManageCoupon() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    // Update the coupon in the main list
-                    setCoupons(prev => prev.map(coupon => 
-                      coupon._id === selectedCoupon._id ? selectedCoupon : coupon
-                    ));
-                    setShowAgencyModal(false);
+                  onClick={async () => {
+                    if (!selectedCoupon) return;
+                    setIsAssigning(true);
+                    setError('');
+                    try {
+                      await assignAgenciesToCoupon(selectedCoupon);
+                      await fetchCoupons();
+                      setShowAgencyModal(false);
+                    } catch (err: any) {
+                      setError(err?.message || 'Failed to assign agencies');
+                    } finally {
+                      setIsAssigning(false);
+                    }
                   }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={isAssigning}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {isAssigning && <Loader2 className="w-4 h-4 animate-spin" />}
                   Save Changes
                 </button>
               </div>
