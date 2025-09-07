@@ -12,13 +12,9 @@ import {
   Users,
   Globe,
   TrendingUp,
-  BarChart3,
   Activity,
   RefreshCw,
   ChevronDown,
-  CheckCircle,
-  AlertCircle,
-  MoreVertical,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -141,11 +137,12 @@ const HistoryPage: NextPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<'date' | 'user' | 'revenue'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'user'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
   
   // Pagination state
   // const [currentPage, setCurrentPage] = useState(1);
@@ -154,8 +151,7 @@ const HistoryPage: NextPage = () => {
   // Fetch data from the original API endpoint
   const fetchData = (page: number = 1) => {
     setLoading(true);
-    // const apiUrl = `${API_URL}HistoryPage?page=${page}`;
-    const apiUrl = `${API_URL}HistoryPage`;
+    const apiUrl = `${API_URL}HistoryPage?page=${page}`;
     const authToken = getAuthToken();
     const headers = {
       'Content-Type': 'application/json',
@@ -172,25 +168,9 @@ const HistoryPage: NextPage = () => {
       .then((json) => {
         console.log("history page json", json)
         if (json.success && Array.isArray(json.data.history)) {
-          // Augment fetched data with fields needed for the new UI
-          const augmentedData = json.data.history.map((row: HistoryRow, index: number) => {
-            let status: HistoryRow['status'] = 'processing';
-            if (row.BookingStages.includes('OK')) status = 'completed';
-            else if (row.BookingStages.includes('PB')) status = 'pending';
-            else if (row.BookingStages.includes('LG')) status = 'processing';
-            else if (row.BookingStages.length === 0) status = 'cancelled';
-
-            return {
-              ...row,
-              id: `record-${index}`, // Assign a unique ID
-              status,
-              priority: (['high', 'medium', 'low'] as const)[index % 3], // Mock priority
-              revenue: status === 'completed' ? Math.floor(Math.random() * 2000) + 500 : 0, // Mock revenue
-              commission: status === 'completed' ? Math.floor(Math.random() * 200) + 50 : 0, // Mock commission
-            };
-          });
-          setHistory(augmentedData);
-          setFilteredData(augmentedData);
+          const apiData: HistoryRow[] = json.data.history;
+          setHistory(apiData);
+          setFilteredData(apiData);
           
           // Set daily statistics from API response
           if (json.data.dailySearchCount !== undefined && json.data.dailyUsersCount !== undefined) {
@@ -198,6 +178,17 @@ const HistoryPage: NextPage = () => {
               searchCount: json.data.dailySearchCount,
               userCount: json.data.dailyUsersCount
             });
+          }
+
+          // Set total pages if provided by API
+          const apiTotalPages =
+            (json.data && (json.data.totalPages || json.data.total_pages || json.data.totalPage)) ||
+            json.totalPages || json.total_pages ||
+            (json.pagination && (json.pagination.totalPages || json.pagination.total_pages)) ||
+            (json.data && json.data.pagination && (json.data.pagination.totalPages || json.data.pagination.total_pages)) ||
+            null;
+          if (typeof apiTotalPages === 'number') {
+            setTotalPages(apiTotalPages);
           }
         }
       })
@@ -208,8 +199,8 @@ const HistoryPage: NextPage = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(currentPage);
+  }, [currentPage]);
 
   // Filtering and sorting logic from code2, adapted for HistoryRow interface
   useEffect(() => {
@@ -223,7 +214,6 @@ const HistoryPage: NextPage = () => {
         record.HotelCode.toLowerCase().includes(lowerSearchTerm);
 
       const matchesUser = selectedUser === 'all' || record.User === selectedUser;
-      const matchesStatus = selectedStatus === 'all' || record.status === selectedStatus;
 
       let matchesDate = true;
       if (dateRange.from && dateRange.to) {
@@ -235,7 +225,7 @@ const HistoryPage: NextPage = () => {
         matchesDate = recordDate >= fromDate && recordDate < toDate;
       }
 
-      return matchesSearch && matchesUser && matchesStatus && matchesDate;
+      return matchesSearch && matchesUser && matchesDate;
     });
 
     // Apply sorting
@@ -248,26 +238,15 @@ const HistoryPage: NextPage = () => {
         case 'user':
           comparison = a.User.localeCompare(b.User);
           break;
-        case 'revenue':
-          comparison = (a.revenue || 0) - (b.revenue || 0);
-          break;
       }
       return sortOrder === 'desc' ? -comparison : comparison;
     });
 
     setFilteredData(filtered);
-  }, [history, searchTerm, selectedUser, selectedStatus, dateRange, sortBy, sortOrder]);
+  }, [history, searchTerm, selectedUser, dateRange, sortBy, sortOrder]);
 
   // Helper functions from code2
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'processing': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
-  };
+  
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
@@ -303,19 +282,18 @@ const HistoryPage: NextPage = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['User', 'Login Date', 'Search Query', 'Hotel', 'Destination', 'Check In', 'Check Out', 'Rooms Info', 'Status', 'Revenue', 'Commission'];
+    const headers = ['User', 'Login Date', 'Search Query', 'Hotel', 'Hotel Code', 'Destination', 'Check In', 'Check Out', 'Rooms Info', 'Booking Stages'];
     const csvData = filteredData.map(record => [
       record.User,
       formatDate(record.LoginDate),
       record.Search,
       record.Hotel,
+      record.HotelCode,
       record.Destination || '',
       record.CheckInDate ? formatDate(record.CheckInDate) : '',
       record.CheckOutDate ? formatDate(record.CheckOutDate) : '',
       formatRoomsInfo(record.RoomsInfo),
-      record.status || 'N/A',
-      record.revenue || 0,
-      record.commission || 0
+      Array.isArray(record.BookingStages) ? record.BookingStages.join(', ') : ''
     ]);
     const csvContent = [headers, ...csvData].map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -335,9 +313,6 @@ const HistoryPage: NextPage = () => {
 
   // Calculations for Metric Cards
   const uniqueUsers = Array.from(new Set(history.map(r => r.User)));
-  const totalRevenue = filteredData.reduce((sum, r) => sum + (r.revenue || 0), 0);
-  const totalCommission = filteredData.reduce((sum, r) => sum + (r.commission || 0), 0);
-  const completedBookings = filteredData.filter(r => r.status === 'completed').length;
 
   if (loading) {
     return (
@@ -368,7 +343,7 @@ const HistoryPage: NextPage = () => {
             <p className="text-gray-600 dark:text-gray-400">Track all booking activities, searches, and user interactions.</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => fetchData()} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <button onClick={() => fetchData(currentPage)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
             <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
@@ -379,10 +354,9 @@ const HistoryPage: NextPage = () => {
 
         {/* Enhanced Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <MetricCard title="Total Records" value={filteredData.length} change="+12% this week" icon={Activity} color="bg-blue-500" subtitle="Active booking searches" />
-          <MetricCard title="Daily Searches" value={dailyStats.searchCount} change="+8% today" icon={Search} color="bg-green-500" subtitle="Searches performed today" />
-          <MetricCard title="Daily Users" value={dailyStats.userCount} change="+15% this month" icon={User} color="bg-purple-500" subtitle="Active users today" />
-          <MetricCard title="Completed Bookings" value={completedBookings} change="+10% this month" icon={CheckCircle} color="bg-orange-500" subtitle="Successfully processed" />
+          <MetricCard title="Total Records" value={filteredData.length} icon={Activity} color="bg-blue-500" subtitle="Active booking searches" />
+          <MetricCard title="Daily Searches" value={dailyStats.searchCount} icon={Search} color="bg-green-500" subtitle="Searches performed today" />
+          <MetricCard title="Daily Users" value={dailyStats.userCount} icon={User} color="bg-purple-500" subtitle="Active users today" />
         </div>
 
         {/* Enhanced Filters Section */}
@@ -410,20 +384,11 @@ const HistoryPage: NextPage = () => {
               <option value="date-asc">Oldest First</option>
               <option value="user-asc">User A-Z</option>
               <option value="user-desc">User Z-A</option>
-              <option value="revenue-desc">Highest Revenue</option>
-              <option value="revenue-asc">Lowest Revenue</option>
             </select>
           </div>
 
           {showFilters && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
-                <option value="all">All Status</option>
-                <option value="completed">Completed</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
               <div>
                 <input type="date" value={dateRange.from} onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white" />
               </div>
@@ -434,7 +399,7 @@ const HistoryPage: NextPage = () => {
           )}
 
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setSelectedStatus('all'); setDateRange({ from: '', to: '' }); }} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setDateRange({ from: '', to: '' }); }} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               Clear All Filters
             </button>
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -445,8 +410,8 @@ const HistoryPage: NextPage = () => {
 
         {/* Enhanced Data Cards View */}
         <div className="space-y-4">
-          {filteredData.map((record) => (
-            <div key={record.id} className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border ${getPriorityColor(record.priority)} border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300`}>
+          {filteredData.map((record, index) => (
+            <div key={record.id || `${record.User}-${record.LoginDate}-${index}`} className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border ${getPriorityColor(record.priority)} border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-x-6 gap-y-4">
                   {/* User Info */}
@@ -494,22 +459,7 @@ const HistoryPage: NextPage = () => {
                   </div>
 
                   {/* Revenue & Status */}
-                  <div className="lg:col-span-2 text-right lg:text-left">
-                    <div className="space-y-2">
-                      {record.revenue ? (
-                        <div>
-                          <p className="text-lg font-bold text-gray-900 dark:text-white">${record.revenue.toLocaleString()}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Comm: ${record.commission?.toLocaleString()}</p>
-                        </div>
-                      ) : (<p className="text-sm text-gray-500 dark:text-gray-400">No revenue</p>)}
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status!)}`}>
-                        {record.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {record.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                        {record.status === 'cancelled' && <AlertCircle className="w-3 h-3 mr-1" />}
-                        {record.status!.charAt(0).toUpperCase() + record.status!.slice(1)}
-                      </span>
-                    </div>
-                  </div>
+                  
                 </div>
               </div>
 
@@ -547,18 +497,18 @@ const HistoryPage: NextPage = () => {
             <Search className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No History Found</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">Try adjusting your search or clearing the filters.</p>
-            <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setSelectedStatus('all'); setDateRange({ from: '', to: '' }); }} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button onClick={() => { setSearchTerm(''); setSelectedUser('all'); setDateRange({ from: '', to: '' }); }} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
               Clear All Filters
             </button>
           </div>
         )}
 
         {/* Pagination */}
-        {/* {filteredData.length > 0 && totalPages > 1 && (
+        {filteredData.length > 0 && totalPages && totalPages > 1 && (
           <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 mt-8">
             <div className="flex items-center space-x-2">
               <span className="text-sm text-gray-700 dark:text-gray-300">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} results
+                Page {currentPage} of {totalPages}
               </span>
             </div>
             <div className="flex items-center space-x-2">
@@ -599,7 +549,7 @@ const HistoryPage: NextPage = () => {
               </button>
             </div>
           </div>
-        )} */}
+        )}
       </main>
     </>
   );
