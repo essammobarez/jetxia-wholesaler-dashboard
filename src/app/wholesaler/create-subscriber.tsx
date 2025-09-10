@@ -1,10 +1,10 @@
 // components/RoomCancellationModal.tsx
 "use-client";
 
-import React, { useState, useMemo } from 'react';
+import { AlertTriangle, CalendarClock, CreditCard, Trash2, User, Wallet, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { X, AlertTriangle, CalendarClock, User, Wallet, CreditCard, Trash2 } from 'lucide-react';
-import { Reservation } from './BookingModal';
+import { Reservation } from './booking-history/BookingModal';
 
 export type CancellableRoom = Reservation['allRooms'][0];
 

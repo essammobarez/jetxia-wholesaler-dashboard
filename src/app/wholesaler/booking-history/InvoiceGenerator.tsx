@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
-import { Reservation } from "./BookingModal";
 import ReactDOMServer from 'react-dom/server';
-import { FaPhone, FaEnvelope, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaEnvelope, FaMapMarkerAlt, FaPhone } from 'react-icons/fa';
+import { Reservation } from "./BookingModal";
 
 interface InvoiceData {
     invoiceNumber: string;

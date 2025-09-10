@@ -1,9 +1,9 @@
 // components/RoomCancellationModal.tsx
 "use-client";
 
-import React, { useState, useMemo } from 'react';
+import { AlertTriangle, CalendarClock, CreditCard, Trash2, User, Wallet, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast'; // Import toast
-import { X, AlertTriangle, CalendarClock, User, Wallet, CreditCard, Trash2 } from 'lucide-react';
 import { Reservation } from './BookingModal';
 
 export type CancellableRoom = Reservation['allRooms'][0];
@@ -12,8 +12,14 @@ interface RoomCancellationModalProps {
   reservation: Reservation;
   onSuccess: () => void; // Replaced onConfirm with onSuccess
   onClose: () => void;
-  // isCanceling prop is removed
 }
+
+// NEW: Helper function to retrieve the auth token from localStorage
+const getAuthToken = (): string | null => {
+    // This assumes you store your token in localStorage with the key 'authToken'.
+    // Adjust the key if you use a different one.
+    return localStorage.getItem('authToken');
+};
 
 // Helper functions (unchanged)
 const formatDate = (dateString: string | null | undefined): string => {
@@ -49,9 +55,6 @@ const calculateFee = (room: CancellableRoom): number => {
     const cancellationDeadline = new Date(policy.date);
     const now = new Date();
     if (now > cancellationDeadline) {
-        // NOTE: The example response doesn't contain an 'amount' field in the policy.
-        // This logic assumes a fee might be present, but based on the provided data,
-        // it may always return 0. Adjust if the actual API provides a fee amount.
         return (policy as any).amount ?? 0;
     }
     return 0;
@@ -63,7 +66,6 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
   onClose,
 }) => {
   const [selectedRooms, setSelectedRooms] = useState<Record<number, CancellableRoom>>({});
-  // NEW: Internal state to manage the API call process
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleToggleRoom = (room: CancellableRoom) => {
@@ -96,11 +98,20 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     return { totalFinalPrice: finalPrice, totalToBeRefunded: refundAmount };
   }, [selectedRoomsArray, isPayLaterBooking]);
   
-  // --- NEW: API call logic is now inside the modal ---
+  // --- UPDATED: API call logic now includes token fetching ---
   const handleProceedToCancel = async () => {
     if (selectedRoomsArray.length === 0 || isSubmitting) return;
     
     setIsSubmitting(true);
+
+    // Fetch the authentication token
+    const token = getAuthToken();
+    if (!token) {
+      toast.error("Authorization failed. Please log in again.");
+      setIsSubmitting(false);
+      return;
+    }
+    
     const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}cancel-book`;
 
     const cancellationPromises = selectedRoomsArray.map(room => {
@@ -113,7 +124,11 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
 
         return fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                // Pass the token in the Authorization header
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(payload),
         }).then(async response => {
             if (!response.ok) {
@@ -135,7 +150,6 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     }
   };
 
-  // NEW: A component to render a contextual info box about the payment type.
   const CancellationInfoBox = () => (
     <div className="mt-4 p-3 rounded-lg flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         {isPayLaterBooking ? (

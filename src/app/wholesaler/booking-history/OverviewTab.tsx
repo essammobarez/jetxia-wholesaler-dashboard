@@ -26,10 +26,12 @@ import EditPriceModal from "./EditPriceModal";
 import { generateInvoiceNumber, generateInvoicePDF } from "./InvoiceGenerator";
 import { generateVoucherPDF } from "./voucher";
 // --- Import the cancellation modal ---
-import RoomCancellationModal from "./RoomCancellationModal";
 import React from "react";
+import RoomCancellationModal from "./RoomCancellationModal";
 // --- NEW: Import the PayOptionsModal ---
 import PayOptionsModal from "./payoptionsmodal";
+// --- NEW: Import the separated loading modal component ---
+import PercentageLoaderModal from "./LoadingModal";
 
 
 const navItems = [
@@ -68,13 +70,18 @@ const BookingsPage: NextPage = () => {
   const [editDiscount, setEditDiscount] = useState<string>("0.00");
 
   const [cancelModalRes, setCancelModalRes] = useState<Reservation | null>(null);
-  // --- NEW: State for the payment modal ---
   const [payModalRes, setPayModalRes] = useState<Reservation | null>(null);
 
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
   // State for tracking document generation
   const [generatingDocFor, setGeneratingDocFor] = useState<string | null>(null);
+
+  // --- NEW: State for the percentage loader ---
+  const [loaderProgress, setLoaderProgress] = useState(0);
+  const [isLoaderVisible, setIsLoaderVisible] = useState(false);
+  const [loaderMessage, setLoaderMessage] = useState("");
+
 
   // Search and filter states
   const [searchHotelName, setSearchHotelName] = useState("");
@@ -434,56 +441,105 @@ const BookingsPage: NextPage = () => {
     setCancelModalRes(reservation);
   };
   
-  // --- NEW: Handler for successful cancellation from the modal ---
+  // --- Handler for successful cancellation from the modal ---
   const handleCancellationSuccess = () => {
     setCancelModalRes(null); // Close the modal
     fetchReservations();     // Refresh the list of reservations
   };
 
-  // --- NEW: Handler for successful payment from the modal ---
+  // --- Handler for successful payment from the modal ---
   const handlePaymentSuccess = () => {
     setPayModalRes(null); // Close the modal
-    fetchReservations();  // Refresh the list of reservations
+    fetchReservations();   // Refresh the list of reservations
   };
     
-  // --- Handlers for Voucher and Invoice generation ---
-  const handleGenerateInvoice = async (reservation: Reservation) => {
-    if (generatingDocFor) return; // Prevent multiple clicks
-    setGeneratingDocFor(reservation.bookingId);
-    try {
-      const invoiceNumber = generateInvoiceNumber();
-      const invoiceDate = new Date().toLocaleDateString();
-      const dueDate = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toLocaleDateString(); // 30 days from now
+  // --- NEW: Helper for simulating loader progress ---
+  const simulateProgress = (callback: () => Promise<void>) => {
+    setIsLoaderVisible(true);
+    setLoaderProgress(0);
 
-      await generateInvoicePDF({
-        invoiceNumber,
-        invoiceDate,
-        dueDate,
-        reservation,
+    // Simulate a gradual progress increase
+    const interval = setInterval(() => {
+      setLoaderProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(interval);
+          return prev;
+        }
+        // Increment randomly for a more natural feel
+        return prev + Math.floor(Math.random() * 5) + 5;
       });
+    }, 200);
 
-      toast.success("Invoice generated successfully!");
-    } catch (error) {
-      console.error("Error generating invoice:", error);
-      toast.error("Failed to generate invoice. Please try again.");
-    } finally {
-      setGeneratingDocFor(null);
-    }
+    // Execute the actual document generation
+    callback()
+      .then(() => {
+        // On success, jump to 100% and close after a short delay
+        clearInterval(interval);
+        setLoaderProgress(100);
+        setTimeout(() => {
+          setIsLoaderVisible(false);
+        }, 500);
+      })
+      .catch(() => {
+        // On error, immediately hide the loader
+        clearInterval(interval);
+        setIsLoaderVisible(false);
+      });
   };
 
-  const handleGenerateVoucher = async (reservation: Reservation) => {
-    if (generatingDocFor) return;
+
+  // --- UPDATED: Handlers for Voucher and Invoice generation ---
+  const handleGenerateInvoice = (reservation: Reservation) => {
+    if (generatingDocFor || isLoaderVisible) return;
     setGeneratingDocFor(reservation.bookingId);
-    try {
-      await generateVoucherPDF(reservation);
-      toast.success("Voucher generated!");
-    } catch (e) {
-      toast.error("Failed to generate voucher");
-    } finally {
-      setGeneratingDocFor(null);
-    }
+    setLoaderMessage("Generating Invoice...");
+
+    const generationTask = async () => {
+      try {
+        const invoiceNumber = generateInvoiceNumber();
+        const invoiceDate = new Date().toLocaleDateString();
+        const dueDate = new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toLocaleDateString();
+
+        await generateInvoicePDF({
+          invoiceNumber,
+          invoiceDate,
+          dueDate,
+          reservation,
+        });
+
+        toast.success("Invoice generated successfully!");
+      } catch (error) {
+        console.error("Error generating invoice:", error);
+        toast.error("Failed to generate invoice. Please try again.");
+        throw error; // Re-throw to be caught by simulateProgress
+      } finally {
+        setGeneratingDocFor(null);
+      }
+    };
+    
+    simulateProgress(generationTask);
+  };
+
+  const handleGenerateVoucher = (reservation: Reservation) => {
+    if (generatingDocFor || isLoaderVisible) return;
+    setGeneratingDocFor(reservation.bookingId);
+    setLoaderMessage("Generating Voucher...");
+
+    const generationTask = async () => {
+      try {
+        await generateVoucherPDF(reservation);
+        toast.success("Voucher generated!");
+      } catch (e) {
+        toast.error("Failed to generate voucher");
+        throw e; // Re-throw to be caught by simulateProgress
+      } finally {
+        setGeneratingDocFor(null);
+      }
+    };
+
+    simulateProgress(generationTask);
   };
 
 
@@ -827,13 +883,13 @@ const BookingsPage: NextPage = () => {
                     </button>
                   )}
                   
-                  <button onClick={() => handleGenerateVoucher(r)} disabled={isGenerating} className={`${baseButtonStyles} ${defaultButtonStyles}`}>
+                  <button onClick={() => handleGenerateVoucher(r)} disabled={isGenerating || isLoaderVisible} className={`${baseButtonStyles} ${defaultButtonStyles}`}>
                       <FaTicketAlt />
-                      <span>{isGenerating ? "..." : "Voucher"}</span>
+                      <span>Voucher</span>
                   </button>
-                  <button onClick={() => handleGenerateInvoice(r)} disabled={isGenerating} className={`${baseButtonStyles} ${defaultButtonStyles}`}>
+                  <button onClick={() => handleGenerateInvoice(r)} disabled={isGenerating || isLoaderVisible} className={`${baseButtonStyles} ${defaultButtonStyles}`}>
                       <FaFileInvoiceDollar />
-                      <span>{isGenerating ? "..." : "Invoice"}</span>
+                      <span>Invoice</span>
                   </button>
                   <button onClick={() => setViewModalRes(r)} className={`${baseButtonStyles} ${viewButtonStyles}`}>
                     <FaEye />
@@ -994,6 +1050,13 @@ const BookingsPage: NextPage = () => {
           onClose={() => setPayModalRes(null)}
         />
       )}
+
+      {/* --- NEW: Render the Percentage Loader Modal --- */}
+      <PercentageLoaderModal
+        isOpen={isLoaderVisible}
+        progress={loaderProgress}
+        message={loaderMessage}
+      />
     </div>
   );
 };

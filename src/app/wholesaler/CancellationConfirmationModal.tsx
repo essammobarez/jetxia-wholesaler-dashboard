@@ -1,10 +1,10 @@
 // components/RoomCancellationModal.tsx
 "use-client";
 
-import React, { useState, useMemo } from 'react';
-import { XCircle, AlertTriangle, Loader2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Loader2, XCircle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Reservation } from './BookingModal'; // Assuming Reservation type is exported from here
+import { Reservation } from './booking-history/BookingModal'; // Assuming Reservation type is exported from here
 
 // Define a type for a single room within the 'allRooms' array for cancellation purposes
 export type CancellableRoom = Reservation['allRooms'][0];

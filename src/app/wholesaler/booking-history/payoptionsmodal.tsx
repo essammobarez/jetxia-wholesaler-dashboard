@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import toast from "react-hot-toast";
-import { FaWallet, FaTimes } from "react-icons/fa";
+import { FaTimes, FaWallet } from "react-icons/fa";
 import { Reservation } from "./BookingModal";
 
 interface PayOptionsModalProps {
