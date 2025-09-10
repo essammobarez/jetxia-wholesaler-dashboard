@@ -136,7 +136,10 @@ const SupportTicketsPage = () => {
 
   // Initial fetch
   useEffect(() => {
-    fetchTickets();
+    setInterval(() => {
+      fetchTickets();
+    }, 10000);
+    // fetchTickets();
   }, []);
 
   // Reset reply text when selected ticket changes
