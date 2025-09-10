@@ -2,7 +2,7 @@
 "use-client";
 
 import React, { useState, useMemo } from 'react';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Import toast
 import { X, AlertTriangle, CalendarClock, User, Wallet, CreditCard, Trash2 } from 'lucide-react';
 import { Reservation } from './BookingModal';
 
@@ -10,8 +10,9 @@ export type CancellableRoom = Reservation['allRooms'][0];
 
 interface RoomCancellationModalProps {
   reservation: Reservation;
-  onSuccess: () => void;
+  onSuccess: () => void; // Replaced onConfirm with onSuccess
   onClose: () => void;
+  // isCanceling prop is removed
 }
 
 // Helper functions (unchanged)
@@ -48,6 +49,9 @@ const calculateFee = (room: CancellableRoom): number => {
     const cancellationDeadline = new Date(policy.date);
     const now = new Date();
     if (now > cancellationDeadline) {
+        // NOTE: The example response doesn't contain an 'amount' field in the policy.
+        // This logic assumes a fee might be present, but based on the provided data,
+        // it may always return 0. Adjust if the actual API provides a fee amount.
         return (policy as any).amount ?? 0;
     }
     return 0;
@@ -59,6 +63,7 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
   onClose,
 }) => {
   const [selectedRooms, setSelectedRooms] = useState<Record<number, CancellableRoom>>({});
+  // NEW: Internal state to manage the API call process
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleToggleRoom = (room: CancellableRoom) => {
@@ -91,47 +96,24 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     return { totalFinalPrice: finalPrice, totalToBeRefunded: refundAmount };
   }, [selectedRoomsArray, isPayLaterBooking]);
   
-  // --- FIXED: Explicit token handling and header creation ---
+  // --- NEW: API call logic is now inside the modal ---
   const handleProceedToCancel = async () => {
     if (selectedRoomsArray.length === 0 || isSubmitting) return;
-
-    // 1. Get the authentication token from browser storage
-    const token =
-      document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
-      localStorage.getItem("authToken");
-
-    // 2. Validate the token. If it doesn't exist, stop the function.
-    if (!token) {
-      toast.error("Authorization failed. Please log in again.");
-      console.error("Auth token not found in cookies or local storage.");
-      return;
-    }
     
     setIsSubmitting(true);
     const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}cancel-book`;
 
-    // 3. Explicitly create the headers object with the Bearer token
-    const apiHeaders = {
-        'Content-Type': 'application/json',
-        // This line adds the token to the request header
-        'Authorization': `Bearer ${token}`,
-    };
-    
-    // Optional: Check your browser's console to see if the token is being logged correctly
-    console.log("Sending API request with headers:", apiHeaders);
-
     const cancellationPromises = selectedRoomsArray.map(room => {
         const payload = {
             provider: reservation.providerId,
-            bookingId: reservation.dbId,
+            bookingId: reservation.dbId, // Use the database _id
             typeCancelation: "element",
             reservationId: String(room.reservationId),
         };
 
-        // 4. Use the prepared headers in the fetch request for each room
         return fetch(endpoint, {
             method: 'POST',
-            headers: apiHeaders, // Pass the headers object here
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         }).then(async response => {
             if (!response.ok) {
@@ -145,15 +127,15 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     try {
         await Promise.all(cancellationPromises);
         toast.success(`${selectedRoomsArray.length} room(s) successfully cancelled!`);
-        onSuccess();
+        onSuccess(); // Notify parent to refresh and close
     } catch (error: any) {
         toast.error(`Error: ${error.message || "An unknown error occurred"}`);
-        console.error("Cancellation API call failed:", error);
     } finally {
         setIsSubmitting(false);
     }
   };
 
+  // NEW: A component to render a contextual info box about the payment type.
   const CancellationInfoBox = () => (
     <div className="mt-4 p-3 rounded-lg flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         {isPayLaterBooking ? (

@@ -144,8 +144,8 @@ pdf.text("Travel", textX, textY + 10);
 
     // Triangle part for the slant on the left
     pdf.triangle(
-        barStartX, barY + barHeight,             // bottom-left point of the slant
-        barStartX + slantWidth, barY,            // top-left point of the slant
+        barStartX, barY + barHeight,         // bottom-left point of the slant
+        barStartX + slantWidth, barY,         // top-left point of the slant
         barStartX + slantWidth, barY + barHeight, // bottom-right point of the slant
         "F"
     );
@@ -227,7 +227,8 @@ pdf.text('United Arab Emirates', contactTextX, currentContactY + 4);
     // Company Name
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10.5);
-    pdf.text("1068: SM3L ID TECHNOLO*IES L.L.C", margin + 5, boxY + 16);
+    // **MODIFIED LINE: Using dynamic agency name from the reservation object**
+    pdf.text(reservation.agencyName, margin + 5, boxY + 16);
 
     // Separator line under company
     pdf.setDrawColor(220, 220, 220);
@@ -258,7 +259,7 @@ pdf.text('United Arab Emirates', contactTextX, currentContactY + 4);
     // Last line doesn't need a line after it
     pdf.text("Tax Registration Number", labelX, by);
     pdf.text(":", colonX, by);
-    pdf.text("100454103100003", valueX, by);
+    pdf.text("104750328700003", valueX, by);
 
     // Total Amount Box
     const blueBoxY = boxY;
@@ -321,8 +322,32 @@ pdf.text('United Arab Emirates', contactTextX, currentContactY + 4);
     pdf.setFontSize(9.5);
     pdf.setTextColor(30, 30, 30);
 
-    const ticketDetails = "077-077-3580501\n170 Egyptair\nEconomy Class,\nEGYPT";
-    const serviceDetails = "1 CAL/RIY\n10/05/2025 - 28/05/2025\nLPO No:";
+    // --- MODIFICATION START ---
+    
+    // Helper to format date strings to DD/MM/YYYY
+    const formatDate = (dateString: string | null | undefined): string => {
+        if (!dateString) return "N/A";
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return "N/A";
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        } catch (e) {
+            return "N/A";
+        }
+    };
+
+    // Extract lead guest name
+    const leadPassenger = reservation.passengers.find((p) => p.lead) || reservation.passengers[0];
+    const guestName = leadPassenger ? `${leadPassenger.firstName} ${leadPassenger.lastName}` : "N/A";
+
+    // Construct details for the table columns
+    const ticketDetails = `Hotel Stay: ${reservation.hotelInfo.name}\nPrice: ${reservation.currency} ${formatNumber(SP)}\nCheck-in: ${formatDate(reservation.checkIn)}\nCheck-out: ${formatDate(reservation.checkOut)}`;
+    const serviceDetails = `${reservation.hotelInfo.name}\nRoom for ${guestName}`;
+
+    // --- MODIFICATION END ---
 
     const ticketDim = pdf.getTextDimensions(ticketDetails, { maxWidth: colWidths[1] - 4, fontSize: 9.5 });
     const serviceDim = pdf.getTextDimensions(serviceDetails, { maxWidth: colWidths[2] - 4, fontSize: 9.5 });
