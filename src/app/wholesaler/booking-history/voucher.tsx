@@ -11,6 +11,12 @@ export interface Reservation {
   providerId?: string;
   checkIn?: string;
   checkOut?: string;
+  // *** MODIFIED: Added agency object to the type
+  agency?: {
+    agencyName?: string;
+    address?: string;
+    phoneNumber?: string;
+  };
   passengers?: { firstName: string; lastName: string; lead?: boolean; nationality?: string }[];
   hotelInfo?: {
     id?: string;
@@ -102,13 +108,29 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     marginTop: -15,
   },
+  // *** MODIFIED: Styles for right-side alignment and layout
   headerRight: {
     display: "flex",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    textAlign: "right",
   },
   agencyLogo: {
     width: 75,
     height: "auto",
+    marginBottom: '5px',
+  },
+  // *** NEW: Styles for the agency information block
+  agencyInfo: {
+    fontSize: 9,
+    color: '#555',
+    lineHeight: 1.3,
+  },
+  agencyName: {
+    fontWeight: 'bold',
+    color: '#333',
+    fontSize: 10,
+    marginBottom: 2,
   },
   voucherTitle: {
     fontSize: 24,
@@ -311,6 +333,14 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
               style={styles.agencyLogo}
               crossOrigin="anonymous"
             />
+            {/* *** MODIFIED: Added agency details block */}
+            {reservation.agency && (
+              <div style={styles.agencyInfo}>
+                <div style={styles.agencyName}>{reservation.agency.agencyName}</div>
+                <div>{reservation.agency.address}</div>
+                <div>{reservation.agency.phoneNumber}</div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -332,7 +362,7 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
                   {reservation.bookingId || "N/A"}
                 </span>
               </div>
-               {/* --- MODIFIED: Booking date moved here --- */}
+                {/* --- MODIFIED: Booking date moved here --- */}
               <div>
                 <span style={styles.bookingInfoRefLabel}>Booking date: </span>
                 <span style={styles.bookingInfoRefValue}>

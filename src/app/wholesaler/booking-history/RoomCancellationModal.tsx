@@ -98,13 +98,12 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     return { totalFinalPrice: finalPrice, totalToBeRefunded: refundAmount };
   }, [selectedRoomsArray, isPayLaterBooking]);
   
-  // --- UPDATED: API call logic now includes token fetching ---
+  // The API call logic is updated to send an array of rooms in a single request.
   const handleProceedToCancel = async () => {
     if (selectedRoomsArray.length === 0 || isSubmitting) return;
     
     setIsSubmitting(true);
 
-    // Fetch the authentication token
     const token = getAuthToken();
     if (!token) {
       toast.error("Authorization failed. Please log in again.");
@@ -114,33 +113,34 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     
     const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}cancel-book`;
 
-    const cancellationPromises = selectedRoomsArray.map(room => {
-        const payload = {
-            provider: reservation.providerId,
-            bookingId: reservation.dbId, // Use the database _id
-            typeCancelation: "element",
-            reservationId: String(room.reservationId),
-        };
+    // Construct a single payload containing an array of cancellation objects,
+    // as per the specified "Payload like" format.
+    const payload = selectedRoomsArray.map(room => ({
+        provider: reservation.providerId,
+        bookingId: reservation.dbId, // Use the database _id of the parent booking
+        typeCancelation: "entire",   // Use 'entire' as specified in the example
+        // We include `reservationId` to specify WHICH room to cancel,
+        // fulfilling the "pass each room _id" requirement.
+        reservationId: String(room.reservationId),
+    }));
 
-        return fetch(endpoint, {
+    try {
+        // Send the entire array of rooms to cancel in a single API call
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                // Pass the token in the Authorization header
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify(payload),
-        }).then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Cancellation failed for room ${room.roomName}`);
-            }
-            return response.json();
         });
-    });
 
-    try {
-        await Promise.all(cancellationPromises);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Cancellation failed for ${selectedRoomsArray.length} room(s).`);
+        }
+
+        await response.json(); // Or handle the response data if needed
         toast.success(`${selectedRoomsArray.length} room(s) successfully cancelled!`);
         onSuccess(); // Notify parent to refresh and close
     } catch (error: any) {
@@ -290,7 +290,7 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
           </div>
             <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-4">
               By proceeding, you agree to the cancellation charges shown above.
-          </p>
+            </p>
         </div>
       </div>
     </div>

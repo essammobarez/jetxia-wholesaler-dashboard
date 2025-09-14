@@ -155,7 +155,7 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
               Room {index + 1}: <span className="text-blue-500">{room.roomName}</span>
             </h4>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {room.guests.length} Guest(s) | Reservation #{room.reservationId}
+              {room.guests.length} Guest(s)
             </p>
           </div>
           <FiChevronDown className={`w-5 h-5 text-gray-500 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -176,28 +176,35 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
                     <DetailItem label="Type" value={`${room.board} (${room.boardBasis})`} />
                 </div>
                 <div>
-                    <p className="font-semibold mb-2">Cancellation Policy</p>
-                    {policy && policy.date ? (
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                                <FaCheckCircle />
-                                <span className="font-bold">Free cancellation until:</span>
-                            </div>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 pl-6">{formatDate(policy.date)}</p>
-                            {chargeInfo &&
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 pl-6">
-                                    Charge after deadline: <strong>
-                                        {chargeInfo.value.toFixed(2)} {chargeInfo.currency}
-                                    </strong>
-                                </p>
-                            }
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                            <FaTimesCircle />
-                            <span className="font-bold">Non-refundable</span>
-                        </div>
-                    )}
+                  <p className="font-semibold mb-2">Cancellation Policy</p>
+                  {/* --- MODIFICATION START --- */}
+                  {room.status === 'cancelled' ? (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                      <FaBan />
+                      <span className="font-bold">No policy available, Room is cancelled</span>
+                    </div>
+                  ) : policy && policy.date ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <FaCheckCircle />
+                        <span className="font-bold">Free cancellation until:</span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 pl-6">{formatDate(policy.date)}</p>
+                      {chargeInfo &&
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 pl-6">
+                          Charge after deadline: <strong>
+                            {chargeInfo.value.toFixed(2)} {chargeInfo.currency}
+                          </strong>
+                        </p>
+                      }
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                      <FaTimesCircle />
+                      <span className="font-bold">Non-refundable</span>
+                    </div>
+                  )}
+                  {/* --- MODIFICATION END --- */}
                 </div>
               </div>
             </div>
@@ -262,13 +269,38 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
 
   if (!isOpen || !modalRoot) return null;
   
+  const getModalStatus = (reservation: Reservation): string => {
+    if (!reservation.allRooms || reservation.allRooms.length === 0) {
+      return reservation.topStatus.toLowerCase(); // Fallback if no room data
+    }
+    const roomStatuses = new Set(reservation.allRooms.map(room => room.status.toLowerCase()));
+    
+    if (roomStatuses.has('cancelled')) {
+      return 'cancelled';
+    }
+    
+    if (roomStatuses.has('pending')) {
+      return 'pending';
+    }
+
+    if (roomStatuses.has('confirmed') || roomStatuses.has('ok')) {
+        return 'confirmed';
+    }
+    
+    return reservation.topStatus.toLowerCase();
+  };
+
+  // --- START: MODIFIED LABELS ---
   const statusStyles: { [key: string]: { icon: React.ElementType, color: string, label: string } } = {
-    confirmed: { icon: FaCheckCircle, color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", label: "Confirmed" },
+    confirmed: { icon: FaCheckCircle, color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", label: "Paid" },
     ok: { icon: FaCheckCircle, color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", label: "OK" },
     cancelled: { icon: FaTimesCircle, color: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300", label: "Cancelled" },
-    pending: { icon: FaExclamationCircle, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300", label: "Pending" },
+    pending: { icon: FaExclamationCircle, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300", label: "Payment Pending" },
   };
-  const statusInfo = statusStyles[r.topStatus.toLowerCase()] || statusStyles.pending;
+  // --- END: MODIFIED LABELS ---
+
+  const modalStatusKey = getModalStatus(r);
+  const statusInfo = statusStyles[modalStatusKey] || statusStyles.pending;
 
   return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -308,7 +340,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
 
             <Section title="Agency Details" icon={FiUsers}>
               <DetailItem label="Agency" value={r.agencyName}/>
-              <DetailItem label="Wholesaler" value={r.wholesalerName}/>
+              <DetailItem label="Reservation:" value={r.reservationId}/>
               <DetailItem label="Client Ref" value={r.clientRef}/>
             </Section>
             
@@ -324,10 +356,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
 
           {/* RIGHT COLUMN: ROOMS BREAKDOWN */}
           <div className="lg:col-span-2">
-             <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
                 <FiUsers className="text-blue-500" />
                 Room & Guest Breakdown
-             </h3>
+              </h3>
             {(r.allRooms && r.allRooms.length > 0) ? r.allRooms.map((room, idx) => (
               <RoomAccordion key={room.reservationId || idx} room={room} index={idx} currency={r.currency}/>
             )) : (
