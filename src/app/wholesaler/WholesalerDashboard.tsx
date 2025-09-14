@@ -44,6 +44,8 @@ import PreferencesPage from './PreferencesPage';
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
+import PaymentReport from './supplier/PaymentReport'; // New import
+import StatementsOnAccount from './supplier/StatementsOnAccount'; // New import
 import SupportTicketsPage from './SupportTicketsPage';
 
 // ✨ UPDATED: Imports for the new "Sales Person" sub-menus
@@ -531,7 +533,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Supplier' && item === 'Supplier' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['CreateOfflineSupplier', 'ManageSupplier'].map((tab) => (
+                  {['CreateOfflineSupplier', 'ManageSupplier', 'StatementsOnAccount', 'PaymentReport'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -548,6 +550,8 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateOfflineSupplier' && 'Create Supplier'}
                         {tab === 'ManageSupplier' && 'Manage Supplier'}
+                        {tab === 'StatementsOnAccount' && 'Statements on Account'}
+                        {tab === 'PaymentReport' && 'Payment Report'}
                       </span>
                     </button>
                   ))}
@@ -702,7 +706,7 @@ export default function WholesalerPage() {
 
           {/* ✨ NEW: Render Profile Settings Page */}
           {activePage === 'Profile Settings' && <ProfileSettingsPage />}
-          
+           
           {/* ✨ NEW: Render Preferences Page */}
           {activePage === 'Preferences' && <PreferencesPage />}
 
@@ -784,6 +788,8 @@ export default function WholesalerPage() {
             <div className="animate-fade-scale">
               {activeTab === 'CreateOfflineSupplier' && <CreateOfflineSupplier />}
               {activeTab === 'ManageSupplier' && <ManageSupplier />}
+              {activeTab === 'StatementsOnAccount' && <StatementsOnAccount />}
+              {activeTab === 'PaymentReport' && <PaymentReport />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
