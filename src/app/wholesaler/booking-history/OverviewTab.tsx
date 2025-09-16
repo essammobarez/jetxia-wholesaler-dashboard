@@ -180,6 +180,68 @@ const BookingsPage: NextPage = () => {
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
                 room.bookingData?.detailedInfo?.service || {};
+
+              // --- START: Cancellation Policy Update ---
+              const cancellationDetails =
+                room.bookingData?.initialResponse?.HotelDetails
+                  ?.RoomDetails?.[0]?.CancellationPolicyDetails?.Cancellation;
+
+              let finalCancellationPolicy = room.cancellationPolicy ?? null;
+
+              if (cancellationDetails && Array.isArray(cancellationDetails)) {
+                const parsedPolicies = cancellationDetails
+                  .map((policy: any) => {
+                    const fromDateStr = String(policy.FromDate);
+                    if (fromDateStr.length !== 8) return null;
+
+                    const year = parseInt(fromDateStr.substring(0, 4), 10);
+                    const month = parseInt(fromDateStr.substring(4, 6), 10);
+                    const day = parseInt(fromDateStr.substring(6, 8), 10);
+
+                    const timeStr = String(
+                      policy.FromTime || "12:00 AM"
+                    ).replace(/[\s\u202F]+/g, " "); // Handle regular and non-breaking spaces
+
+                    const timeParts = timeStr.match(
+                      /(\d+):(\d+)\s*(AM|PM)/i
+                    );
+                    let hours = 0;
+                    let minutes = 0;
+
+                    if (timeParts) {
+                      hours = parseInt(timeParts[1], 10);
+                      minutes = parseInt(timeParts[2], 10);
+                      const modifier = timeParts[3].toUpperCase();
+                      if (modifier === "PM" && hours < 12) {
+                        hours += 12;
+                      }
+                      if (modifier === "AM" && hours === 12) {
+                        hours = 0; // Midnight case
+                      }
+                    }
+                    const startDate = new Date(
+                      Date.UTC(year, month - 1, day, hours, minutes)
+                    ).toISOString();
+
+                    return {
+                      startDate,
+                      percentOrAmt: policy.PercentOrAmt,
+                      value: policy.Value,
+                    };
+                  })
+                  .filter((p: any) => p !== null);
+
+                if (parsedPolicies.length > 0) {
+                  finalCancellationPolicy = {
+                    date: parsedPolicies[0].startDate,
+                    policies: parsedPolicies,
+                  };
+                } else {
+                  finalCancellationPolicy = null;
+                }
+              }
+              // --- END: Cancellation Policy Update ---
+
               const roomGuests = Array.isArray(room.guests)
                 ? room.guests.map((p: any) => ({
                     paxId: 0,
@@ -191,14 +253,23 @@ const BookingsPage: NextPage = () => {
                     email: p.email ?? null,
                     phone: p.phone ?? null,
                     phonePrefix: p.phonePrefix ?? null,
-                    // MODIFICATION: Added nationality here
                     nationality: String(p.nationality ?? ""),
                   }))
                 : [];
 
-              // Assuming the first room in detailedService corresponds to the current room from item.rooms
               const roomInfo = detailedService.rooms?.[0] || {};
               const firstGuestInRoom = room.guests?.[0];
+
+              // --- START: Room Name Fix ---
+              // Fetch room name exclusively from the response, no static fallback
+              const descriptiveRoomName =
+                room.bookingData?.initialResponse?.HotelDetails
+                  ?.RoomDetails?.[0]?.RoomType;
+              const genericRoomName = room.name;
+              const finalRoomName = String(
+                descriptiveRoomName || genericRoomName || ""
+              );
+              // --- END: Room Name Fix ---
 
               return {
                 reservationId: Number(room.reservationId ?? 0),
@@ -212,10 +283,10 @@ const BookingsPage: NextPage = () => {
                 priceCommission: Number(
                   detailedService.prices?.total?.commission?.value ?? 0
                 ),
-                cancellationPolicy: room.cancellationPolicy ?? null,
+                cancellationPolicy: finalCancellationPolicy, // Use the processed policy
                 guests: roomGuests,
-                remarks: [], // Remarks not available in this structure
-                roomName: String(roomInfo.name ?? "Unknown Room Type"),
+                remarks: [],
+                roomName: finalRoomName, // Use the fixed room name
                 board: String(roomInfo.board ?? room.board ?? "N/A"),
                 boardBasis: String(roomInfo.boardBasis ?? "N/A"),
                 info: String(roomInfo.info ?? ""),
@@ -226,8 +297,16 @@ const BookingsPage: NextPage = () => {
             // Aggregate all passengers from all rooms for the main passenger list
             const allPassengers = allRoomsData.flatMap((r) => r.guests);
 
-            // --- OLD: Use the first room's data for the main list view to avoid breaking changes ---
-            const room = item.rooms?.[0] || {};
+            // --- Use the first room's data for the main list view ---
+            // Create a modified first room object that has the processed cancellation policy
+            const rawFirstRoom = item.rooms?.[0] || {};
+            const room = {
+              ...rawFirstRoom,
+              cancellationPolicy:
+                allRoomsData[0]?.cancellationPolicy ??
+                rawFirstRoom.cancellationPolicy,
+            };
+
             const detailedService =
               room.bookingData?.detailedInfo?.service || {};
 
@@ -237,8 +316,14 @@ const BookingsPage: NextPage = () => {
             const topStatus = String(item.status ?? "").toLowerCase();
             const createdAt = String(item.createdAt ?? "");
             const dbId = String(item._id ?? "");
-            const agency = item.agency; // *** MODIFIED: Get full agency object
+            const agency = item.agency;
             const agencyName = item.agency?.agencyName ?? "N/A";
+
+            // --- MODIFICATION START: Extract Source ---
+            const source =
+              item.rooms?.[0]?.bookingData?.initialResponse?.BookingDetails
+                ?.Source ?? null;
+            // --- MODIFICATION END ---
 
             const wholesaler = item.wholesaler;
             const wholesalerName =
@@ -247,14 +332,9 @@ const BookingsPage: NextPage = () => {
                 : typeof wholesaler === "string"
                 ? wholesaler
                 : "N/A";
-            const providerId = item.providers?.[0] ?? "N/A";
 
-            // --- MODIFICATION START ---
-            let providerName = "N/A";
-            if (providerId === "680e4431309622be28c28eda") {
-              providerName = "Ebooking";
-            }
-            // --- MODIFICATION END ---
+            const providerId = room.provider?._id ?? "N/A";
+            const providerName = room.provider?.name ?? "N/A";
 
             const clientRef = String(item.clientReference ?? "");
             const serviceType = "hotel";
@@ -343,7 +423,7 @@ const BookingsPage: NextPage = () => {
               reservationId,
               topStatus,
               createdAt,
-              agency, // *** MODIFIED: Pass full agency object
+              agency,
               agencyName,
               wholesaler,
               wholesalerName,
@@ -369,13 +449,14 @@ const BookingsPage: NextPage = () => {
               destinationCity,
               destinationCountry,
               nationality,
-              passengers: allPassengers, // Use aggregated passengers
+              passengers: allPassengers,
               remarks,
               hotelInfo,
               rooms: detailedRooms,
               freeCancellation,
               priceDetails: item.priceDetails,
-              allRooms: allRoomsData, // Attach the detailed all-rooms data for the modal
+              allRooms: allRoomsData,
+              source, // --- MODIFICATION: Added source to the final object
             };
           });
           setReservations(mapped);
@@ -1123,7 +1204,6 @@ const BookingsPage: NextPage = () => {
                         </div>
                       </div>
 
-                      {/* --- MODIFICATION START --- */}
                       {/* Section 3: Destination, Nationality & Provider */}
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
                         <div>
@@ -1153,7 +1233,6 @@ const BookingsPage: NextPage = () => {
                           </p>
                         </div>
                       </div>
-                      {/* --- MODIFICATION END --- */}
                     </div>
 
                     {/* --- RIGHT SIDE: Rooms column (takes up 1 of 4 columns) --- */}
@@ -1166,12 +1245,12 @@ const BookingsPage: NextPage = () => {
                           {reservationForModals.allRooms.map((room, index) => {
                             let cancellationDateString = null;
                             if (
-                              Array.isArray(room.cancellationPolicy) &&
-                              room.cancellationPolicy.length > 0 &&
-                              room.cancellationPolicy[0].startDate
+                              Array.isArray(room.cancellationPolicy?.policies) &&
+                              room.cancellationPolicy.policies.length > 0 &&
+                              room.cancellationPolicy.policies[0].startDate
                             ) {
                               cancellationDateString =
-                                room.cancellationPolicy[0].startDate;
+                                room.cancellationPolicy.policies[0].startDate;
                             } else if (room.cancellationPolicy?.date) {
                               cancellationDateString =
                                 room.cancellationPolicy.date;
