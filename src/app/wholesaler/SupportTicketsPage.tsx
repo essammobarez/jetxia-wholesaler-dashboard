@@ -113,7 +113,6 @@ const SupportTicketsPage = () => {
       if (response.data.success) {
         setTickets(response.data.data);
 
-        // Only update selected ticket if we're not in the middle of a refresh operation
         if (selectedTicketId && !refresh) {
           const updatedSelectedTicket = response.data.data.find(ticket => ticket._id === selectedTicketId);
           if (updatedSelectedTicket?._id) {
