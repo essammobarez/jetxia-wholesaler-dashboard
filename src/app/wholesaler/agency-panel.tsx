@@ -1,11 +1,22 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
-import { Eye, Edit2, Trash2, Tag, UserPlus } from 'lucide-react';
+import { Eye, Edit2, Trash2, Tag, UserPlus, Users, X } from 'lucide-react';
 import { Registration, Agency as BaseAgency, AgencyModal } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
 import AssignModal from './AssignModal';
 import { TbCreditCardPay } from 'react-icons/tb';
+import { toast } from 'react-toastify';
+
+type SubAgency = {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  permissions: string[];
+  status: string;
+  createdAt: string;
+};
 
 type Supplier = { id: string; name: string; enabled: boolean };
 
@@ -38,6 +49,134 @@ type AgencyWithState = BaseAgency & {
     mainBalance: number;
     availableCredit: number;
   };
+};
+
+// ## UPDATED MODAL TO HANDLE ITS OWN LOADING STATE ##
+const SubAgencyModal = ({
+  isOpen,
+  onClose,
+  subAgencies,
+  agencyName,
+  isLoading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  subAgencies: SubAgency[];
+  agencyName: string;
+  isLoading: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <header className="flex justify-between items-center p-4 border-b">
+          <h2 className="text-xl font-bold text-gray-800">
+            Sub-Agents for <span className="text-blue-600">{agencyName}</span>
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-200 transition"
+          >
+            <X className="w-6 h-6 text-gray-600" />
+          </button>
+        </header>
+        <main className="p-6 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex justify-center items-center py-16">
+              <svg
+                className="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <p className="text-lg text-gray-500">Loading Sub-Agents...</p>
+            </div>
+          ) : subAgencies.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Permissions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created At
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {subAgencies.map(agent => (
+                    <tr key={agent._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {agent.firstName} {agent.lastName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {agent.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {agent.permissions.join(', ')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            agent.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                        >
+                          {agent.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {new Date(agent.createdAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-8">
+              No sub-agents found for this agency.
+            </p>
+          )}
+        </main>
+        <footer className="p-4 bg-gray-50 border-t text-right">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50"
+            disabled={isLoading}
+          >
+            Close
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
 };
 
 export default function AgencyAdminPanel() {
@@ -78,6 +217,13 @@ export default function AgencyAdminPanel() {
 
   const [plans, setPlans] = useState<PlanType[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+
+  const [isSubAgencyModalOpen, setIsSubAgencyModalOpen] = useState(false);
+  const [currentSubAgencies, setCurrentSubAgencies] = useState<SubAgency[]>([]);
+  const [selectedAgencyNameForSubAgents, setSelectedAgencyNameForSubAgents] =
+    useState('');
+  // ## NEW STATE FOR THE MODAL'S INTERNAL LOADER ##
+  const [isSubAgencyLoading, setIsSubAgencyLoading] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
@@ -194,18 +340,15 @@ export default function AgencyAdminPanel() {
     fetchData();
   }, [API_URL, wholesalerId]);
 
-  // ## FIXED FUNCTION ##
-  // This function now only updates the component's state, so the switch works correctly on the front-end.
-  // The API call logic has been removed as requested.
   const handleProviderToggle = (
     agencyId: string,
     providerId: string,
     newStatus: boolean
   ) => {
-    setAgencies((prevAgencies) =>
-      prevAgencies.map((agency) => {
+    setAgencies(prevAgencies =>
+      prevAgencies.map(agency => {
         if (agency.id === agencyId && agency.markupPlan) {
-          const newMarkups = agency.markupPlan.markups.map((markup) => {
+          const newMarkups = agency.markupPlan.markups.map(markup => {
             if (markup.provider?._id === providerId) {
               return {
                 ...markup,
@@ -230,7 +373,7 @@ export default function AgencyAdminPanel() {
     const token =
       document.cookie
         .split('; ')
-        .find((r) => r.startsWith('authToken='))
+        .find(r => r.startsWith('authToken='))
         ?.split('=')[1] || localStorage.getItem('authToken');
 
     if (!token) {
@@ -257,8 +400,8 @@ export default function AgencyAdminPanel() {
         return;
       }
 
-      setAgencies((prev) =>
-        prev.map((a) =>
+      setAgencies(prev =>
+        prev.map(a =>
           a.id === agencyId
             ? { ...a, status: newStatus, suspended: newStatus !== 'approved' }
             : a
@@ -331,7 +474,7 @@ export default function AgencyAdminPanel() {
     const token =
       document.cookie
         .split('; ')
-        .find((r) => r.startsWith('authToken='))
+        .find(r => r.startsWith('authToken='))
         ?.split('=')[1] || localStorage.getItem('authToken');
     try {
       const payload = {
@@ -365,8 +508,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
-      setAgencies((prev) =>
-        prev.map((a) =>
+      setAgencies(prev =>
+        prev.map(a =>
           a.id === selected.id
             ? {
                 ...a,
@@ -400,8 +543,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
-      setAgencies((prev) =>
-        prev.map((a) =>
+      setAgencies(prev =>
+        prev.map(a =>
           a.id === selected.id
             ? {
                 ...a,
@@ -420,7 +563,7 @@ export default function AgencyAdminPanel() {
 
   const deleteAgency = (agency: BaseAgency) => {
     if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
-      setAgencies((prev) => prev.filter((a) => a.id !== agency.id));
+      setAgencies(prev => prev.filter(a => a.id !== agency.id));
     }
     closeModal();
   };
@@ -428,7 +571,7 @@ export default function AgencyAdminPanel() {
   const closeModal = () => setModalMode(null);
 
   const openCreditModal = (id: string) => {
-    const agency = agencies.find((a) => a.id === id);
+    const agency = agencies.find(a => a.id === id);
     if (agency) {
       setAgencyId(id);
       setSelectedWalletBalance(agency.walletBalance);
@@ -452,6 +595,53 @@ export default function AgencyAdminPanel() {
     setIsAssignModalOpen(false);
     setSelectedAgencyIdForAssign(null);
     setSelectedAgencyNameForAssign(null);
+  };
+
+  // ## UPDATED FUNCTION TO MANAGE MODAL-SPECIFIC LOADING ##
+  const handleViewSubAgencies = async (agencyId: string, agencyName: string) => {
+    // Open modal and set its loading state immediately
+    setIsSubAgencyModalOpen(true);
+    setIsSubAgencyLoading(true);
+    setCurrentSubAgencies([]); // Clear previous data
+    setSelectedAgencyNameForSubAgents(agencyName);
+
+    const token =
+      document.cookie.split('; ').find(r => r.startsWith('authToken='))?.split(
+        '='
+      )[1] || localStorage.getItem('authToken');
+
+    if (!token) {
+      toast.error('Authorization failed. Please log in again.');
+      setIsSubAgencyLoading(false);
+      setIsSubAgencyModalOpen(false); // Close modal on auth error
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/sub-agency/list?agencyId=${agencyId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setCurrentSubAgencies(result.data);
+      } else {
+        throw new Error(result.message || 'Failed to fetch sub-agencies.');
+      }
+    } catch (error: any) {
+      console.error('API call failed:', error);
+      toast.error(error.message || 'An error occurred.');
+    } finally {
+      // Stop the modal's loading indicator
+      setIsSubAgencyLoading(false);
+    }
   };
 
   if (loading) {
@@ -485,7 +675,7 @@ export default function AgencyAdminPanel() {
       <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
         <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto]">
           <div className="hidden lg:contents">
-            {headerTitles.map((title) => (
+            {headerTitles.map(title => (
               <div
                 key={title}
                 className="lg:p-4 font-semibold text-sm text-blue-700 uppercase tracking-wider bg-blue-100 text-center"
@@ -518,14 +708,18 @@ export default function AgencyAdminPanel() {
                   </div>
 
                   <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
-                    <strong className="lg:hidden text-gray-600">Contact</strong>
+                    <strong className="lg:hidden text-gray-600">
+                      Contact
+                    </strong>
                     <span className="text-right lg:text-center">
                       {a.contactName}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
-                    <strong className="lg:hidden text-gray-600">Submitted</strong>
+                    <strong className="lg:hidden text-gray-600">
+                      Submitted
+                    </strong>
                     <span className="text-right lg:text-center">
                       {new Date(a.submittedAt).toLocaleDateString(undefined, {
                         year: 'numeric',
@@ -550,32 +744,40 @@ export default function AgencyAdminPanel() {
                           >
                             {planNameDisplayText}
                           </span>
-                          <div className="group relative" data-tooltip-area={a.id}>
+                          <div
+                            className="group relative"
+                            data-tooltip-area={a.id}
+                          >
                             <Tag
                               className="w-5 h-5 text-blue-500 cursor-pointer"
                               onClick={() =>
-                                setActiveTooltip((prev) =>
+                                setActiveTooltip(prev =>
                                   prev === a.id ? null : a.id
                                 )
                               }
                             />
                             <div
                               className={`
-                                        absolute left-1/2 -translate-x-1/2 w-max max-w-xs
-                                        bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
-                                        ${isTopRow ? 'top-full mt-2' : 'bottom-full mb-2'}
-                                        ${activeTooltip === a.id
-                                ? 'visible opacity-100'
-                                : 'invisible opacity-0'
-                              }
-                                        lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
-                                    `}
+                                            absolute left-1/2 -translate-x-1/2 w-max max-w-xs
+                                            bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
+                                            ${
+                                              isTopRow
+                                                ? 'top-full mt-2'
+                                                : 'bottom-full mb-2'
+                                            }
+                                            ${
+                                              activeTooltip === a.id
+                                                ? 'visible opacity-100'
+                                                : 'invisible opacity-0'
+                                            }
+                                            lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
+                                        `}
                             >
                               <h4 className="font-bold border-b border-gray-600 pb-1 mb-2">
                                 Providers & Markups
                               </h4>
                               <ul className="space-y-2">
-                                {(a.markupPlan?.markups ?? []).map((markup) => (
+                                {(a.markupPlan?.markups ?? []).map(markup => (
                                   <li
                                     key={markup._id}
                                     className="flex justify-between items-center space-x-4"
@@ -588,8 +790,10 @@ export default function AgencyAdminPanel() {
                                         {markup.value}%
                                       </span>
                                       <Switch
-                                        checked={markup.provider?.isActive ?? false}
-                                        onChange={(newState) => {
+                                        checked={
+                                          markup.provider?.isActive ?? false
+                                        }
+                                        onChange={newState => {
                                           if (markup.provider?._id) {
                                             handleProviderToggle(
                                               a.id,
@@ -618,13 +822,14 @@ export default function AgencyAdminPanel() {
                               </ul>
                               <div
                                 className={`
-                                            absolute left-1/2 -translate-x-1/2 w-0 h-0
-                                            border-x-8 border-x-transparent
-                                            ${isTopRow
-                                ? 'bottom-full border-b-8 border-b-gray-800'
-                                : 'top-full border-t-8 border-t-gray-800'
-                              }
-                                        `}
+                                                absolute left-1/2 -translate-x-1/2 w-0 h-0
+                                                border-x-8 border-x-transparent
+                                                ${
+                                                  isTopRow
+                                                    ? 'bottom-full border-b-8 border-b-gray-800'
+                                                    : 'top-full border-t-8 border-t-gray-800'
+                                                }
+                                            `}
                               />
                             </div>
                           </div>
@@ -636,7 +841,9 @@ export default function AgencyAdminPanel() {
                   </div>
 
                   <div className="flex justify-between items-center lg:items-center lg:justify-center lg:p-4 lg:border-b lg:border-gray-100 lg:group-hover:bg-blue-50">
-                    <strong className="lg:hidden text-gray-600">Status</strong>
+                    <strong className="lg:hidden text-gray-600">
+                      Status
+                    </strong>
                     <span
                       className={`px-3 py-1 text-xs font-medium rounded-full ${
                         a.status === 'pending'
@@ -687,6 +894,15 @@ export default function AgencyAdminPanel() {
                       >
                         <UserPlus size={18} className="text-purple-700" />
                       </button>
+                      <button
+                        title="View Sub-agencies"
+                        onClick={() =>
+                          handleViewSubAgencies(a.id, a.agencyName)
+                        }
+                        className="p-2 bg-teal-200 rounded-full hover:bg-teal-300 transition"
+                      >
+                        <Users size={18} className="text-teal-700" />
+                      </button>
                       <Switch
                         checked={!a.suspended}
                         onChange={() => toggleStatus(a)}
@@ -725,7 +941,7 @@ export default function AgencyAdminPanel() {
         formState={formState}
         setFormState={setFormState}
         profileForm={profileForm}
-        setProfileForm={(vals) => setProfileForm(vals)}
+        setProfileForm={vals => setProfileForm(vals)}
         close={closeModal}
         onSave={saveEdit}
         onSaveProfile={saveProfile}
@@ -747,6 +963,14 @@ export default function AgencyAdminPanel() {
         onClose={closeAssignModal}
         agencyId={selectedAgencyIdForAssign}
         agencyName={selectedAgencyNameForAssign}
+      />
+
+      <SubAgencyModal
+        isOpen={isSubAgencyModalOpen}
+        onClose={() => setIsSubAgencyModalOpen(false)}
+        subAgencies={currentSubAgencies}
+        agencyName={selectedAgencyNameForSubAgents}
+        isLoading={isSubAgencyLoading}
       />
     </div>
   );
