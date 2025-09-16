@@ -2,15 +2,18 @@ import React, { useState, useEffect, ReactNode, useRef } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip, Button, Alert, Chip, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
-import { Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon, Search as SearchIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip, Button, Alert, Chip, Accordion, AccordionSummary, AccordionDetails, Divider, RadioGroup, FormControlLabel, Radio, FormControl } from '@mui/material';
+import {
+    Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon, Search as SearchIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon, ExpandMore as ExpandMoreIcon,
+    Info as InfoIcon, Replay as ReplayIcon, Schedule as ScheduleIcon, CreditCard as CreditCardIcon
+} from '@mui/icons-material';
 import dayjs, { Dayjs } from 'dayjs';
 import { debounce } from 'lodash';
 import axios from 'axios';
 
 // API Configuration
 const axiosInstance = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+    baseURL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.API_URL,
 });
 
 // --- TYPES ---
@@ -82,6 +85,8 @@ type RoomOption = {
     refundable: boolean;
     cancellationDeadline: string;
     features: string[];
+    packageToken: string;
+    roomToken: string;
 };
 
 type RoomType = {
@@ -93,6 +98,10 @@ type SupplierData = {
     supplierId: string;
     supplierName: string;
     data: {
+        srk: string;
+        tokens: {
+            results: string;
+        };
         simplified: {
             roomTypes: RoomType[];
         }
@@ -104,6 +113,28 @@ type RoomApiResponse = {
     data: {
         suppliers: SupplierData[];
     };
+};
+
+// MODIFIED: TYPES FOR PRE-BOOK API RESPONSE to handle cancellation policy array
+type CancellationPolicyDetail = {
+    deadline?: string;
+};
+
+type PreBookRoomDetail = {
+    roomToken: string;
+    roomType: string;
+    boardRoom: string;
+    Refundable: boolean;
+    cancellationPolicyDetails: CancellationPolicyDetail[] | null;
+    roomInfo: string;
+};
+
+type PreBookApiResponseData = {
+    availabilityToken: string;
+    packageInfo: {
+        rooms: PreBookRoomDetail[];
+    };
+    remarks: string[];
 };
 
 
@@ -145,6 +176,30 @@ const fetchRoomData = async (payload: any): Promise<RoomApiResponse> => {
         return response.data;
     } catch (error) {
         console.error('Error fetching room data:', error);
+        throw error;
+    }
+};
+
+const preBookHotel = async (payload: any): Promise<PreBookApiResponseData> => {
+    try {
+        const response = await axiosInstance.post('pre-book', payload);
+        console.log('Pre-Book Success:', response.data);
+        return response.data.data;
+    } catch (error) {
+        console.error('Error during pre-booking:', error);
+        alert('Pre-booking failed! Check the console for details.');
+        throw error;
+    }
+};
+
+const confirmBooking = async (payload: any): Promise<any> => {
+    try {
+        const response = await axiosInstance.post('/book-confirm', payload);
+        console.log('Booking Confirmation Success:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error during booking confirmation:', error);
+        alert('Booking confirmation failed! Check the console for details.');
         throw error;
     }
 };
@@ -230,14 +285,15 @@ const HotelDetails: React.FC<{ hotel: HotelFromCitySearch | null }> = ({ hotel }
     );
 };
 
-// --- UPDATED: ROOM RESULTS COMPONENT ---
 type RoomResultsProps = {
     status: 'idle' | 'success' | 'error';
     loading: boolean;
     data: RoomApiResponse | null;
+    selectedRoomIdentifier: string | null;
+    onSelectRoom: (identifier: string, room: RoomOption) => void;
 };
 
-const RoomResults: React.FC<RoomResultsProps> = ({ status, loading, data }) => {
+const RoomResults: React.FC<RoomResultsProps> = ({ status, loading, data, selectedRoomIdentifier, onSelectRoom }) => {
     const [expanded, setExpanded] = useState<string | false>(false);
 
     const handleChange = (panel: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
@@ -284,33 +340,43 @@ const RoomResults: React.FC<RoomResultsProps> = ({ status, loading, data }) => {
                                 </AccordionSummary>
                                 <AccordionDetails sx={{ backgroundColor: '#fafafa' }}>
                                     <div className="divide-y divide-gray-200">
-                                        {roomType.options.map((option, optIndex) => (
-                                            <div key={optIndex} className="flex flex-col md:flex-row justify-between items-start md:items-center py-4">
-                                                <div className="flex-1 mb-3 md:mb-0">
-                                                    <p className="font-semibold">{option.board}</p>
-                                                    <div className="flex items-center mt-2">
-                                                        {option.refundable ? (
-                                                            <Tooltip title={`Free cancellation before ${dayjs(option.cancellationDeadline).format('MMM D, YYYY h:mm A')}`} arrow>
-                                                                <Chip icon={<CheckCircleIcon />} label="Refundable" color="success" size="small" variant="outlined" />
-                                                            </Tooltip>
-                                                        ) : (
-                                                            <Chip icon={<CancelIcon />} label="Non-Refundable" color="error" size="small" variant="outlined" />
-                                                        )}
+                                        {roomType.options.map((option, optIndex) => {
+                                            const identifier = `${index}-${optIndex}`;
+                                            const isSelected = selectedRoomIdentifier === identifier;
+
+                                            return (
+                                                <div key={identifier} className={`flex flex-col md:flex-row justify-between items-start md:items-center py-4 px-2 transition-colors duration-200 ${isSelected ? 'bg-blue-100 rounded-lg' : ''}`}>
+                                                    <div className="flex-1 mb-3 md:mb-0">
+                                                        <p className="font-semibold">{option.board}</p>
+                                                        <div className="flex items-center mt-2">
+                                                            {option.refundable ? (
+                                                                <Tooltip title={`Free cancellation before ${dayjs(option.cancellationDeadline).format('MMMM D, YYYY, [at] HH:mm:ss')}`} arrow>
+                                                                    <Chip icon={<CheckCircleIcon />} label="Refundable" color="success" size="small" variant="outlined" />
+                                                                </Tooltip>
+                                                            ) : (
+                                                                <Chip icon={<CancelIcon />} label="Non-Refundable" color="error" size="small" variant="outlined" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex w-full md:w-auto items-center justify-between md:justify-end gap-4">
+                                                        <div className="text-right">
+                                                            <p className="text-xl font-bold text-blue-600">
+                                                                {option.price.value.toFixed(2)} {option.price.currency}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">Total price</p>
+                                                        </div>
+                                                        <Button
+                                                            variant={isSelected ? "outlined" : "contained"}
+                                                            color={isSelected ? "success" : "secondary"}
+                                                            onClick={() => onSelectRoom(identifier, option)}
+                                                            startIcon={isSelected ? <CheckCircleIcon /> : null}
+                                                        >
+                                                            {isSelected ? 'Selected' : 'Add Room'}
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                                <div className="flex w-full md:w-auto items-center justify-between md:justify-end gap-4">
-                                                    <div className="text-right">
-                                                        <p className="text-xl font-bold text-blue-600">
-                                                            {option.price.value.toFixed(2)} {option.price.currency}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">Total price</p>
-                                                    </div>
-                                                    <Button variant="contained" color="secondary" onClick={() => console.log('Add Room Clicked:', option)}>
-                                                        Add Room
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 </AccordionDetails>
                             </Accordion>
@@ -324,9 +390,85 @@ const RoomResults: React.FC<RoomResultsProps> = ({ status, loading, data }) => {
     return null;
 };
 
+// MODIFIED: PreBookSuccessDetails logic updated to correctly parse deadline
+const PreBookSuccessDetails: React.FC<{ data: PreBookApiResponseData, onReset: () => void }> = ({ data, onReset }) => {
+    const roomInfo = data.packageInfo.rooms[0];
+    const isRefundable = roomInfo.Refundable;
+
+    // Safely access the deadline from the first element of the policy array
+    const policyArray = roomInfo.cancellationPolicyDetails;
+    const deadline = policyArray && policyArray.length > 0 ? policyArray[0].deadline : undefined;
+
+    // Check if the deadline is a valid future date
+    const isDeadlineValid = deadline && dayjs(deadline).isAfter(dayjs());
+
+    const renderCancellationPolicy = () => {
+        if (isRefundable && isDeadlineValid) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <CheckCircleIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography color="primary.main">
+                        Free cancellation until: <strong>{dayjs(deadline).format('MMMM D, YYYY, [at] HH:mm:ss')}</strong>
+                    </Typography>
+                </div>
+            );
+        } else {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <CancelIcon color="error" sx={{ mr: 1 }} />
+                    <Typography color="text.secondary">
+                        Free cancellation not available
+                    </Typography>
+                </div>
+            );
+        }
+    };
+
+    return (
+        <FormSection title="Pre-Booking Confirmed">
+            <div className="space-y-6">
+                <Alert severity="success" icon={<CheckCircleIcon fontSize="inherit" />} sx={{ fontWeight: 'bold' }}>
+                    Your pre-booking has been successfully created. Please review the details below.
+                </Alert>
+
+                <div>
+                    <Typography variant="h6" gutterBottom>Cancellation Policy</Typography>
+                    <Divider />
+                    <div className="mt-3 p-4 bg-gray-100 rounded-lg">
+                        {renderCancellationPolicy()}
+                    </div>
+                </div>
+
+                <div>
+                    <Typography variant="h6" gutterBottom>Important Remarks</Typography>
+                    <Divider />
+                    <ul className="mt-3 space-y-2 list-disc list-inside bg-gray-100 p-4 rounded-lg">
+                        {data.remarks.map((remark, index) => (
+                            <li key={index} className="text-gray-700">{remark}</li>
+                        ))}
+                    </ul>
+                </div>
+
+                <div className="text-center pt-4">
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        size="large"
+                        startIcon={<ReplayIcon />}
+                        onClick={onReset}
+                    >
+                        Make Another Reservation
+                    </Button>
+                </div>
+            </div>
+        </FormSection>
+    );
+};
+
 
 // --- MAIN COMPONENT ---
-export const Destination = () => {
+// UPDATE: Component now accepts agency wallet and markup data as props.
+export const Destination = ({ agencyWalletBalance, agencyMarkup }: { agencyWalletBalance: number | null; agencyMarkup: number | null }) => {
     const [destination, setDestination] = useState('');
     const [cities, setCities] = useState<City[]>([]);
     const [hotels, setHotels] = useState<HotelFromDestinationSearch[]>([]);
@@ -349,6 +491,18 @@ export const Destination = () => {
     const [roomApiLoading, setRoomApiLoading] = useState(false);
     const [roomApiStatus, setRoomApiStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [availableRoomsData, setAvailableRoomsData] = useState<RoomApiResponse | null>(null);
+
+    const [selectedRoomIdentifier, setSelectedRoomIdentifier] = useState<string | null>(null);
+    const [selectedRoomData, setSelectedRoomData] = useState<RoomOption | null>(null);
+
+    const [isPreBooking, setIsPreBooking] = useState(false);
+    const [preBookResponse, setPreBookResponse] = useState<PreBookApiResponseData | null>(null);
+
+    const [agencyReference, setAgencyReference] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState<'pay-later' | 'credit'>('credit');
+    const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
+    const [bookingConfirmation, setBookingConfirmation] = useState<any | null>(null);
+
 
     const debouncedSearch = useRef(
         debounce(async (searchTerm: string) => {
@@ -394,7 +548,16 @@ export const Destination = () => {
     useEffect(() => {
         setRoomApiStatus('idle');
         setAvailableRoomsData(null);
-    }, [checkIn, checkOut]);
+        setSelectedRoomIdentifier(null);
+        setSelectedRoomData(null);
+    }, [checkIn, checkOut, selectedHotelId]);
+
+    useEffect(() => {
+        // If a non-refundable room is selected, force the payment method to 'credit'.
+        if (selectedRoomData && !selectedRoomData.refundable) {
+            setPaymentMethod('credit');
+        }
+    }, [selectedRoomData]);
 
     const handleClearDestination = () => {
         setDestination('');
@@ -417,7 +580,7 @@ export const Destination = () => {
     };
 
     const handleHotelSelect = async (hotel: HotelFromDestinationSearch) => {
-        setDestination(`${hotel.name}, ${hotel.city.name}`);
+        setDestination(hotel.city.name);
         setShowSuggestions(false);
         setHotelsFromCitySearch([]);
         setSelectedHotelId('');
@@ -437,14 +600,11 @@ export const Destination = () => {
             setRoomApiStatus('error');
             return;
         }
-
         const firstSupplier = selectedHotelDetails.mappedSuppliers?.[0];
-
         if (!firstSupplier) {
             setRoomApiStatus('error');
             return;
         }
-
         const payload = {
             supplierId: [{
                 supplierId: firstSupplier.supplier,
@@ -459,10 +619,14 @@ export const Destination = () => {
             },
             sellingChannel: "B2B"
         };
-
         setRoomApiLoading(true);
         setRoomApiStatus('idle');
         setAvailableRoomsData(null);
+        setSelectedRoomIdentifier(null);
+        setSelectedRoomData(null);
+        setPreBookResponse(null);
+        setBookingConfirmation(null);
+
 
         try {
             const data = await fetchRoomData(payload);
@@ -473,6 +637,151 @@ export const Destination = () => {
         } finally {
             setRoomApiLoading(false);
         }
+    };
+
+    const handleSelectRoom = (identifier: string, roomData: RoomOption) => {
+        if (selectedRoomIdentifier === identifier) {
+            setSelectedRoomIdentifier(null);
+            setSelectedRoomData(null);
+        } else {
+            setSelectedRoomIdentifier(identifier);
+            setSelectedRoomData(roomData);
+        }
+    };
+
+    const handlePreBook = async () => {
+        const firstSupplierData = availableRoomsData?.data?.suppliers?.[0];
+        if (!selectedRoomData || !firstSupplierData || !selectedHotelDetails || !checkIn || !checkOut) {
+            console.error("Missing required data for pre-booking.");
+            alert("Cannot proceed. Required information is missing.");
+            return;
+        }
+        setIsPreBooking(true);
+        const payload = {
+            supplier: firstSupplierData.supplierId,
+            hotelCode: String(selectedHotelDetails.mappedSuppliers[0].supplierHotelId),
+            checkIn: checkIn.format('YYYY-MM-DD'),
+            checkOut: checkOut.format('YYYY-MM-DD'),
+            nationality: "EG",
+            resultToken: firstSupplierData.data.tokens.results,
+            srk: firstSupplierData.data.srk,
+            hotelIndex: selectedHotelDetails.mappedSuppliers[0].supplierHotelId,
+            offerIndex: selectedRoomData.offerId,
+            rooms: [
+                {
+                    adults: 1,
+                    packageToken: selectedRoomData.packageToken,
+                    roomToken: [selectedRoomData.roomToken]
+                }
+            ]
+        };
+        try {
+            const resultData = await preBookHotel(payload);
+            setPreBookResponse(resultData);
+        } finally {
+            setIsPreBooking(false);
+        }
+    };
+
+    const handleFinalizeBooking = async () => {
+        if (!preBookResponse || !availableRoomsData || !selectedRoomData || !selectedHotelDetails || !checkIn || !checkOut) {
+            alert("Cannot finalize booking. Essential data is missing.");
+            return;
+        }
+
+        const firstSupplierData = availableRoomsData.data.suppliers[0];
+        const supplierDetails = selectedHotelDetails.mappedSuppliers[0];
+        
+        // Determine bookingType based on UI selection
+        const payloadBookingType = paymentMethod === 'credit' ? 'PREPAID' : 'PAYLATER';
+
+        const payload = {
+            provider: firstSupplierData.supplierId,
+            stayDetails: {
+                startDate: checkIn.format('YYYY-MM-DD'),
+                endDate: checkOut.format('YYYY-MM-DD'),
+            },
+            srk: firstSupplierData.data.srk,
+            hotelIndex: String(supplierDetails.supplierHotelId),
+            offerIndex: selectedRoomData.offerId,
+            resultToken: firstSupplierData.data.tokens.results,
+            availabilityToken: preBookResponse.availabilityToken,
+            payment: {
+                method: "prepaid", // Always set to "prepaid" as requested
+            },
+            reference: {
+                clientRef: agencyReference,
+            },
+            rooms: [
+                {
+                    name: preBookResponse.packageInfo.rooms[0].roomType,
+                    board: preBookResponse.packageInfo.rooms[0].boardRoom,
+                    packageRoomToken: selectedRoomData.packageToken,
+                    travelers: [
+                        {
+                            firstName: "mof",
+                            lastName: "Doe",
+                            email: "tom@gmail.com",
+                            type: "adult",
+                            lead: true,
+                            nationality: "GB",
+                        },
+                    ],
+                },
+            ],
+            bookingType: payloadBookingType, // Dynamically set based on UI
+            data: {
+                priceDetails: {
+                    price: selectedRoomData.price,
+                    originalPrice: selectedRoomData.price,
+                    markupApplied: {
+                        type: "percentage",
+                        value: agencyMarkup || 0,
+                        description: `${agencyMarkup || 0}% markup applied`,
+                    },
+                },
+                hotel: {
+                    name: selectedHotelDetails.name,
+                    stars: selectedHotelDetails.stars,
+                    city: selectedHotelDetails.city.name,
+                    country: selectedHotelDetails.country.name,
+                },
+            },
+        };
+
+        setIsConfirmingBooking(true);
+        try {
+            const result = await confirmBooking(payload);
+            setBookingConfirmation(result);
+            alert('Booking confirmed successfully!');
+        } catch (error) {
+            // Error is already alerted in confirmBooking function
+        } finally {
+            setIsConfirmingBooking(false);
+        }
+    };
+
+
+    const handleReset = () => {
+        setDestination('');
+        setCities([]);
+        setHotels([]);
+        setHotelsFromCitySearch([]);
+        setSelectedHotelId('');
+        setSelectedHotelDetails(null);
+        setHotelInputValue('');
+        setCheckIn(null);
+        setCheckOut(null);
+        setNights('');
+        setRoomApiStatus('idle');
+        setAvailableRoomsData(null);
+        setSelectedRoomIdentifier(null);
+        setSelectedRoomData(null);
+        setPreBookResponse(null);
+        setAgencyReference('');
+        setPaymentMethod('credit');
+        setIsConfirmingBooking(false);
+        setBookingConfirmation(null);
     };
 
     const filteredHotels = hotelsFromCitySearch.filter(hotel =>
@@ -486,7 +795,6 @@ export const Destination = () => {
             <div className="space-y-8">
                 <FormSection title="Create Manual Reservation">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-8">
-                        {/* Column 1: Search Fields */}
                         <div className="space-y-6 flex flex-col">
                             <div className="relative">
                                 <TextField
@@ -574,7 +882,6 @@ export const Destination = () => {
                             </Button>
                         </div>
 
-                        {/* Column 2: Hotel Details */}
                         <HotelDetails hotel={selectedHotelDetails} />
                     </div>
                     {roomApiStatus === 'error' && !roomApiLoading && (
@@ -582,7 +889,144 @@ export const Destination = () => {
                     )}
                 </FormSection>
 
-                <RoomResults status={roomApiStatus} loading={roomApiLoading} data={availableRoomsData} />
+                <RoomResults
+                    status={roomApiStatus}
+                    loading={roomApiLoading}
+                    data={availableRoomsData}
+                    selectedRoomIdentifier={selectedRoomIdentifier}
+                    onSelectRoom={handleSelectRoom}
+                />
+
+                {selectedRoomData && !preBookResponse && (
+                    <div className="mt-8 flex justify-end">
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            size="large"
+                            onClick={handlePreBook}
+                            disabled={isPreBooking}
+                            startIcon={isPreBooking ? <CircularProgress size={20} color="inherit" /> : null}
+                            sx={{ py: 1.5, fontWeight: 'bold' }}
+                        >
+                            {isPreBooking ? 'Processing...' : 'Proceed'}
+                        </Button>
+                    </div>
+                )}
+
+                {preBookResponse && !bookingConfirmation && (
+                    <>
+                        <div className="mt-8">
+                            <PreBookSuccessDetails data={preBookResponse} onReset={handleReset} />
+                        </div>
+                        <FormSection title="Finalize Booking" className="mt-8">
+                            <div className="space-y-6">
+                                <FormControl component="fieldset">
+                                    <RadioGroup
+                                        aria-label="payment-method"
+                                        name="payment-method-group"
+                                        value={paymentMethod}
+                                        onChange={(event) => setPaymentMethod(event.target.value as 'pay-later' | 'credit')}
+                                    >
+                                        {/* Pay Later Option */}
+                                        <div className={`p-4 border rounded-lg mb-4 cursor-pointer inline-block ${paymentMethod === 'pay-later' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
+                                            <FormControlLabel
+                                                value="pay-later"
+                                                control={<Radio />}
+                                                disabled={!selectedRoomData?.refundable}
+                                                label={
+                                                    <div className="flex items-start ml-2">
+                                                        <ScheduleIcon className={`mr-3 mt-1 ${!selectedRoomData?.refundable ? 'text-gray-400' : 'text-blue-600'}`} />
+                                                        <div>
+                                                            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Pay later</Typography>
+                                                            <Typography variant="body2" color="textSecondary">
+                                                                Please complete payment by {
+                                                                    preBookResponse?.packageInfo?.rooms?.[0]?.cancellationPolicyDetails?.[0]?.deadline
+                                                                        ? dayjs(preBookResponse.packageInfo.rooms[0].cancellationPolicyDetails[0].deadline).format('MMMM D, YYYY, [at] HH:mm:ss')
+                                                                        : 'N/A'
+                                                                } to secure your booking.
+                                                            </Typography>
+                                                            <Typography variant="body2" color="textSecondary">
+                                                                Unpaid reservation will be automatically canceled after this time.
+                                                            </Typography>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                sx={{ alignItems: 'flex-start' }}
+                                            />
+                                        </div>
+
+                                        {/* Credit Option */}
+                                        <div className={`p-4 border rounded-lg cursor-pointer inline-block ${paymentMethod === 'credit' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
+                                            <FormControlLabel
+                                                value="credit"
+                                                control={<Radio />}
+                                                label={
+                                                    <div className="flex justify-between items-start ml-2">
+                                                        <div className="flex items-start">
+                                                            <CreditCardIcon className="mr-3 mt-1 text-green-600" />
+                                                            <div>
+                                                                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>Credit</Typography>
+                                                                <Typography variant="body2" color="textSecondary">
+                                                                    Available credit: {agencyWalletBalance !== null ? `${agencyWalletBalance.toFixed(2)} USD` : 'N/A'}
+                                                                </Typography>
+                                                            </div>
+                                                        </div>
+                                                        {paymentMethod === 'credit' && <CheckCircleIcon className="ml-4" color="success" />}
+                                                    </div>
+                                                }
+                                                sx={{ alignItems: 'flex-start' }}
+                                            />
+                                        </div>
+                                    </RadioGroup>
+                                </FormControl>
+                                
+                                <TextField
+                                    label="Agency Reference"
+                                    value={agencyReference}
+                                    onChange={(e) => setAgencyReference(e.target.value)}
+                                    variant="outlined"
+                                    required
+                                    sx={{ display: 'block', maxWidth: '350px' }}
+                                />
+
+                                <div className="flex justify-end pt-4">
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        size="large"
+                                        onClick={handleFinalizeBooking}
+                                        disabled={isConfirmingBooking || !agencyReference}
+                                        startIcon={isConfirmingBooking ? <CircularProgress size={20} color="inherit" /> : null}
+                                        sx={{ py: 1.5, fontWeight: 'bold' }}
+                                    >
+                                        {isConfirmingBooking ? 'Finalizing...' : 'Finalize Booking'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </FormSection>
+                    </>
+                )}
+
+                {bookingConfirmation && (
+                    <FormSection title="Booking Confirmed!" className="mt-8">
+                        <Alert severity="success" sx={{ mb: 4, '.MuiAlert-message': { fontSize: '1.1rem' } }}>
+                            Your booking has been finalized successfully.
+                            <br />
+                            <strong>Booking ID:</strong> {bookingConfirmation?.data?.bookingId || 'N/A'}
+                        </Alert>
+                        <div className="text-center pt-4">
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                size="large"
+                                startIcon={<ReplayIcon />}
+                                onClick={handleReset}
+                            >
+                                Make Another Reservation
+                            </Button>
+                        </div>
+                    </FormSection>
+                )}
             </div>
         </LocalizationProvider>
     );

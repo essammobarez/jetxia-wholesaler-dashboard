@@ -2,22 +2,33 @@ import jsPDF from "jspdf";
 import React from "react";
 // @ts-ignore
 import ReactDOM from "react-dom";
+import { byIso } from 'country-code-lookup';
 
 // Define the 'Reservation' type for clarity.
-// In a real project, this would be in a separate types.ts file.
 export interface Reservation {
   reservationId?: string;
   bookingId?: string;
   providerId?: string;
   checkIn?: string;
   checkOut?: string;
-  passengers?: { firstName: string; lastName: string; lead?: boolean }[];
+  // *** MODIFIED: Added agency object to the type
+  agency?: {
+    agencyName?: string;
+    address?: string;
+    phoneNumber?: string;
+  };
+  passengers?: { firstName: string; lastName: string; lead?: boolean; nationality?: string }[];
   hotelInfo?: {
     id?: string;
     name?: string;
+    address?: {
+      fullAddress?: string;
+      city?: string;
+      countryCode?: string;
+    };
   };
   cancellationPolicy?: {
-    date?: string; // Top-level date for cancellation
+    date?: string;
     policies?: {
       date: string;
       charge: {
@@ -26,11 +37,11 @@ export interface Reservation {
       };
     }[];
   };
-  // This is added based on the PDF generation logic
   geolocation?: {
     latitude: number;
     longitude: number;
   } | null;
+  allRooms?: any[];
 }
 
 // --- HELPER FUNCTIONS ---
@@ -45,26 +56,12 @@ const formatDateDetailed = (dateStr: string | undefined) => {
   });
 };
 
-const formatDateSimple = (dateStr: string | undefined) => {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
+const getCountryName = (code: string | undefined): string => {
+  if (!code) return "";
+  const country = byIso(code);
+  return country ? country.country : code;
 };
 
-const formatPolicyDate = (dateStr: string | undefined) => {
-  if (!dateStr) return "an unknown date";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "an unknown date";
-  return d.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-};
 
 // --- STYLES OBJECT ---
 const styles: { [key: string]: React.CSSProperties } = {
@@ -86,7 +83,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   headerTop: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     width: "100%",
     marginBottom: "10px",
   },
@@ -99,64 +96,45 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
   },
   logo: {
-    width: 75,
-    height: 75,
+    width: 85,
+    height: 60,
     marginRight: 12,
-    marginTop: "5px",
   },
-  companyDetails: {
+  headerCenter: {
+    flexGrow: 1,
     display: "flex",
     flexDirection: "column",
-    marginTop: "1px",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: -15,
   },
-  companyName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    lineHeight: 1.1,
-  },
+  // *** MODIFIED: Styles for right-side alignment and layout
   headerRight: {
-    textAlign: "left",
-    paddingTop: "0",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    textAlign: "right",
   },
-  blueBar: {
-    height: "10px",
-    marginBottom: "8px",
-    width: "100%",
-    backgroundColor: "#0d6efd",
-    marginTop: "30px",
+  agencyLogo: {
+    width: 75,
+    height: "auto",
+    marginBottom: '5px',
+  },
+  // *** NEW: Styles for the agency information block
+  agencyInfo: {
+    fontSize: 9,
+    color: '#555',
+    lineHeight: 1.3,
+  },
+  agencyName: {
+    fontWeight: 'bold',
+    color: '#333',
+    fontSize: 10,
+    marginBottom: 2,
   },
   voucherTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    marginTop: "10px",
-  },
-  bookingDate: {
-    fontSize: 11,
-    color: "#555",
-    marginTop: 2,
-  },
-  contactContainer: {
-    display: "flex",
-  },
-  verticalLine: {
-    width: "2px",
-    backgroundColor: "#0d6efd",
-    marginRight: "8px",
-  },
-  contactList: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-    fontSize: 9,
-    color: "#555",
-  },
-  contactItem: {
-    marginBottom: 2,
-  },
-  contactLabel: {
-    fontWeight: "bold",
-    minWidth: "45px",
-    display: "inline-block",
   },
   body: {
     padding: "10px 20px",
@@ -192,14 +170,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   bookingInfoBody: {
     display: "flex",
     padding: "10px 12px",
-    alignItems: "center",
-  },
-  hotelImage: {
-    width: 150,
-    height: 100,
-    objectFit: "cover",
-    borderRadius: 4,
-    marginRight: 12,
+    alignItems: "flex-start",
   },
   hotelDetails: {
     fontSize: 10,
@@ -211,8 +182,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#000",
     marginBottom: 5,
   },
+  roomInfoItem: {
+    fontSize: 10,
+    color: '#333',
+    marginTop: 5,
+    paddingLeft: 10,
+    borderLeft: '2px solid #eaf2fd',
+  },
+  roomNameText: {
+    fontWeight: 'bold',
+  },
+  roomBoardText: {
+    fontSize: 9,
+    color: '#555',
+    fontWeight: 'normal',
+    display: 'block',
+  },
   hotelContactItem: {
     marginBottom: 4,
+    marginTop: 8,
   },
   dashedSeparator: {
     borderBottom: "1px dashed #e0e0e0",
@@ -237,9 +225,10 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   guestPolicyGrid: {
     display: "grid",
-    gridTemplateColumns: "1.2fr 1fr",
+    gridTemplateColumns: "1fr 1.2fr",
     gap: 15,
     padding: "10px 0",
+    alignItems: "center",
   },
   guestInfo: {
     marginBottom: 8,
@@ -256,6 +245,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: "1px solid #ddd",
     backgroundSize: "cover",
     backgroundPosition: "center",
+    display: "block",
   },
   policyText: {
     fontSize: 9,
@@ -266,19 +256,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: 3,
     fontSize: 11,
   },
-  importantText: {
-    color: "red",
-    fontWeight: "bold",
-  },
   footer: {
     padding: "8px 20px",
     borderTop: "1px solid #eee",
-  },
-  footerGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 15,
-    fontSize: 9,
   },
   finalNote: {
     borderTop: "1px solid #eee",
@@ -287,6 +267,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: "center",
     fontSize: 9,
     color: "#444",
+    fontWeight: "bold",
   },
 };
 
@@ -294,43 +275,39 @@ const styles: { [key: string]: React.CSSProperties } = {
 export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
   reservation,
 }) => {
-  const guest =
-    reservation.passengers?.find((p) => p.lead) || reservation.passengers?.[0];
-
   const geolocation = reservation.geolocation || null;
   const mapImageSrc = geolocation
     ? `https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${geolocation.longitude},${geolocation.latitude}&z=15&l=map&size=450,250&pt=${geolocation.longitude},${geolocation.latitude},pm2rdl`
     : "/images/map-placeholder.png";
 
-  const hotelImageSrc = "/images/4.png";
+  const mapDirectionsUrl = geolocation
+    ? `http://googleusercontent.com/maps/google.com/2{geolocation.latitude},${geolocation.longitude}`
+    : "#";
+
   const checkInTime = "15:00 - 19:00";
   const checkOutTime = "15:00 - 19:00";
-  const roomInfo = "1 room / 2 nights";
-  const emergencyPhone = "+971 506942880";
-  const importantInfo = `This property does not accommodate bachelorette or similar parties. License number: 10008287`;
-  const hotelPolicies = `Free private parking is possible on site (reservation is not needed). No internet access available.`;
-  const remark = `For any complaint during your hotel stay, please report immediately before you check out, else no complaints will be accepted.`;
 
-  // Simplified cancellation logic as requested
-  const cancellationDisplay = React.useMemo(() => {
-    const policyDate = reservation.cancellationPolicy?.date;
+  const calculateNights = (
+    checkInStr?: string,
+    checkOutStr?: string
+  ): number => {
+    if (!checkInStr || !checkOutStr) return 0;
+    const checkInDate = new Date(checkInStr);
+    const checkOutDate = new Date(checkOutStr);
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) return 0;
 
-    if (policyDate) {
-      const penaltyStartDate = new Date(policyDate);
-      const freeUntilDate = new Date(
-        penaltyStartDate.getTime() - 24 * 60 * 60 * 1000
-      );
-      const formattedDate = formatPolicyDate(freeUntilDate.toISOString());
+    const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
-      return (
-        <span>
-          Free cancellation before <strong>{formattedDate}</strong>.
-        </span>
-      );
-    }
-
-    return null;
-  }, [reservation.cancellationPolicy]);
+  const numberOfNights = calculateNights(
+    reservation.checkIn,
+    reservation.checkOut
+  );
+  
+  const numberOfRooms = reservation.allRooms?.length || 1;
+  const roomInfo = `${numberOfRooms} room${numberOfRooms > 1 ? 's' : ''} / ${numberOfNights} nights`;
 
   return (
     <div id="voucher-content" style={styles.voucherContainer}>
@@ -339,42 +316,32 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
           <div style={styles.headerLeft}>
             <div style={styles.logoContainer}>
               <img
-                src="/images/bdesk.jpg"
+                src="/images/new-logo.jpeg"
                 alt="Logo"
                 style={styles.logo}
                 crossOrigin="anonymous"
               />
             </div>
-            <div style={styles.companyDetails}>
-              <span style={{ ...styles.companyName, marginTop: "-20px" }}>
-                Booking Desk
-              </span>
-              <span style={{ ...styles.companyName, marginTop: "-1px" }}>
-                Travel
-              </span>
-            </div>
+          </div>
+          <div style={styles.headerCenter}>
+            <div style={styles.voucherTitle}>HOTEL VOUCHER</div>
           </div>
           <div style={styles.headerRight}>
-            <div style={styles.blueBar}></div>
-            <div style={styles.voucherTitle}>HOTEL VOUCHER</div>
-            <div style={styles.bookingDate}>Booking date: 05-05-2025</div>
+            <img
+              src="/images/agency-logo.png"
+              alt="Agency Logo"
+              style={styles.agencyLogo}
+              crossOrigin="anonymous"
+            />
+            {/* *** MODIFIED: Added agency details block */}
+            {reservation.agency && (
+              <div style={styles.agencyInfo}>
+                <div style={styles.agencyName}>{reservation.agency.agencyName}</div>
+                <div>{reservation.agency.address}</div>
+                <div>{reservation.agency.phoneNumber}</div>
+              </div>
+            )}
           </div>
-        </div>
-        <div style={styles.contactContainer}>
-          <div style={styles.verticalLine}></div>
-          <ul style={styles.contactList}>
-            <li style={styles.contactItem}>
-              <span style={styles.contactLabel}>Phone:</span> +971506942880
-            </li>
-            <li style={styles.contactItem}>
-              <span style={styles.contactLabel}>Email:</span>{" "}
-              ops@bdesktravel.com
-            </li>
-            <li style={styles.contactItem}>
-              <span style={styles.contactLabel}>Address:</span> Zayed The First
-              St, Al Hisn, 604 Abu Dhabi, 20037 United Arab Emirates
-            </li>
-          </ul>
         </div>
       </header>
 
@@ -386,37 +353,45 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
               <div>
                 <span style={styles.bookingInfoRefLabel}>Reference: </span>
                 <span style={styles.bookingInfoRefValue}>
-                  {reservation.reservationId || "234324354353"}
+                  {reservation.reservationId || "N/A"}
                 </span>
               </div>
               <div>
                 <span style={styles.bookingInfoRefLabel}>Booking ID: </span>
                 <span style={styles.bookingInfoRefValue}>
-                  {reservation.bookingId || "234324354353"}
+                  {reservation.bookingId || "N/A"}
+                </span>
+              </div>
+                {/* --- MODIFIED: Booking date moved here --- */}
+              <div>
+                <span style={styles.bookingInfoRefLabel}>Booking date: </span>
+                <span style={styles.bookingInfoRefValue}>
+                  {new Date().toLocaleDateString("en-GB")}
                 </span>
               </div>
             </div>
           </div>
 
           <div style={styles.bookingInfoBody}>
-            <img
-              src={hotelImageSrc}
-              alt="Hotel"
-              style={styles.hotelImage}
-              crossOrigin="anonymous"
-            />
             <div style={styles.hotelDetails}>
               <div style={styles.hotelName}>
-                {reservation.hotelInfo?.name || "Golden Bujari Hospitality"}
+                {reservation.hotelInfo?.name || "Hotel Name Not Available"}
               </div>
+
+              {reservation.allRooms && reservation.allRooms.length > 0 && reservation.allRooms.map((room, index) => (
+                <div key={index} style={styles.roomInfoItem}>
+                    <span style={styles.roomNameText}>{`Room ${index + 1}: ${room.roomName || 'N/A'}`}</span>
+                    {(room.board && room.board !== 'N/A') && (
+                        <span style={styles.roomBoardText}>{`(${room.board})`}</span>
+                    )}
+                </div>
+              ))}
+              
               <div style={styles.hotelContactItem}>
                 <span>
-                  Behind the Exhibitions Roundabout, Khamis Mushayt, 62432
-                  Khamis, Saudi Arabia
+                  {reservation.hotelInfo?.address?.fullAddress ||
+                    "Address not available"}
                 </span>
-              </div>
-              <div style={styles.hotelContactItem}>
-                <span>Tel: +971506942880</span>
               </div>
             </div>
           </div>
@@ -449,66 +424,51 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({
           <div>
             <div style={styles.sectionTitle}>Guest Information</div>
             <div style={styles.guestInfo}>
-              <span>
-                {guest
-                  ? `${guest.firstName} ${guest.lastName}`.toUpperCase()
-                  : "—"}
-              </span>
+                {(reservation.passengers && reservation.passengers.length > 0) ? (
+                    reservation.passengers.map((p, index) => (
+                        <div key={index} style={{ marginBottom: '2px' }}>
+                            {`${p.firstName} ${p.lastName}`.toUpperCase()}
+                            {p.nationality && ` (${getCountryName(p.nationality)})`}
+                        </div>
+                    ))
+                ) : (
+                    <div>—</div>
+                )}
             </div>
-
-            <div style={{ marginTop: "10px" }}>
-              <div style={styles.policyTitle}>Hotel Location Map</div>
-              {geolocation ? (
+          </div>
+          
+          <div>
+            <div style={{ ...styles.policyTitle, textAlign: "center", marginBottom: "10px" }}>
+              Hotel Location Map
+            </div>
+            {geolocation ? (
+              <a href={mapDirectionsUrl} target="_blank" rel="noopener noreferrer">
                 <img
                   src={mapImageSrc}
                   alt="Hotel Location Map"
                   style={styles.mapContainer}
                   crossOrigin="anonymous"
+                  title="Click to get directions"
                 />
-              ) : (
-                <div style={styles.policyText}>Map not available.</div>
-              )}
-            </div>
-          </div>
-          <div style={styles.policyText}>
-            <div style={{ marginBottom: 10 }}>
-              <div style={styles.policyTitle}>Cancellation Policy:</div>
-              <div>{cancellationDisplay}</div>
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={styles.policyTitle}>Important Information</div>
-              <div>{importantInfo}</div>
-            </div>
-            <div>
-              <div style={styles.policyTitle}>Hotel Policies</div>
-              <div>{hotelPolicies}</div>
-            </div>
+              </a>
+            ) : (
+              <div style={{...styles.policyText, textAlign: 'center'}}>Map not available.</div>
+            )}
           </div>
         </section>
       </main>
 
       <footer style={styles.footer}>
-        <div style={styles.footerGrid}>
+        <div style={{ marginBottom: 8, fontSize: 9 }}>
+          <div style={styles.policyTitle}>Need Help?</div>
           <div>
-            <div style={styles.policyTitle}>Need Help?</div>
-            <div>
-              If you cannot allocate this booking please call: Emergency phone :
-              (+971) 506942880
-            </div>
-          </div>
-          <div>
-            <div style={styles.policyTitle}>Remark:</div>
-            <div>
-              For any complaint during your hotel stay, please report
-              immediately before you check out, else no complaints will be
-              accepted.
-            </div>
+            For assistance with this booking, please contact our support team.
           </div>
         </div>
         <div style={styles.finalNote}>
           N.B: IN CASE YOU ARE ACCOMMODATED LESS OVERNIGHTS, PLEASE MAKE SURE
           THAT HOTELIER HAS PROPERLY SIGNED AND ACCEPTED THIS MODIFICATION. WE
-          CONFIRM THE AMENDMENT AND WILL INVOICE AS FOLLOWS: NUMBER OF NIGHTS
+          CONFIRM THE AMENDMENT AND WILL INVOICE AS FOLLOWS: NUMBER OF NIGHTS{" "}
           ______________ TO BE REFUNDED.
         </div>
       </footer>
@@ -525,6 +485,7 @@ export async function generateVoucherPDF(reservation: Reservation) {
   document.body.appendChild(container);
 
   let geolocationData: { latitude: number; longitude: number } | null = null;
+  let updatedHotelInfo = { ...reservation.hotelInfo };
 
   if (reservation.providerId && reservation.hotelInfo?.id) {
     try {
@@ -537,6 +498,7 @@ export async function generateVoucherPDF(reservation: Reservation) {
         const apiResponse = await response.json();
         if (apiResponse.success && apiResponse.data) {
           geolocationData = apiResponse.data.geolocation || null;
+          updatedHotelInfo = { ...updatedHotelInfo, ...apiResponse.data };
         }
       }
     } catch (error) {
@@ -544,14 +506,15 @@ export async function generateVoucherPDF(reservation: Reservation) {
     }
   }
 
-  const reservationWithGeolocation = {
+  const reservationWithFullDetails = {
     ...reservation,
+    hotelInfo: updatedHotelInfo,
     geolocation: geolocationData,
   };
 
   await new Promise<void>((resolve) => {
     ReactDOM.render(
-      <VoucherTemplate reservation={reservationWithGeolocation} />,
+      <VoucherTemplate reservation={reservationWithFullDetails} />,
       container,
       resolve
     );

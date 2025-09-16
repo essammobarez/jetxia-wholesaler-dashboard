@@ -1,38 +1,37 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  ChevronDown,
-  Search,
   Bell,
+  ChevronDown,
   LayoutGrid,
-  Sun,
-  Moon,
   Menu,
+  Moon,
+  Search,
+  Sun,
 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 // Page imports
-import DashboardPage from './DashboardPage';
-import OverviewTab from './OverviewTab';
-import HistoryTab from './HistoryTab';
-import HistoryTabElite from './HistoryTabElite';
+import OverviewTab from './booking-history/OverviewTab';
 import CompanyDetailsTab from './CompanyDetailsTab';
+import DashboardPage from './DashboardPage';
+import HistoryTab from './HistoryTab';
 import ManualReservationsTab from './ManualReservationsTab';
 // NEW: Import the Manual Reservations Offline page
-import ManualReservationsOfflineTab from './ManualReservationsOfflineTab';
-import ManageAgentPage from './registration';
-import CreateAgent from './agency-panel';
 import ManageRequestPage from './admin-approve';
+import CreateAgent from './agency-panel';
+import APIManagement from './APIManagement';
+import ManualReservationsOfflineTab from './ManualReservationsOfflineTab';
+import MappedHotels from './MappedHotels';
 import Metrics from './Metrics';
 import Payment from './Payment';
 import Permissions from './Permissions';
+import ManageAgentPage from './registration';
 import Users from './Users';
-import APIManagement from './APIManagement';
-import MappedHotels from './MappedHotels';
 // New imports for Markup submenu
-import CreateMarkup from './CreateMarkup';
 import AssignMarkup from './AssignMarkup';
+import CreateMarkup from './CreateMarkup';
 import MarkupAgencyList from './MarkupAgencyList';
 import PlanList from './PlanList';
 
@@ -45,31 +44,32 @@ import PreferencesPage from './PreferencesPage';
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
 import ManageSupplier from './ManageSupplier';
+import PaymentReport from './supplier/PaymentReport'; // New import
+import StatementsOnAccount from './supplier/StatementsOnAccount'; // New import
 import SupportTicketsPage from './SupportTicketsPage';
 
 // ✨ UPDATED: Imports for the new "Sales Person" sub-menus
-import SalesPersonPage from './SalesPersonPage';
 import AgencyListPage from './AgencyListPage';
+import SalesPersonPage from './SalesPersonPage';
 
 // Existing sales-related imports for 'Customers' menu
-import SalesAgencyPage from './salesAgency';
 import GetSalesAgencyPage from './GetsalesAgency';
+import SalesAgencyPage from './salesAgency';
 
 // New imports for Reports submenu
-import OutstandingReport from './OutstandingReport';
-import LedgerReport from './LedgerReport';
-import StatementOfAccount from './StatementOfAccount';
-import PaymentReport from './PaymentReport';
-import ReportsDashboard from './ReportsDashboard';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AgencyOutstandingStatement from './AgencyOutstandingStatement';
+import LedgerReport from './LedgerReport';
+import OutstandingReport from './OutstandingReport';
+import ReportsDashboard from './ReportsDashboard';
+import StatementOfAccount from './StatementOfAccount';
 
 // Import for Coupon management
 import ManageCoupon from './ManageCoupon';
 
 // ✨ UPDATED: Import for Campaign Pages & new subscriber page
-import CreateCampaign from './CreateCampaign';
 import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
+import CreateCampaign from './CreateCampaign';
 
 // This is the full list of all possible menu items
 const allMenuItems = [
@@ -533,7 +533,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Supplier' && item === 'Supplier' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['CreateOfflineSupplier', 'ManageSupplier'].map((tab) => (
+                  {['CreateOfflineSupplier', 'ManageSupplier', 'StatementsOnAccount', 'PaymentReport'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -550,6 +550,8 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateOfflineSupplier' && 'Create Supplier'}
                         {tab === 'ManageSupplier' && 'Manage Supplier'}
+                        {tab === 'StatementsOnAccount' && 'Statements on Account'}
+                        {tab === 'PaymentReport' && 'Payment Report'}
                       </span>
                     </button>
                   ))}
@@ -704,7 +706,7 @@ export default function WholesalerPage() {
 
           {/* ✨ NEW: Render Profile Settings Page */}
           {activePage === 'Profile Settings' && <ProfileSettingsPage />}
-          
+           
           {/* ✨ NEW: Render Preferences Page */}
           {activePage === 'Preferences' && <PreferencesPage />}
 
@@ -786,6 +788,8 @@ export default function WholesalerPage() {
             <div className="animate-fade-scale">
               {activeTab === 'CreateOfflineSupplier' && <CreateOfflineSupplier />}
               {activeTab === 'ManageSupplier' && <ManageSupplier />}
+              {activeTab === 'StatementsOnAccount' && <StatementsOnAccount />}
+              {activeTab === 'PaymentReport' && <PaymentReport />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">

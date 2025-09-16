@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import { useState, useEffect } from 'react';
 import { FaCheckCircle, FaEye, FaTimes } from 'react-icons/fa';
 
 import AddSetup from './AddSetup';
@@ -9,50 +8,77 @@ import AddContent from './AddContent';
 import Preview from './Preview';
 import Schedule from './Schedule';
 
-// Dummy data for the predefined lists
-const dummyLists = [
-  {
-    name: 'USA Agency',
-    id: 'usa_agency',
-    data: [
-      { Email: 'john.doe@usaagency.com', 'First name': 'John', 'Last name': 'Doe', Phone: '123-456-7890', Address: '123 Agency St, NY' },
-      { Email: 'jane.smith@usaagency.com', 'First name': 'Jane', 'Last name': 'Smith', Phone: '098-765-4321', Address: '456 Bureau Rd, CA' },
-      { Email: 'mike.jones@usaagency.com', 'First name': 'Mike', 'Last name': 'Jones', Phone: '555-123-4567', Address: '789 Office Ave, TX' },
-    ],
-  },
-  {
-    name: 'UAE Email',
-    id: 'uae_email',
-    data: [
-      { Email: 'ali.hassan@uaeemail.com', 'First name': 'Ali', 'Last name': 'Hassan', Phone: '971-50-1234567', Address: '101 Dubai St, Dubai' },
-      { Email: 'fatima.khan@uaeemail.com', 'First name': 'Fatima', 'Last name': 'Khan', Phone: '971-55-7654321', Address: '202 Abu Dhabi Rd, Abu Dhabi' },
-    ],
-  },
-  {
-    name: 'Egypt Agency',
-    id: 'egypt_agency',
-    data: [
-      { Email: 'ahmed.mohamed@egyptagency.com', 'First name': 'Ahmed', 'Last name': 'Mohamed', Phone: '20-100-9876543', Address: '55 Cairo Blvd, Giza' },
-      { Email: 'sara.ali@egyptagency.com', 'First name': 'Sara', 'Last name': 'Ali', Phone: '20-111-3456789', Address: '77 Nile Rd, Luxor' },
-    ],
-  },
-  {
-    name: 'ASTB Company',
-    id: 'astb_company',
-    data: [
-      { Email: 'david.wilson@astbcompany.com', 'First name': 'David', 'Last name': 'Wilson', Phone: '44-20-11223344', Address: 'ASTB HQ, London' },
-      { Email: 'maria.lopez@astbcompany.com', 'First name': 'Maria', 'Last name': 'Lopez', Phone: '34-91-5556677', Address: 'ASTB Branch, Madrid' },
-    ],
-  },
-];
+// --- Type Definitions ---
+type SubscriberList = {
+  _id: string;
+  title: string;
+  description: string;
+};
 
-// Define the type for the uploaded data
+type Subscriber = {
+  email: string;
+  name: string;
+  phone: string;
+  country: string;
+  status: string;
+};
+
 type UploadedData = any[][];
 
-// Modal Component for displaying data
+// --- API Helper Functions ---
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+// Fetches all subscriber lists with authorization
+const fetchAllSubscriberLists = async (token: string): Promise<SubscriberList[]> => {
+  try {
+    const response = await fetch(`${BASE_URL}/campaign/subscribers/lists`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) throw new Error('Network response was not ok');
+    const result = await response.json();
+    return result.success ? result.data : [];
+  } catch (error) {
+    console.error("Failed to fetch subscriber lists:", error);
+    return [];
+  }
+};
+
+// Fetches subscribers for a specific list by its ID with authorization
+const fetchSubscribersByListId = async (listId: string, token: string): Promise<UploadedData> => {
+    try {
+        const response = await fetch(`${BASE_URL}/campaign/subscribers/list/${listId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) throw new Error('Network response was not ok');
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+            const subscribers: Subscriber[] = result.data;
+            const headers = ['Email', 'Name', 'Phone', 'Country', 'Status'];
+            const dataRows = subscribers.map(sub => [sub.email, sub.name, sub.phone, sub.country, sub.status]);
+            return [headers, ...dataRows];
+        }
+        return [['Email', 'Name', 'Phone', 'Country', 'Status']]; // Return headers for empty list
+    } catch (error) {
+        console.error(`Failed to fetch subscribers for list ${listId}:`, error);
+        return [];
+    }
+};
+
+// --- Utility Function to get Token ---
+const getAuthToken = (): string | null => {
+    const fromCookie = document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1];
+    if (fromCookie) return fromCookie;
+    return localStorage.getItem("authToken");
+};
+
+
+// Modal Component for displaying data (no changes needed here)
 const DataModal = ({ data, onClose, listName }: { data: UploadedData; onClose: () => void; listName: string | undefined }) => {
   if (!data || data.length === 0) return null;
-
   const headers = data[0];
   const rows = data.slice(1);
 
@@ -95,78 +121,93 @@ const DataModal = ({ data, onClose, listName }: { data: UploadedData; onClose: (
   );
 };
 
+
 // Main App component
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [subscriberLists, setSubscriberLists] = useState<SubscriberList[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [uploadedData, setUploadedData] = useState<UploadedData>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Handler for selecting a predefined list
+  // Fetch all subscriber lists on component mount
+  useEffect(() => {
+    const loadLists = async () => {
+      setIsLoading(true);
+      const token = getAuthToken();
+      if (!token) {
+        alert("Authorization failed. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+      const lists = await fetchAllSubscriberLists(token);
+      setSubscriberLists(lists);
+      setIsLoading(false);
+    };
+    loadLists();
+  }, []);
+
   const handleListSelect = (listId: string) => {
-    const list = dummyLists.find(l => l.id === listId);
-    if (list) {
-      const dataAsArray = [Object.keys(list.data[0]), ...list.data.map(item => Object.values(item))];
-      setUploadedData(dataAsArray);
-      setSelectedList(listId);
+    setSelectedList(listId);
+  };
+
+  const handleViewData = async (listId: string) => {
+    setIsLoading(true);
+    const token = getAuthToken();
+    if (!token) {
+        alert("Authorization failed. Please log in again.");
+        setIsLoading(false);
+        return;
     }
+    const subscribers = await fetchSubscribersByListId(listId, token);
+    setUploadedData(subscribers);
+    setIsModalOpen(true);
+    setIsLoading(false);
   };
-
-  // Handler to open the modal and show data
-  const handleViewData = (listId: string) => {
-    const list = dummyLists.find(l => l.id === listId);
-    if (list) {
-      const dataAsArray = [Object.keys(list.data[0]), ...list.data.map(item => Object.values(item))];
-      setUploadedData(dataAsArray); // Set the data to display in the modal
-      setSelectedList(listId); // Keep track of the selected list
-      setIsModalOpen(true);
+  
+  const handleGoToSetup = async () => {
+    if (!selectedList) {
+        alert('Please select a list before proceeding.');
+        return;
     }
+    setIsLoading(true);
+    const token = getAuthToken();
+    if (!token) {
+        alert("Authorization failed. Please log in again.");
+        setIsLoading(false);
+        return;
+    }
+    const subscribers = await fetchSubscribersByListId(selectedList, token);
+    setUploadedData(subscribers);
+    setCurrentStep(2);
+    setIsLoading(false);
   };
 
-  // Handler to close the modal
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    // You can choose to clear uploadedData here if it's no longer needed,
-    // but keeping it might be useful if the user clicks 'Go to Add Setup' right after.
-  };
+  const handleCloseModal = () => setIsModalOpen(false);
 
-  // Handler to receive final data from AddSetup and proceed
   const handleProceedFromSetup = (finalData: any[][]) => {
-    setUploadedData(finalData); // Update state with the possibly edited/selected data
+    setUploadedData(finalData);
     setCurrentStep(3);
   };
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 2:
-        return <AddSetup
-          data={uploadedData}
-          onProceed={handleProceedFromSetup}
-          onBack={() => setCurrentStep(1)}
-        />;
+        return <AddSetup data={uploadedData} onProceed={handleProceedFromSetup} onBack={() => setCurrentStep(1)} />;
       case 3:
         return <AddContent onNext={() => setCurrentStep(4)} onBack={() => setCurrentStep(2)} />;
       case 4:
-        return <Preview
-          recipientData={uploadedData}
-          onNext={() => setCurrentStep(5)}
-          onBack={() => setCurrentStep(3)}
-        />;
+        return <Preview recipientData={uploadedData} onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(3)} />;
       case 5:
         return (
           <div className="flex flex-col w-full items-center">
             <Schedule />
             <div className="w-full mt-8 flex justify-end space-x-4">
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-3 px-8 rounded-full transition-colors duration-200"
-              >
+              <button onClick={() => setCurrentStep(4)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-3 px-8 rounded-full transition-colors duration-200">
                 Go Back
               </button>
-              <button
-                onClick={() => alert('Campaign Finished!')}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200"
-              >
+              <button onClick={() => alert('Campaign Finished!')} className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200">
                 Finish →
               </button>
             </div>
@@ -194,46 +235,32 @@ export default function App() {
               {/* Recipient List Section */}
               <div className="flex-1 bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex flex-col">
                 <div className="flex flex-col flex-grow">
-                  <h2 className="text-lg font-medium text-gray-800 mb-2">Select a previous list</h2>
-                  {/* <p className="text-sm text-gray-500 mb-4">Choose from your existing contact lists.</p> */}
+                  <h2 className="text-lg font-medium text-gray-800 mb-2">Select from saved list</h2>
                   <div className="space-y-3 flex-grow overflow-y-auto pr-2 max-h-60">
-                    {dummyLists.map((list) => (
-                      <div key={list.id} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border ${selectedList === list.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => handleListSelect(list.id)}>
-                        <span className="font-medium text-gray-800">{list.name}</span>
+                    {isLoading && !isModalOpen ? <p className="text-gray-500">Loading lists...</p> : (
+                        subscriberLists.length > 0 ? subscriberLists.map((list) => (
+                      <div key={list._id} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border ${selectedList === list._id ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => handleListSelect(list._id)}>
+                        <span className="font-medium text-gray-800">{list.title}</span>
                         <div className="flex items-center space-x-2">
-                          {selectedList === list.id && (
-                            <FaCheckCircle className="text-green-500" />
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent the parent div's onClick from firing
-                              handleViewData(list.id);
-                            }}
-                            className="text-gray-500 hover:text-blue-600 p-1 rounded-full"
-                            aria-label={`View data for ${list.name}`}
-                          >
+                          {selectedList === list._id && (<FaCheckCircle className="text-green-500" />)}
+                          <button onClick={(e) => { e.stopPropagation(); handleViewData(list._id); }} className="text-gray-500 hover:text-blue-600 p-1 rounded-full" aria-label={`View data for ${list.title}`}>
                             <FaEye />
                           </button>
                         </div>
                       </div>
-                    ))}
+                    )) : <p className="text-gray-500">No subscriber lists found.</p>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
             <div className="w-full mt-8 flex justify-end">
               <button
-                onClick={() => {
-                  if (uploadedData.length > 0) {
-                    setCurrentStep(2);
-                  } else {
-                    alert('Please select a list before proceeding.');
-                  }
-                }}
-                className={`font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200 ${uploadedData.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
-                disabled={uploadedData.length === 0}
+                onClick={handleGoToSetup}
+                className={`font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200 ${selectedList ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                disabled={!selectedList || isLoading}
               >
-                Go to Add Setup →
+                {isLoading ? 'Loading...' : 'Go to Add Setup →'}
               </button>
             </div>
           </>
@@ -242,26 +269,18 @@ export default function App() {
   };
 
   const getStepClass = (step: number) => {
-    if (currentStep === step) {
-      return 'w-12 h-12 rounded-full border-2 border-blue-500 bg-blue-50 flex items-center justify-center text-blue-500 font-bold text-lg';
-    } else if (currentStep > step) {
-      return 'w-12 h-12 rounded-full border-2 border-green-500 bg-green-50 flex items-center justify-center text-green-500 font-bold text-lg';
-    } else {
-      return 'w-12 h-12 rounded-full border-2 border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-lg';
-    }
+    if (currentStep === step) return 'w-12 h-12 rounded-full border-2 border-blue-500 bg-blue-50 flex items-center justify-center text-blue-500 font-bold text-lg';
+    if (currentStep > step) return 'w-12 h-12 rounded-full border-2 border-green-500 bg-green-50 flex items-center justify-center text-green-500 font-bold text-lg';
+    return 'w-12 h-12 rounded-full border-2 border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-lg';
   };
 
   const getStepTextClass = (step: number) => {
-    if (currentStep === step) {
-      return 'mt-2 text-sm text-blue-600 font-medium whitespace-nowrap';
-    } else if (currentStep > step) {
-      return 'mt-2 text-sm text-green-600 font-medium whitespace-nowrap';
-    } else {
-      return 'mt-2 text-sm text-gray-400 whitespace-nowrap';
-    }
+    if (currentStep === step) return 'mt-2 text-sm text-blue-600 font-medium whitespace-nowrap';
+    if (currentStep > step) return 'mt-2 text-sm text-green-600 font-medium whitespace-nowrap';
+    return 'mt-2 text-sm text-gray-400 whitespace-nowrap';
   };
-
-  const selectedListName = dummyLists.find(l => l.id === selectedList)?.name;
+  
+  const selectedListName = subscriberLists.find(l => l._id === selectedList)?.title;
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center font-sans">
@@ -269,45 +288,21 @@ export default function App() {
         {/* Progress Bar Section */}
         <div className="w-full mb-12">
           <div className="flex justify-between items-center text-gray-500">
-            {/* Step 1 */}
-            <div className="flex flex-col items-center flex-1">
-              <div className={getStepClass(1)}>
-                {currentStep > 1 ? <FaCheckCircle /> : '1'}
-              </div>
-              <div className={getStepTextClass(1)}>Create Campaign</div>
-            </div>
-            <div className={`flex-1 h-0.5 ${currentStep > 1 ? 'bg-green-300' : 'bg-gray-300'} mx-4 transition-colors duration-300`}></div>
-            {/* Step 2 */}
-            <div className="flex flex-col items-center flex-1">
-              <div className={getStepClass(2)}>
-                {currentStep > 2 ? <FaCheckCircle /> : '2'}
-              </div>
-              <div className={getStepTextClass(2)}>Add Setup</div>
-            </div>
-            <div className={`flex-1 h-0.5 ${currentStep > 2 ? 'bg-green-300' : 'bg-gray-300'} mx-4 transition-colors duration-300`}></div>
-            {/* Step 3 */}
-            <div className="flex flex-col items-center flex-1">
-              <div className={getStepClass(3)}>
-                {currentStep > 3 ? <FaCheckCircle /> : '3'}
-              </div>
-              <div className={getStepTextClass(3)}>Add Content</div>
-            </div>
-            <div className={`flex-1 h-0.5 ${currentStep > 3 ? 'bg-green-300' : 'bg-gray-300'} mx-4 transition-colors duration-300`}></div>
-            {/* Step 4 */}
-            <div className="flex flex-col items-center flex-1">
-              <div className={getStepClass(4)}>
-                {currentStep > 4 ? <FaCheckCircle /> : '4'}
-              </div>
-              <div className={getStepTextClass(4)}>Preview</div>
-            </div>
-            <div className={`flex-1 h-0.5 ${currentStep > 4 ? 'bg-green-300' : 'bg-gray-300'} mx-4 transition-colors duration-300`}></div>
-            {/* Step 5 */}
-            <div className="flex flex-col items-center flex-1">
-              <div className={getStepClass(5)}>
-                {currentStep > 5 ? <FaCheckCircle /> : '5'}
-              </div>
-              <div className={getStepTextClass(5)}>Schedule</div>
-            </div>
+            {[1, 2, 3, 4, 5].map((step, index, arr) => (
+                <div key={step} className={`flex items-center ${index < arr.length -1 ? 'flex-1' : ''}`}>
+                    <div className="flex flex-col items-center">
+                        <div className={getStepClass(step)}>
+                            {currentStep > step ? <FaCheckCircle /> : step}
+                        </div>
+                        <div className={getStepTextClass(step)}>
+                            {['Create Campaign', 'Add Setup', 'Add Content', 'Preview', 'Schedule'][index]}
+                        </div>
+                    </div>
+                    {index < arr.length - 1 && (
+                        <div className={`flex-1 h-0.5 ${currentStep > step ? 'bg-green-300' : 'bg-gray-300'} mx-4 transition-colors duration-300`}></div>
+                    )}
+                </div>
+            ))}
           </div>
         </div>
         {/* Dynamic content rendering */}
@@ -315,11 +310,7 @@ export default function App() {
       </div>
       {/* Modal for displaying data */}
       {isModalOpen && (
-        <DataModal
-          data={uploadedData}
-          onClose={handleCloseModal}
-          listName={selectedListName}
-        />
+        <DataModal data={uploadedData} onClose={handleCloseModal} listName={selectedListName} />
       )}
     </div>
   );

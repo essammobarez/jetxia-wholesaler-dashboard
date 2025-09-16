@@ -4,7 +4,7 @@
 import { AlertTriangle, CalendarClock, CreditCard, Trash2, User, Wallet, X } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Reservation } from './booking-history/BookingModal';
+import { Reservation } from './BookingModal';
 
 export type CancellableRoom = Reservation['allRooms'][0];
 
@@ -14,7 +14,10 @@ interface RoomCancellationModalProps {
   onClose: () => void;
 }
 
-// Helper functions (unchanged)
+const getAuthToken = (): string | null => {
+  return localStorage.getItem('authToken');
+};
+
 const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return "N/A";
   try {
@@ -91,64 +94,129 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
     return { totalFinalPrice: finalPrice, totalToBeRefunded: refundAmount };
   }, [selectedRoomsArray, isPayLaterBooking]);
   
-  // --- FIXED: Explicit token handling and header creation ---
   const handleProceedToCancel = async () => {
     if (selectedRoomsArray.length === 0 || isSubmitting) return;
 
-    // 1. Get the authentication token from browser storage
-    const token =
-      document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
-      localStorage.getItem("authToken");
-
-    // 2. Validate the token. If it doesn't exist, stop the function.
-    if (!token) {
-      toast.error("Authorization failed. Please log in again.");
-      console.error("Auth token not found in cookies or local storage.");
-      return;
-    }
-    
     setIsSubmitting(true);
+    const token = getAuthToken();
+    if (!token) {
+        toast.error("Authorization failed. Please log in again.");
+        setIsSubmitting(false);
+        return;
+    }
+
     const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}cancel-book`;
+    const apiPromises: Promise<Response>[] = [];
 
-    // 3. Explicitly create the headers object with the Bearer token
-    const apiHeaders = {
-        'Content-Type': 'application/json',
-        // This line adds the token to the request header
-        'Authorization': `Bearer ${token}`,
-    };
-    
-    // Optional: Check your browser's console to see if the token is being logged correctly
-    console.log("Sending API request with headers:", apiHeaders);
+    // --- UPDATED PROVIDER LOGIC ---
+    // Providers that use the standard "entire" vs "element" logic
+    const providersWithEntireSupport = [
+      "680e4431309622be28c28eda", 
+      "682351bfc5bbec87bde28016",
+      "683b4689675e80e6db5b3552" // Added new provider here
+    ];
+    // Provider that requires a custom payload with the "source" field
+    const providerWithSourcePayload = "680f5eff72ae6d840b942026";
 
-    const cancellationPromises = selectedRoomsArray.map(room => {
-        const payload = {
-            provider: reservation.providerId,
-            bookingId: reservation.dbId,
-            typeCancelation: "element",
-            reservationId: String(room.reservationId),
-        };
+    // Determine if all available rooms have been selected
+    const totalCancellableRooms = reservation.allRooms.filter(
+        (r) => r.status.toLowerCase() !== 'cancelled'
+    ).length;
+    const allRoomsSelected = selectedRoomsArray.length === totalCancellableRooms && totalCancellableRooms > 0;
 
-        // 4. Use the prepared headers in the fetch request for each room
-        return fetch(endpoint, {
-            method: 'POST',
-            headers: apiHeaders, // Pass the headers object here
-            body: JSON.stringify(payload),
-        }).then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Cancellation failed for room ${room.roomName}`);
-            }
-            return response.json();
+    if (providersWithEntireSupport.includes(reservation.providerId)) {
+        // Case 1: Standard "entire" vs "element" cancellation for a group of providers
+        if (allRoomsSelected) {
+            const payload = {
+                provider: reservation.providerId,
+                bookingId: reservation.dbId,
+                typeCancelation: "entire",
+            };
+            const promise = fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload),
+            });
+            apiPromises.push(promise);
+        } else {
+            selectedRoomsArray.forEach(room => {
+                const payload = {
+                    provider: reservation.providerId,
+                    bookingId: reservation.dbId,
+                    typeCancelation: "element",
+                    reservationId: String(room.reservationId),
+                };
+                const promise = fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(payload),
+                });
+                apiPromises.push(promise);
+            });
+        }
+    } else if (reservation.providerId === providerWithSourcePayload) {
+        // Case 2: Custom payload logic for the provider that needs the "source" field.
+        if (allRoomsSelected) {
+            const payload = {
+                provider: reservation.providerId,
+                bookingId: reservation.dbId,
+                source: reservation.source,
+                typeCancelation: "entire",
+            };
+            const promise = fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload),
+            });
+            apiPromises.push(promise);
+        } else {
+            selectedRoomsArray.forEach(room => {
+                const payload = {
+                    provider: reservation.providerId,
+                    bookingId: reservation.dbId,
+                    reservationId: String(room.reservationId),
+                    source: reservation.source,
+                    typeCancelation: "element",
+                };
+                const promise = fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(payload),
+                });
+                apiPromises.push(promise);
+            });
+        }
+    } else {
+        // Case 3: Default logic for all other providers.
+        selectedRoomsArray.forEach(room => {
+            const payload = {
+                provider: reservation.providerId,
+                bookingId: reservation.dbId,
+                typeCancelation: "element",
+                reservationId: String(room.reservationId),
+            };
+             const promise = fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload),
+            });
+            apiPromises.push(promise);
         });
-    });
+    }
 
     try {
-        await Promise.all(cancellationPromises);
-        toast.success(`${selectedRoomsArray.length} room(s) successfully cancelled!`);
+        const responses = await Promise.all(apiPromises);
+
+        const failedResponses = responses.filter(res => !res.ok);
+        if (failedResponses.length > 0) {
+            const firstError = await failedResponses[0].json().catch(() => ({ message: "An unknown cancellation error occurred" }));
+            throw new Error(`Failed to cancel ${failedResponses.length} item(s). Error: ${firstError.message}`);
+        }
+
+        toast.success(`${selectedRoomsArray.length} item(s) successfully cancelled!`);
         onSuccess();
     } catch (error: any) {
-        toast.error(`Error: ${error.message || "An unknown error occurred"}`);
-        console.error("Cancellation API call failed:", error);
+        toast.error(`Error: ${error.message}`);
     } finally {
         setIsSubmitting(false);
     }
@@ -294,7 +362,7 @@ const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
           </div>
             <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-4">
               By proceeding, you agree to the cancellation charges shown above.
-          </p>
+            </p>
         </div>
       </div>
     </div>
