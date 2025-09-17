@@ -1,304 +1,543 @@
-// components/RoomCancellationModal.tsx
-"use-client";
+'use client';
 
-import { AlertTriangle, CalendarClock, CreditCard, Trash2, User, Wallet, X } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
-import { Reservation } from './booking-history/BookingModal';
+import React, { useState, useMemo, useEffect } from 'react';
+import { FaTrashAlt, FaDownload, FaTable, FaFile, FaTimesCircle, FaEdit } from 'react-icons/fa';
+import { IoAdd } from 'react-icons/io5';
+import * as XLSX from 'xlsx';
 
-export type CancellableRoom = Reservation['allRooms'][0];
+// MUI Imports
+import Modal from '@mui/material/Modal';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import IconButton from '@mui/material/IconButton';
 
-interface RoomCancellationModalProps {
-  reservation: Reservation;
-  onSuccess: () => void;
-  onClose: () => void;
-}
-
-// Helper functions (unchanged)
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "N/A";
-    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch {
-    return "N/A";
-  }
+const modalStyle = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  boxShadow: 24,
+  p: 4,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  borderRadius: '8px',
 };
 
-const formatDateTime = (dateString: string | null | undefined): string => {
-    if (!dateString) return "N/A";
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return "N/A";
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = date.toLocaleString('en-US', { month: 'short' });
-        const year = date.getFullYear();
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${day} ${month} ${year} ${hours}:${minutes}`;
-    } catch {
-        return "N/A";
+const AddRecipients = () => {
+  const [activeTab, setActiveTab] = useState('manual');
+  const [emails, setEmails] = useState(['']);
+  const [uploadedFileName, setUploadedFileName] = useState(null);
+  const [tableData, setTableData] = useState([]);
+  const [showTable, setShowTable] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState({});
+  const [listName, setListName] = useState('');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [currentEditRow, setCurrentEditRow] = useState(null);
+  const [savedLists, setSavedLists] = useState([]);
+
+  useEffect(() => {
+    const storedLists = localStorage.getItem('savedRecipientLists');
+    if (storedLists) {
+      setSavedLists(JSON.parse(storedLists));
     }
-};
+  }, []);
 
-const calculateFee = (room: CancellableRoom): number => {
-    const policy = room.cancellationPolicy;
-    if (!policy || !policy.date) return 0;
-    const cancellationDeadline = new Date(policy.date);
-    const now = new Date();
-    if (now > cancellationDeadline) {
-        return (policy as any).amount ?? 0;
-    }
-    return 0;
-};
-
-const RoomCancellationModal: React.FC<RoomCancellationModalProps> = ({
-  reservation,
-  onSuccess,
-  onClose,
-}) => {
-  const [selectedRooms, setSelectedRooms] = useState<Record<number, CancellableRoom>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleToggleRoom = (room: CancellableRoom) => {
-    setSelectedRooms(prev => {
-      const newSelected = { ...prev };
-      if (newSelected[room.reservationId]) {
-        delete newSelected[room.reservationId];
-      } else {
-        newSelected[room.reservationId] = room;
-      }
-      return newSelected;
-    });
+  const handleAddEmail = () => {
+    setEmails([...emails, '']);
   };
 
-  const selectedRoomsArray = useMemo(() => Object.values(selectedRooms), [selectedRooms]);
-  const isPayLaterBooking = reservation.paymentType === 'PAYLATER';
+  const handleEmailChange = (index, value) => {
+    const newEmails = [...emails];
+    newEmails[index] = value;
+    setEmails(newEmails);
+  };
 
-  const { totalFinalPrice, totalToBeRefunded } = useMemo(() => {
-    let finalPrice = 0;
-    let refundAmount = 0;
-    
-    selectedRoomsArray.forEach(room => {
-      finalPrice += room.priceNet;
-      if (!isPayLaterBooking) {
-        const fee = calculateFee(room);
-        refundAmount += (room.priceNet - fee);
-      }
-    });
+  const handleRemoveEmail = (index) => {
+    const newEmails = emails.filter((_, i) => i !== index);
+    setEmails(newEmails);
+  };
 
-    return { totalFinalPrice: finalPrice, totalToBeRefunded: refundAmount };
-  }, [selectedRoomsArray, isPayLaterBooking]);
+  const downloadSampleFile = () => {
+    const data = [
+      ['Email', 'First Name', 'Last Name', 'Phone', 'Address'],
+      ['john.doe@example.com', 'John', 'Doe', '123-456-7890', '123 Main St'],
+      ['jane.smith@example.com', 'Jane', 'Smith', '098-765-4321', '456 Oak Ave'],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sample_Recipients');
+    XLSX.writeFile(wb, 'sample_recipients.xlsx');
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadedFileName(file.name);
+      setShowTable(false);
+      setSelectedEmails({});
+      setListName('');
+      const reader = new FileReader();
+
+      reader.onload = (event) => {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (json.length > 1) {
+          const headers = json[0];
+          const rows = json.slice(1);
+          const formattedData = rows.map(row => {
+            const rowObject = {};
+            headers.forEach((header, index) => {
+              rowObject[header] = row[index];
+            });
+            return rowObject;
+          });
+          setTableData(formattedData);
+        } else {
+          setTableData([]);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFileName(null);
+    setTableData([]);
+    setShowTable(false);
+    setSelectedEmails({});
+    setListName('');
+  };
+
+  const handleViewAndSave = () => {
+    setShowTable(true);
+  };
+
+  const handleCheckboxChange = (email) => {
+    setSelectedEmails(prevState => ({
+      ...prevState,
+      [email]: !prevState[email],
+    }));
+  };
+
+  const handleSelectAll = (e) => {
+    const checked = e.target.checked;
+    if (checked) {
+      const allEmails = tableData.reduce((acc, row) => {
+        if (row.Email) {
+          acc[row.Email] = true;
+        }
+        return acc;
+      }, {});
+      setSelectedEmails(allEmails);
+    } else {
+      setSelectedEmails({});
+    }
+  };
   
-  // --- FIXED: Explicit token handling and header creation ---
-  const handleProceedToCancel = async () => {
-    if (selectedRoomsArray.length === 0 || isSubmitting) return;
+  const handleEditRow = (row) => {
+    setCurrentEditRow(row);
+    setEditModalOpen(true);
+  };
+  
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setCurrentEditRow(prevState => ({
+      ...prevState,
+      [name]: value,
+    }));
+  };
 
-    // 1. Get the authentication token from browser storage
-    const token =
-      document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] ||
-      localStorage.getItem("authToken");
+  const handleSaveEdit = () => {
+    const updatedTableData = tableData.map(row => 
+      row.Email === currentEditRow.Email ? currentEditRow : row
+    );
+    setTableData(updatedTableData);
+    setEditModalOpen(false);
+  };
 
-    // 2. Validate the token. If it doesn't exist, stop the function.
-    if (!token) {
-      toast.error("Authorization failed. Please log in again.");
-      console.error("Auth token not found in cookies or local storage.");
-      return;
-    }
-    
-    setIsSubmitting(true);
-    const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}cancel-book`;
+  const handleDeleteRow = (email) => {
+    const updatedTableData = tableData.filter(row => row.Email !== email);
+    setTableData(updatedTableData);
+    const newSelectedEmails = { ...selectedEmails };
+    delete newSelectedEmails[email];
+    setSelectedEmails(newSelectedEmails);
+  };
 
-    // 3. Explicitly create the headers object with the Bearer token
-    const apiHeaders = {
-        'Content-Type': 'application/json',
-        // This line adds the token to the request header
-        'Authorization': `Bearer ${token}`,
-    };
-    
-    // Optional: Check your browser's console to see if the token is being logged correctly
-    console.log("Sending API request with headers:", apiHeaders);
-
-    const cancellationPromises = selectedRoomsArray.map(room => {
-        const payload = {
-            provider: reservation.providerId,
-            bookingId: reservation.dbId,
-            typeCancelation: "element",
-            reservationId: String(room.reservationId),
-        };
-
-        // 4. Use the prepared headers in the fetch request for each room
-        return fetch(endpoint, {
-            method: 'POST',
-            headers: apiHeaders, // Pass the headers object here
-            body: JSON.stringify(payload),
-        }).then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Cancellation failed for room ${room.roomName}`);
-            }
-            return response.json();
-        });
-    });
-
-    try {
-        await Promise.all(cancellationPromises);
-        toast.success(`${selectedRoomsArray.length} room(s) successfully cancelled!`);
-        onSuccess();
-    } catch (error: any) {
-        toast.error(`Error: ${error.message || "An unknown error occurred"}`);
-        console.error("Cancellation API call failed:", error);
-    } finally {
-        setIsSubmitting(false);
+  const handleSaveList = () => {
+    const selectedEmailsList = tableData.filter((row) => selectedEmails[row.Email]);
+    if (selectedEmailsList.length > 0 && listName) {
+      const newList = {
+        name: listName,
+        data: selectedEmailsList,
+      };
+      const updatedSavedLists = [...savedLists, newList];
+      setSavedLists(updatedSavedLists);
+      localStorage.setItem('savedRecipientLists', JSON.stringify(updatedSavedLists));
+      alert(`Successfully saved ${selectedEmailsList.length} emails to list "${listName}"!`);
+      setListName('');
+      setSelectedEmails({});
+      setUploadedFileName(null);
+      setShowTable(false);
+      setActiveTab('saved');
+    } else {
+      alert('Please select at least one email and provide a list name.');
     }
   };
 
-  const CancellationInfoBox = () => (
-    <div className="mt-4 p-3 rounded-lg flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-        {isPayLaterBooking ? (
-            <Wallet className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
-        ) : (
-            <CreditCard className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
-        )}
-        <div>
-            <h4 className="font-semibold text-blue-800 dark:text-blue-200">
-                {isPayLaterBooking ? "Pay Later Booking" : "Credit Booking"}
-            </h4>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-                {isPayLaterBooking 
-                    ? "You chose to pay at the hotel. No refund will be processed as no payment has been made." 
-                    : "Your booking was a credit booking. The refund amount shown will be credited to your original payment method."}
-            </p>
-        </div>
-    </div>
-  );
+  const handleSelectSavedList = (list) => {
+    setListName(list.name);
+    setTableData(list.data);
+    const initialSelected = list.data.reduce((acc, row) => {
+        acc[row.Email] = true;
+        return acc;
+    }, {});
+    setSelectedEmails(initialSelected);
+    setActiveTab('upload');
+    setShowTable(true);
+    setUploadedFileName(`[Saved] ${list.name}`);
+  };
+
+  const handleDeleteSavedList = (listName) => {
+      const updatedSavedLists = savedLists.filter(list => list.name !== listName);
+      setSavedLists(updatedSavedLists);
+      localStorage.setItem('savedRecipientLists', JSON.stringify(updatedSavedLists));
+  };
+
+
+  const selectedCount = useMemo(() => Object.values(selectedEmails).filter(Boolean).length, [selectedEmails]);
+  const isAllSelected = selectedCount > 0 && selectedCount === tableData.length;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center p-4 z-50 transition-opacity duration-300">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col text-gray-800 dark:text-gray-200 transform transition-all duration-300">
-        
-        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20 shrink-0">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-            <div>
-              <h2 className="text-xl font-bold text-red-800 dark:text-red-200">Cancel Booking</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Select the items you wish to cancel.</p>
-            </div>
+    <div className="container mx-auto p-6">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full">
+        <div className="flex border-b border-gray-200">
+          <div
+            className={`py-2 px-4 cursor-pointer ${
+              activeTab === 'manual'
+                ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => {
+              setActiveTab('manual');
+              setUploadedFileName(null);
+              setShowTable(false);
+              setSelectedEmails({});
+              setListName('');
+            }}
+          >
+            Manual Entry
           </div>
-          <button onClick={onClose} className="p-1 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 transition-colors">
-            <X size={20} />
-          </button>
+          <div
+            className={`py-2 px-4 cursor-pointer ${
+              activeTab === 'upload'
+                ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => {
+              setActiveTab('upload');
+            }}
+          >
+            Upload File
+          </div>
+          <div
+            className={`py-2 px-4 cursor-pointer ${
+              activeTab === 'saved'
+                ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            onClick={() => {
+              setActiveTab('saved');
+              setUploadedFileName(null);
+              setShowTable(false);
+              setSelectedEmails({});
+              setListName('');
+            }}
+          >
+            Saved Lists
+          </div>
         </div>
 
-        <div className="p-6 overflow-y-auto">
-          <div className="border rounded-lg dark:border-gray-700 overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 bg-gray-100 dark:bg-gray-900/50 p-3 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 border-b dark:border-gray-700">
-              <div className="col-span-5">Service</div>
-              <div className="col-span-2">Traveller</div>
-              <div className="col-span-2 text-right pr-[10px]">Price</div>
-              <div className="col-span-3 text-right">Cancellation Fee</div>
-            </div>
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Add Recipients
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeTab === 'manual'
+              ? 'Manually enter email addresses below.'
+              : activeTab === 'upload'
+              ? 'Upload a CSV, XLSX, or plain text file with email addresses.'
+              : 'Select a previously saved list.'}
+          </p>
 
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {reservation.allRooms.map((room, index) => {
-                const isSelected = !!selectedRooms[room.reservationId];
-                const fee = calculateFee(room);
-                const passenger = reservation.passengers[index] || null;
-                const isAlreadyCancelled = room.status.toLowerCase() === 'cancelled';
-                
-                return (
-                  <div key={room.reservationId} className={`grid grid-cols-12 gap-4 p-4 items-start transition-colors ${isAlreadyCancelled ? 'opacity-60 bg-gray-50 dark:bg-gray-700/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'}`}>
-                    <div className="col-span-5 flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleRoom(room)}
-                        disabled={isAlreadyCancelled}
-                        className={`h-5 w-5 rounded mt-0.5 border-gray-300 text-red-600 focus:ring-red-500 shrink-0 ${isAlreadyCancelled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      />
-                      <div>
-                        <p className="font-bold text-gray-900 dark:text-white">{reservation.hotelInfo.name}</p>
-                        <p className="text-sm">{room.roomName}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(reservation.checkIn)} - {formatDate(reservation.checkOut)} ({reservation.nights} nights)</p>
+          {activeTab === 'saved' && (
+            <div className="mt-4">
+              <List>
+                {savedLists.length > 0 ? (
+                  savedLists.map((list, index) => (
+                    <ListItem
+                      key={index}
+                      disablePadding
+                      secondaryAction={
+                        <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteSavedList(list.name)}>
+                          <FaTrashAlt />
+                        </IconButton>
+                      }
+                    >
+                      <ListItemButton onClick={() => handleSelectSavedList(list)}>
+                        <ListItemText primary={list.name} secondary={`${list.data.length} recipients`} />
+                      </ListItemButton>
+                    </ListItem>
+                  ))
+                ) : (
+                  <Typography variant="body1" sx={{ mt: 2, color: 'text.secondary' }}>
+                    No saved lists found.
+                  </Typography>
+                )}
+              </List>
+            </div>
+          )}
+
+          {showTable && tableData.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Recipients <span className="text-sm font-normal text-gray-500">({selectedCount} of {tableData.length} selected)</span></h3>
+              <div className="border border-gray-200 rounded-md overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          onChange={handleSelectAll}
+                          checked={isAllSelected}
+                          className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                        />
+                      </th>
+                      {Object.keys(tableData[0]).map((key) => (
+                        <th
+                          key={key}
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          {key}
+                        </th>
+                      ))}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {tableData.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedEmails[row.Email]}
+                            onChange={() => handleCheckboxChange(row.Email)}
+                            className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
+                          />
+                        </td>
+                        {Object.values(row).map((value, colIndex) => (
+                          <td
+                            key={colIndex}
+                            className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                          >
+                            {value}
+                          </td>
+                        ))}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button onClick={() => handleEditRow(row)} className="text-blue-600 hover:text-blue-900 mr-2">
+                            <FaEdit size={16} />
+                          </button>
+                          <button onClick={() => handleDeleteRow(row.Email)} className="text-red-600 hover:text-red-900">
+                            <FaTrashAlt size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-6 flex flex-col md:flex-row items-center justify-end space-y-4 md:space-y-0 md:space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter list name"
+                  value={listName}
+                  onChange={(e) => setListName(e.target.value)}
+                  className="w-full md:w-auto flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                />
+                <button
+                  onClick={handleSaveList}
+                  className="bg-green-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-green-700 transition-colors shadow-md w-full md:w-auto"
+                >
+                  Save List
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'manual' && (
+            <div className="mt-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Add Recipients</h3>
+              <div className="space-y-4">
+                {emails.map((email, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <input
+                      type="email"
+                      placeholder="example@email.com"
+                      value={email}
+                      onChange={(e) => handleEmailChange(index, e.target.value)}
+                      className="w-1/2 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    />
+                    <button
+                      onClick={() => handleRemoveEmail(index)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                    >
+                      <FaTrashAlt size={20} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={handleAddEmail}
+                  className="flex items-center text-blue-600 hover:text-blue-700 font-medium mt-4"
+                >
+                  <IoAdd size={20} className="mr-1" />
+                  Add More
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'upload' && !showTable && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex flex-col h-full">
+                <div className="p-6 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-center text-gray-500 h-full">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8"
+                    />
+                  </svg>
+                  <p className="mt-2">Drag and drop your file here</p>
+                  <p className="mt-1 text-sm text-gray-400">or</p>
+                  <label
+                    htmlFor="file-upload"
+                    className="mt-2 text-blue-600 font-semibold cursor-pointer hover:text-blue-700"
+                  >
+                    Browse to upload
+                    <input id="file-upload" type="file" className="hidden" onChange={handleFileUpload} accept=".csv, .xlsx, .txt" />
+                  </label>
+                  <p className="mt-2 text-xs text-gray-400">
+                    Supported formats: CSV, XLSX, TXT
+                  </p>
+                  {uploadedFileName && (
+                    <div className="mt-4 flex flex-col items-center">
+                      <div className="flex items-center text-gray-800 font-medium">
+                        <FaFile className="mr-2" />
+                        <span>{uploadedFileName}</span>
+                        <button onClick={handleRemoveFile} className="ml-2 text-red-500 hover:text-red-700">
+                          <FaTimesCircle />
+                        </button>
                       </div>
                     </div>
-                    
-                    <div className="col-span-2 text-sm flex items-center gap-2 pt-1">
-                      {passenger && (
-                        <>
-                          <User className="h-4 w-4 text-gray-500 shrink-0" />
-                          <p>{passenger.firstName} {passenger.lastName} <span className="text-xs text-gray-500 dark:text-gray-400">{passenger.lead ? '(Lead)' : ''}</span></p>
-                        </>
-                      )}
-                    </div>
+                  )}
+                </div>
+              </div>
 
-                    <div className="col-span-2 text-right font-semibold pr-[10px]">
-                      {reservation.currency} {room.priceNet.toFixed(2)}
-                    </div>
-
-                    <div className="col-span-3 text-right text-sm">
-                      <p className="font-semibold text-base text-red-600 dark:text-red-400">{reservation.currency} {fee.toFixed(2)}</p>
-                      {room.cancellationPolicy?.date && (
-                        <div className="flex items-center justify-end gap-1.5 mt-1 text-green-600 dark:text-green-400">
-                          <CalendarClock size={14} />
-                          <p className="text-xs font-medium">Free until {formatDateTime(room.cancellationPolicy.date)}</p>
-                        </div>
-                      )}
-                    </div>
+              <div className="flex flex-col h-full justify-between">
+                <div className="bg-red-50 border border-red-200 p-4 rounded-md text-red-700 h-full">
+                  <p className="font-semibold">Important Information:</p>
+                  <p className="text-sm mt-1">
+                    Your file must include a header row with the following column names (case-sensitive):
+                    <span className="font-mono text-blue-600 ml-2">Email, First Name, Last Name, Phone, Address</span>.
+                    The **Email** column is required.
+                  </p>
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={downloadSampleFile}
+                      className="inline-flex items-center text-gray-600 hover:text-gray-800 font-medium text-sm transition-colors"
+                    >
+                      <FaDownload className="mr-2" />
+                      Download Sample File
+                    </button>
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
-          </div>
-          <CancellationInfoBox />
+          )}
         </div>
 
-        <div className="p-6 mt-auto bg-gray-50 dark:bg-gray-900/50 border-t dark:border-gray-700 shrink-0">
-          <div className="flex flex-wrap justify-between items-center gap-6">
-            <div>
-              <p className="text-gray-600 dark:text-gray-400">
-                Total for selected items: <span className="font-bold text-gray-900 dark:text-white">{reservation.currency} {totalFinalPrice.toFixed(2)}</span>
-              </p>
-              <p className="font-bold text-green-600 dark:text-green-400 mt-1">
-                Total to be refunded: 
-                <span className="text-2xl ml-2">{reservation.currency} {totalToBeRefunded.toFixed(2)}</span>
-              </p>
-            </div>
-            
-            <div className="flex space-x-3">
-              <button 
-                onClick={onClose} 
-                className="px-5 py-2.5 rounded-md text-sm font-semibold bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition"
-              >
-                Keep Booking
-              </button>
-              <button
-                onClick={handleProceedToCancel}
-                disabled={selectedRoomsArray.length === 0 || isSubmitting}
-                className="px-5 py-2.5 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} />
-                    Cancel Selected ({selectedRoomsArray.length})
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-            <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-4">
-              By proceeding, you agree to the cancellation charges shown above.
-          </p>
+        <div className="mt-8 flex justify-end">
+          {activeTab === 'upload' && !showTable && (
+            <button
+              onClick={handleViewAndSave}
+              disabled={!uploadedFileName}
+              className={`font-semibold py-2 px-6 rounded-md transition-colors shadow-md ${
+                !uploadedFileName
+                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              View and Save →
+            </button>
+          )}
         </div>
       </div>
+
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)}>
+        <Box sx={modalStyle}>
+          <Typography variant="h6" component="h2">
+            Edit Recipient
+          </Typography>
+          {currentEditRow && (
+            <>
+              {Object.keys(currentEditRow).map((key) => (
+                <TextField
+                  key={key}
+                  label={key}
+                  name={key}
+                  value={currentEditRow[key] || ''}
+                  onChange={handleEditChange}
+                  fullWidth
+                  margin="normal"
+                />
+              ))}
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Button variant="outlined" onClick={() => setEditModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="contained" onClick={handleSaveEdit}>
+                  Save
+                </Button>
+              </Box>
+            </>
+          )}
+        </Box>
+      </Modal>
     </div>
   );
 };
 
-export default RoomCancellationModal;
+export default AddRecipients;
