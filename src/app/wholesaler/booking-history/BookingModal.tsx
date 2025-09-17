@@ -341,7 +341,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
             <Section title="Agency Details" icon={FiUsers}>
               <DetailItem label="Agency" value={r.agencyName}/>
               <DetailItem label="Reservation:" value={r.reservationId}/>
-              <DetailItem label="Client Ref" value={r.clientRef}/>
+              {/* --- MODIFICATION IS HERE --- */}
+              <DetailItem label="Agent Reference" value={r.clientRef.split('-')[0].toUpperCase()}/>
+              {/* --------------------------- */}
             </Section>
             
             <Section title="Payment Overview" icon={FiCreditCard}>
