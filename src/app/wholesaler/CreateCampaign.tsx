@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { FaCheckCircle, FaEye, FaTimes } from 'react-icons/fa';
 
-import AddSetup from './AddSetup';
-import AddContent from './AddContent';
-import Preview from './Preview';
-import Schedule from './Schedule';
+import AddSetup from './campaign/AddSetup';
+import AddContent from './campaign/AddContent';
+import Preview from './campaign/Preview';
+import Schedule from './campaign/Schedule';
 
 // --- Type Definitions ---
 type SubscriberList = {
@@ -15,7 +15,9 @@ type SubscriberList = {
   description: string;
 };
 
+// Updated Subscriber type to include _id
 type Subscriber = {
+  _id: string;
   email: string;
   name: string;
   phone: string;
@@ -23,7 +25,19 @@ type Subscriber = {
   status: string;
 };
 
-type UploadedData = any[][];
+// State for the entire campaign's data
+type CampaignData = {
+  title: string;
+  description: string;
+  listIds: string[]; // This will now hold the selected LIST ID for the API call
+  fromName: string;
+  fromEmail: string;
+  subject: string;
+  html: string;
+  text: string;
+  sendNow: boolean;
+  scheduledAt?: string;
+};
 
 // --- API Helper Functions ---
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -45,8 +59,8 @@ const fetchAllSubscriberLists = async (token: string): Promise<SubscriberList[]>
   }
 };
 
-// Fetches subscribers for a specific list by its ID with authorization
-const fetchSubscribersByListId = async (listId: string, token: string): Promise<UploadedData> => {
+// Fetches subscribers for a specific list, now returns Subscriber[]
+const fetchSubscribersByListId = async (listId: string, token: string): Promise<Subscriber[]> => {
     try {
         const response = await fetch(`${BASE_URL}/campaign/subscribers/list/${listId}`, {
             headers: {
@@ -55,18 +69,39 @@ const fetchSubscribersByListId = async (listId: string, token: string): Promise<
         });
         if (!response.ok) throw new Error('Network response was not ok');
         const result = await response.json();
-        if (result.success && result.data.length > 0) {
-            const subscribers: Subscriber[] = result.data;
-            const headers = ['Email', 'Name', 'Phone', 'Country', 'Status'];
-            const dataRows = subscribers.map(sub => [sub.email, sub.name, sub.phone, sub.country, sub.status]);
-            return [headers, ...dataRows];
-        }
-        return [['Email', 'Name', 'Phone', 'Country', 'Status']]; // Return headers for empty list
+        // Assuming the API returns an array of subscriber objects
+        return result.success ? result.data : [];
     } catch (error) {
         console.error(`Failed to fetch subscribers for list ${listId}:`, error);
         return [];
     }
 };
+
+// New function to post the campaign
+const createCampaign = async (payload: Omit<CampaignData, 'scheduledAt'>, token: string) => {
+    try {
+        const response = await fetch(`${BASE_URL}/campaign`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create campaign');
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("Error creating campaign:", error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+};
+
 
 // --- Utility Function to get Token ---
 const getAuthToken = (): string | null => {
@@ -76,11 +111,10 @@ const getAuthToken = (): string | null => {
 };
 
 
-// Modal Component for displaying data (no changes needed here)
-const DataModal = ({ data, onClose, listName }: { data: UploadedData; onClose: () => void; listName: string | undefined }) => {
+// Modal Component for displaying subscriber data
+const DataModal = ({ data, onClose, listName }: { data: Subscriber[]; onClose: () => void; listName: string | undefined }) => {
   if (!data || data.length === 0) return null;
-  const headers = data[0];
-  const rows = data.slice(1);
+  const headers = ['Email', 'Name', 'Phone', 'Country', 'Status'];
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
@@ -101,11 +135,13 @@ const DataModal = ({ data, onClose, listName }: { data: UploadedData; onClose: (
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 text-sm">
-              {rows.map((row, rowIndex) => (
+              {data.map((sub, rowIndex) => (
                 <tr key={rowIndex}>
-                  {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} className="px-3 py-2 whitespace-nowrap">{cell}</td>
-                  ))}
+                  <td className="px-3 py-2 whitespace-nowrap">{sub.email}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{sub.name}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{sub.phone}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{sub.country}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{sub.status}</td>
                 </tr>
               ))}
             </tbody>
@@ -127,9 +163,25 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [subscriberLists, setSubscriberLists] = useState<SubscriberList[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedList, setSelectedList] = useState<string | null>(null);
-  const [uploadedData, setUploadedData] = useState<UploadedData>([]);
+  const [selectedList, setSelectedList] = useState<SubscriberList | null>(null);
+  const [initialSubscribers, setInitialSubscribers] = useState<Subscriber[]>([]); // Full list from API
+  const [finalSubscribers, setFinalSubscribers] = useState<Subscriber[]>([]); // Filtered/selected list from AddSetup for PREVIEW
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<Subscriber[]>([]);
+  
+  // Central state for all campaign data
+  const [campaignData, setCampaignData] = useState<CampaignData>({
+    title: "",
+    description: "",
+    listIds: [],
+    fromName: "BookingDesk", // Default value
+    fromEmail: "ops@bdesktravel.com", // Default value
+    subject: "",
+    html: "",
+    text: "",
+    sendNow: true,
+    scheduledAt: undefined,
+  });
 
   // Fetch all subscriber lists on component mount
   useEffect(() => {
@@ -148,20 +200,20 @@ export default function App() {
     loadLists();
   }, []);
 
-  const handleListSelect = (listId: string) => {
-    setSelectedList(listId);
+  const handleListSelect = (list: SubscriberList) => {
+    setSelectedList(list);
   };
 
   const handleViewData = async (listId: string) => {
     setIsLoading(true);
     const token = getAuthToken();
     if (!token) {
-        alert("Authorization failed. Please log in again.");
-        setIsLoading(false);
-        return;
+      alert("Authorization failed. Please log in again.");
+      setIsLoading(false);
+      return;
     }
     const subscribers = await fetchSubscribersByListId(listId, token);
-    setUploadedData(subscribers);
+    setModalData(subscribers);
     setIsModalOpen(true);
     setIsLoading(false);
   };
@@ -171,6 +223,16 @@ export default function App() {
         alert('Please select a list before proceeding.');
         return;
     }
+    // Save title, description, and the LIST ID for the payload from step 1
+    const title = (document.getElementById('campaignName') as HTMLInputElement)?.value || '';
+    const description = (document.getElementById('shortDescription') as HTMLTextAreaElement)?.value || '';
+    setCampaignData(prev => ({ 
+        ...prev, 
+        title, 
+        description,
+        listIds: [selectedList._id] // ** Set the List ID for the payload here **
+    }));
+
     setIsLoading(true);
     const token = getAuthToken();
     if (!token) {
@@ -178,37 +240,90 @@ export default function App() {
         setIsLoading(false);
         return;
     }
-    const subscribers = await fetchSubscribersByListId(selectedList, token);
-    setUploadedData(subscribers);
+    const subscribers = await fetchSubscribersByListId(selectedList._id, token);
+    setInitialSubscribers(subscribers);
+    setFinalSubscribers(subscribers); // Initially, all subscribers are selected for preview
     setCurrentStep(2);
     setIsLoading(false);
   };
 
   const handleCloseModal = () => setIsModalOpen(false);
 
-  const handleProceedFromSetup = (finalData: any[][]) => {
-    setUploadedData(finalData);
+  // Called from AddSetup with the final, filtered list of subscribers FOR PREVIEW PURPOSES
+  const handleProceedFromSetup = (finalData: Subscriber[]) => {
+    // Set the filtered subscribers for the preview step
+    setFinalSubscribers(finalData); 
+    // ** We no longer update campaignData.listIds here **
     setCurrentStep(3);
   };
+
+  // Called from AddContent to save subject/body
+  const handleContentUpdate = (content: { subject: string; html: string; text: string }) => {
+    setCampaignData(prev => ({ ...prev, ...content }));
+  };
+  
+  // Called from Schedule to save scheduling choice
+  const handleScheduleUpdate = (schedule: { sendNow: boolean; scheduledAt?: string }) => {
+    setCampaignData(prev => ({ ...prev, ...schedule }));
+  };
+
+  // Called from Schedule page's "Finish" button
+  const handleFinishCampaign = async () => {
+    setIsLoading(true);
+    const token = getAuthToken();
+    if (!token) {
+        alert("Authorization failed. Please log in again.");
+        setIsLoading(false);
+        return;
+    }
+    
+    // The `campaignData` object now correctly holds the listId in `listIds`
+    const { scheduledAt, ...payload } = campaignData;
+    
+    const result = await createCampaign(payload, token);
+    setIsLoading(false);
+
+    if (result.success) {
+        alert('Campaign created successfully!');
+        // Optionally reset state or redirect
+        setCurrentStep(1); 
+    } else {
+        alert(`Error: ${result.error}`);
+    }
+  };
+
 
   const renderStepContent = () => {
     switch (currentStep) {
       case 2:
-        return <AddSetup data={uploadedData} onProceed={handleProceedFromSetup} onBack={() => setCurrentStep(1)} />;
+        return <AddSetup data={initialSubscribers} onProceed={handleProceedFromSetup} onBack={() => setCurrentStep(1)} />;
       case 3:
-        return <AddContent onNext={() => setCurrentStep(4)} onBack={() => setCurrentStep(2)} />;
+        return <AddContent 
+                    onNext={() => setCurrentStep(4)} 
+                    onBack={() => setCurrentStep(2)}
+                    initialData={{ subject: campaignData.subject, html: campaignData.html }}
+                    onUpdate={handleContentUpdate}
+                />;
       case 4:
-        return <Preview recipientData={uploadedData} onNext={() => setCurrentStep(5)} onBack={() => setCurrentStep(3)} />;
+        return <Preview 
+                    campaignData={campaignData}
+                    recipientData={finalSubscribers} // Preview still shows the filtered list
+                    onNext={() => setCurrentStep(5)} 
+                    onBack={() => setCurrentStep(3)} 
+                />;
       case 5:
         return (
           <div className="flex flex-col w-full items-center">
-            <Schedule />
-            <div className="w-full mt-8 flex justify-end space-x-4">
+            <Schedule 
+                value={{ sendNow: campaignData.sendNow, scheduledAt: campaignData.scheduledAt }}
+                onChange={handleScheduleUpdate}
+            />
+            <div className="w-full mt-8 flex justify-between">
               <button onClick={() => setCurrentStep(4)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-3 px-8 rounded-full transition-colors duration-200">
                 Go Back
               </button>
-              <button onClick={() => alert('Campaign Finished!')} className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200">
-                Finish →
+              <button onClick={handleFinishCampaign} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                {isLoading ? 'Finishing...' : 'Finish'}
               </button>
             </div>
           </div>
@@ -223,11 +338,11 @@ export default function App() {
                   <h2 className="text-xl font-medium text-gray-800 mb-4">Campaign Info</h2>
                   <div className="mb-4">
                     <label htmlFor="campaignName" className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
-                    <input type="text" id="campaignName" placeholder="Enter campaign name" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" id="campaignName" placeholder="Enter campaign name" defaultValue={campaignData.title} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label htmlFor="shortDescription" className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-                    <textarea id="shortDescription" placeholder="Enter short description about campaign" rows={4} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                    <textarea id="shortDescription" placeholder="Enter short description about campaign" rows={4} defaultValue={campaignData.description} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
                   </div>
                 </div>
               </div>
@@ -239,10 +354,10 @@ export default function App() {
                   <div className="space-y-3 flex-grow overflow-y-auto pr-2 max-h-60">
                     {isLoading && !isModalOpen ? <p className="text-gray-500">Loading lists...</p> : (
                         subscriberLists.length > 0 ? subscriberLists.map((list) => (
-                      <div key={list._id} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border ${selectedList === list._id ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => handleListSelect(list._id)}>
+                      <div key={list._id} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border ${selectedList?._id === list._id ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`} onClick={() => handleListSelect(list)}>
                         <span className="font-medium text-gray-800">{list.title}</span>
                         <div className="flex items-center space-x-2">
-                          {selectedList === list._id && (<FaCheckCircle className="text-green-500" />)}
+                          {selectedList?._id === list._id && (<FaCheckCircle className="text-green-500" />)}
                           <button onClick={(e) => { e.stopPropagation(); handleViewData(list._id); }} className="text-gray-500 hover:text-blue-600 p-1 rounded-full" aria-label={`View data for ${list.title}`}>
                             <FaEye />
                           </button>
@@ -260,7 +375,7 @@ export default function App() {
                 className={`font-medium py-3 px-8 rounded-full shadow-lg transition-colors duration-200 ${selectedList ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
                 disabled={!selectedList || isLoading}
               >
-                {isLoading ? 'Loading...' : 'Go to Add Setup →'}
+                {isLoading ? 'Loading...' : 'Go to Add Setup'}
               </button>
             </div>
           </>
@@ -280,7 +395,7 @@ export default function App() {
     return 'mt-2 text-sm text-gray-400 whitespace-nowrap';
   };
   
-  const selectedListName = subscriberLists.find(l => l._id === selectedList)?.title;
+  const selectedListName = subscriberLists.find(l => l._id === modalData[0]?._id)?.title;
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center font-sans">
@@ -310,7 +425,7 @@ export default function App() {
       </div>
       {/* Modal for displaying data */}
       {isModalOpen && (
-        <DataModal data={uploadedData} onClose={handleCloseModal} listName={selectedListName} />
+        <DataModal data={modalData} onClose={handleCloseModal} listName={selectedListName} />
       )}
     </div>
   );

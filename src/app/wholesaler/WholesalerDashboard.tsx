@@ -68,8 +68,10 @@ import StatementOfAccount from './StatementOfAccount';
 import ManageCoupon from './ManageCoupon';
 
 // ✨ UPDATED: Import for Campaign Pages & new subscriber page
-import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
+ // ✨ NEW: Import for Campaign List
 import CreateCampaign from './CreateCampaign';
+import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
+import CampaignListItem from './campaign/CampaignListItem';
 
 // This is the full list of all possible menu items
 const allMenuItems = [
@@ -248,6 +250,25 @@ export default function WholesalerPage() {
         document.documentElement.classList.toggle('dark', darkMode);
     }
   }, [darkMode]);
+
+  // MODIFIED: Effect to sync component state with URL query params for navigation
+  useEffect(() => {
+    const page = searchParams.get('page');
+    const tab = searchParams.get('tab');
+
+    // Only update if the page parameter is a valid, visible menu item
+    if (page && visibleMenuItems.includes(page)) {
+      setActivePage(page);
+      setExpandedMenu(page); // Expand the parent menu in the sidebar
+
+      if (tab) {
+        setActiveTab(tab);
+      } else {
+        // If there's a page but no tab, reset the tab
+        setActiveTab(null);
+      }
+    }
+  }, [searchParams, visibleMenuItems]);
 
   const handleMenuClick = (item: string) => {
     if (activePage === item) {
@@ -483,7 +504,7 @@ export default function WholesalerPage() {
 
               {expandedMenu === 'Campaign' && item === 'Campaign' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                  {['CreateCampaign', 'CreateSubscriber'].map((tab) => (
+                  {['CreateCampaign', 'CreateSubscriber', 'CampaignList'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => {
@@ -500,6 +521,7 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateCampaign' && 'Create Campaign'}
                         {tab === 'CreateSubscriber' && 'Create Subscriber'}
+                        {tab === 'CampaignList' && 'Campaign List'}
                       </span>
                     </button>
                   ))}
@@ -706,7 +728,7 @@ export default function WholesalerPage() {
 
           {/* ✨ NEW: Render Profile Settings Page */}
           {activePage === 'Profile Settings' && <ProfileSettingsPage />}
-           
+            
           {/* ✨ NEW: Render Preferences Page */}
           {activePage === 'Preferences' && <PreferencesPage />}
 
@@ -752,6 +774,7 @@ export default function WholesalerPage() {
             <div className="animate-fade-scale">
               {activeTab === 'CreateCampaign' && <CreateCampaign />}
               {activeTab === 'CreateSubscriber' && <CreateSubscriber />}
+              {activeTab === 'CampaignList' && <CampaignListItem />}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center mx-auto mb-4">

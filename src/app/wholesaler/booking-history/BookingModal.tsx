@@ -11,9 +11,11 @@ import {
   FiMapPin, 
   FiFileText, 
   FiCreditCard, 
-  FiTag 
+  FiTag,
+  FiEdit // Added for the edit button
 } from 'react-icons/fi';
 import { FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaBan } from 'react-icons/fa';
+import EditPriceModal from './EditPriceModal'; // Import the EditPriceModal
 
 // INTERFACES (Keep these as they are from your previous file)
 interface Passenger {
@@ -93,7 +95,7 @@ export interface Reservation {
   priceDetails?: {
     price?: { value: number; currency: string };
     originalPrice?: { value: number; currency: string };
-    markupApplied?: { type: string; value: number };
+    markupApplied?: { type: string; value: number; description: string };
   };
 }
 
@@ -177,7 +179,6 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
                 </div>
                 <div>
                   <p className="font-semibold mb-2">Cancellation Policy</p>
-                  {/* --- MODIFICATION START --- */}
                   {room.status === 'cancelled' ? (
                     <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                       <FaBan />
@@ -204,7 +205,6 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
                       <span className="font-bold">Non-refundable</span>
                     </div>
                   )}
-                  {/* --- MODIFICATION END --- */}
                 </div>
               </div>
             </div>
@@ -237,7 +237,6 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
               {room.guests.length === 0 && <p className="text-xs text-gray-500 text-center py-4">No guest details assigned to this room.</p>}
             </div>
 
-            {/* **UPDATED: Cancel Room Button** */}
             <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-end">
                 <button
                     onClick={() => alert(`Room cancellation (ID: ${room.reservationId}) is a future feature.`)}
@@ -257,6 +256,9 @@ const RoomAccordion: React.FC<{ room: any; index: number; currency: string }> = 
 
 export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOpen, onClose }) => {
   const modalRoot = typeof document !== 'undefined' ? (document.getElementById('modal-root') || document.body) : null;
+  
+  // --- STATE FOR EDIT PRICE MODAL ---
+  const [isEditPriceModalOpen, setIsEditPriceModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -275,104 +277,152 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
     }
     const roomStatuses = new Set(reservation.allRooms.map(room => room.status.toLowerCase()));
     
-    if (roomStatuses.has('cancelled')) {
-      return 'cancelled';
-    }
-    
-    if (roomStatuses.has('pending')) {
-      return 'pending';
-    }
-
-    if (roomStatuses.has('confirmed') || roomStatuses.has('ok')) {
-        return 'confirmed';
-    }
+    if (roomStatuses.has('cancelled')) return 'cancelled';
+    if (roomStatuses.has('pending')) return 'pending';
+    if (roomStatuses.has('confirmed') || roomStatuses.has('ok')) return 'confirmed';
     
     return reservation.topStatus.toLowerCase();
   };
 
-  // --- START: MODIFIED LABELS ---
   const statusStyles: { [key: string]: { icon: React.ElementType, color: string, label: string } } = {
     confirmed: { icon: FaCheckCircle, color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", label: "Paid" },
     ok: { icon: FaCheckCircle, color: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300", label: "OK" },
     cancelled: { icon: FaTimesCircle, color: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300", label: "Cancelled" },
     pending: { icon: FaExclamationCircle, color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300", label: "Payment Pending" },
   };
-  // --- END: MODIFIED LABELS ---
 
   const modalStatusKey = getModalStatus(r);
   const statusInfo = statusStyles[modalStatusKey] || statusStyles.pending;
 
+  // --- PRICE CALCULATION LOGIC ---
+  const s = r.priceDetails?.originalPrice?.value ?? 0;
+  const markupDetails = r.priceDetails?.markupApplied;
+  const markupValue = markupDetails?.value ?? 0;
+  // Calculate markup amount based on type (percentage or fixed)
+  const m = markupDetails?.type === 'percentage' ? s * (markupValue / 100) : markupValue;
+  const np = s + m;
+  const sp = r.priceDetails?.price?.value ?? np; // Use net price as fallback
+  // Commission (C) and Discount (D) are not in `priceDetails`, default to 0.
+  const c = 0;
+  const d = 0;
+  
+  const calculatedPrices = { s, m, np, c, d, sp };
+
+  const handlePriceSave = (updatedData: any) => {
+      console.log("Price update received:", updatedData);
+      // In a real app, you would refetch booking data here to reflect changes
+      setIsEditPriceModalOpen(false);
+  };
+  
+  // A small component for displaying a row in the price breakdown
+  const PriceRow: React.FC<{ label: string, value: number, isBold?: boolean, isRed?: boolean }> = ({ label, value, isBold = false, isRed = false }) => (
+    <div className={`flex justify-between items-center text-sm ${isBold ? 'font-semibold' : ''} ${isRed ? 'text-red-500' : 'text-gray-800 dark:text-gray-200'}`}>
+      <p className="text-gray-500 dark:text-gray-400">{label}:</p>
+      <p>{value.toFixed(2)}</p>
+    </div>
+  );
+
   return createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-gray-100 dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        
-        {/* MODAL HEADER */}
-        <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Booking <span className="text-blue-500">{r.bookingId}</span>
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Created on {formatDate(r.createdAt)} by {r.addedUser}</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-full ${statusInfo.color}`}>
-              <statusInfo.icon/>
-              <span>{statusInfo.label}</span>
-            </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-              <FiX size={24} />
-            </button>
-          </div>
-        </header>
-
-        {/* MODAL CONTENT */}
-        <main className="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-gray-100 dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
           
-          {/* LEFT COLUMN: BOOKING OVERVIEW */}
-          <div className="lg:col-span-1 space-y-6">
-            <Section title="Hotel & Stay" icon={FiBuilding}>
-              <h4 className="font-bold text-lg text-gray-900 dark:text-white">{r.hotelInfo.name}</h4>
-              <DetailItem label="Check-in" value={formatDate(r.checkIn)} icon={FiCalendar}/>
-              <DetailItem label="Check-out" value={formatDate(r.checkOut)} icon={FiCalendar}/>
-              <DetailItem label="Total Nights" value={r.nights} icon={FiMoon}/>
-              <DetailItem label="Destination" value={`${r.destinationCity}, ${r.destinationCountry}`} icon={FiMapPin}/>
-            </Section>
-
-            <Section title="Agency Details" icon={FiUsers}>
-              <DetailItem label="Agency" value={r.agencyName}/>
-              <DetailItem label="Reservation:" value={r.reservationId}/>
-              {/* --- MODIFICATION IS HERE --- */}
-              <DetailItem label="Agent Reference" value={r.clientRef.split('-')[0].toUpperCase()}/>
-              {/* --------------------------- */}
-            </Section>
-            
-            <Section title="Payment Overview" icon={FiCreditCard}>
-                <div className="text-center py-2">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Total Selling Price</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{r.price.toFixed(2)} <span className="text-lg font-medium">{r.currency}</span></p>
-                </div>
-                <DetailItem label="Payment Type" value={r.paymentType} icon={FiTag}/>
-                <DetailItem label="Payment Status" value={r.paymentStatus} icon={FiFileText}/>
-            </Section>
-          </div>
-
-          {/* RIGHT COLUMN: ROOMS BREAKDOWN */}
-          <div className="lg:col-span-2">
-              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
-                <FiUsers className="text-blue-500" />
-                Room & Guest Breakdown
-              </h3>
-            {(r.allRooms && r.allRooms.length > 0) ? r.allRooms.map((room, idx) => (
-              <RoomAccordion key={room.reservationId || idx} room={room} index={idx} currency={r.currency}/>
-            )) : (
-              <div className="text-center text-gray-500 py-10 border-2 border-dashed rounded-lg">
-                No detailed room information available.
+          {/* MODAL HEADER */}
+          <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Booking <span className="text-blue-500">{r.bookingId}</span>
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Created on {formatDate(r.createdAt)} by {r.addedUser}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-full ${statusInfo.color}`}>
+                <statusInfo.icon/>
+                <span>{statusInfo.label}</span>
               </div>
-            )}
-          </div>
-        </main>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <FiX size={24} />
+              </button>
+            </div>
+          </header>
+
+          {/* MODAL CONTENT */}
+          <main className="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* LEFT COLUMN: BOOKING OVERVIEW */}
+            <div className="lg:col-span-1 space-y-6">
+              <Section title="Hotel & Stay" icon={FiBuilding}>
+                <h4 className="font-bold text-lg text-gray-900 dark:text-white">{r.hotelInfo.name}</h4>
+                <DetailItem label="Check-in" value={formatDate(r.checkIn)} icon={FiCalendar}/>
+                <DetailItem label="Check-out" value={formatDate(r.checkOut)} icon={FiCalendar}/>
+                <DetailItem label="Total Nights" value={r.nights} icon={FiMoon}/>
+                <DetailItem label="Destination" value={`${r.destinationCity}, ${r.destinationCountry}`} icon={FiMapPin}/>
+              </Section>
+
+              <Section title="Agency Details" icon={FiUsers}>
+                <DetailItem label="Agency" value={r.agencyName}/>
+                <DetailItem label="Reservation:" value={r.reservationId}/>
+                <DetailItem label="Agent Reference" value={r.clientRef.split('-')[0].toUpperCase()}/>
+                {/* MODIFICATION: Added Provider Name Display */}
+                <DetailItem label="Provider" value={r.providerName}/>
+              </Section>
+              
+              {/* --- UPDATED PAYMENT OVERVIEW SECTION --- */}
+              <Section title="Payment Overview" icon={FiCreditCard}>
+                  <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-semibold text-base text-gray-800 dark:text-gray-100">Price Breakdown</h4>
+                      <button 
+                          onClick={() => setIsEditPriceModalOpen(true)}
+                          className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md font-medium transition-colors"
+                      >
+                          <FiEdit />
+                          Edit
+                      </button>
+                  </div>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md space-y-1.5">
+                      <PriceRow label="S (Suppl.)" value={calculatedPrices.s} />
+                      <PriceRow label="M (Markup)" value={calculatedPrices.m} />
+                      <div className="border-t border-gray-200 dark:border-gray-700 !my-2"></div>
+                      <PriceRow label="NP (Net)" value={calculatedPrices.np} isBold />
+                      <PriceRow label="C (Comm.)" value={calculatedPrices.c} isRed />
+                      <PriceRow label="D (Disc.)" value={calculatedPrices.d} isRed />
+                      <div className="border-t border-gray-200 dark:border-gray-700 !my-2"></div>
+                      <div className="text-blue-600 dark:text-blue-400">
+                        <PriceRow label="SP (Sell)" value={calculatedPrices.sp} isBold />
+                      </div>
+                  </div>
+                  <DetailItem label="Payment Type" value={r.paymentType} icon={FiTag}/>
+                  <DetailItem label="Payment Status" value={r.paymentStatus} icon={FiFileText}/>
+              </Section>
+            </div>
+
+            {/* RIGHT COLUMN: ROOMS BREAKDOWN */}
+            <div className="lg:col-span-2">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
+                  <FiUsers className="text-blue-500" />
+                  Room & Guest Breakdown
+                </h3>
+              {(r.allRooms && r.allRooms.length > 0) ? r.allRooms.map((room, idx) => (
+                <RoomAccordion key={room.reservationId || idx} room={room} index={idx} currency={r.currency}/>
+              )) : (
+                <div className="text-center text-gray-500 py-10 border-2 border-dashed rounded-lg">
+                  No detailed room information available.
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>,
+      
+      {/* RENDER THE EDIT PRICE MODAL */}
+      <EditPriceModal
+        isOpen={isEditPriceModalOpen}
+        onClose={() => setIsEditPriceModalOpen(false)}
+        onSave={handlePriceSave}
+        reservation={r}
+        calculatedPrices={calculatedPrices}
+      />
+    </>,
     modalRoot
   );
 };

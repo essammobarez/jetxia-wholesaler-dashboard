@@ -1,5 +1,6 @@
 "use client";
 import { NextPage } from "next";
+import { useRouter } from "next/navigation"; // MODIFIED: Import useRouter
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BiTransferAlt } from "react-icons/bi";
@@ -59,6 +60,7 @@ const statusMap = {
 };
 
 const BookingsPage: NextPage = () => {
+  const router = useRouter(); // MODIFIED: Initialize the router
   const [darkMode, setDarkMode] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -278,7 +280,9 @@ const BookingsPage: NextPage = () => {
                   detailedService.rateDetails?.name ?? room.board ?? ""
                 ),
                 priceNet: Number(
-                  detailedService.prices?.total?.net?.value ?? 0
+                  room.price?.value ??
+                    detailedService.prices?.total?.net?.value ??
+                    0
                 ),
                 priceCommission: Number(
                   detailedService.prices?.total?.commission?.value ?? 0
@@ -1038,7 +1042,11 @@ const BookingsPage: NextPage = () => {
                 {/* Right side: Action Buttons */}
                 <div className="flex items-center flex-wrap gap-2 mt-4 lg:mt-0 shrink-0 lg:pl-4">
                   <button
-                    onClick={() => toast.success("Feature coming soon!")}
+                    onClick={() =>
+                      router.push(
+                        "/wholesaler?page=Booking&tab=ManualReservationsOnline"
+                      )
+                    }
                     className={`${baseButtonStyles} ${defaultButtonStyles}`}
                   >
                     <FaPlus />

@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { SubAgency } from './SubAgencyModal'; // Assuming types are in the same folder
+import { toast } from 'react-toastify';
+import type { SubAgency } from './SubAgencyModal';
 
 interface EditAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
   agent: SubAgency | null;
   onUpdate: (updatedAgent: SubAgency) => void;
+  agencyId?: string;
 }
 
 export const EditAgentModal: React.FC<EditAgentModalProps> = ({
@@ -16,14 +18,16 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
   onClose,
   agent,
   onUpdate,
+  agencyId,
 }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
-  // Pre-fill form when the modal opens with agent data
   useEffect(() => {
     if (agent) {
       setFormData({
@@ -35,16 +39,61 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
   }, [agent]);
 
   if (!isOpen || !agent) return null;
+  
+  const getAuthToken = () => {
+    return document.cookie
+           .split('; ')
+           .find(r => r.startsWith('authToken='))
+           ?.split('=')[1] || localStorage.getItem('authToken');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updatedAgentData = { ...agent, ...formData };
-    onUpdate(updatedAgentData);
+    if (!agencyId) {
+      toast.error("Agency ID not found. Cannot update agent.");
+      return;
+    }
+    
+    setIsSaving(true);
+    const token = getAuthToken();
+    if (!token) {
+        toast.error("Authorization failed. Please log in again.");
+        setIsSaving(false);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/sub-agency/update/${agent._id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                agencyId,
+                ...formData
+            })
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || "Failed to update agent details.");
+        }
+        
+        onUpdate({ ...agent, ...formData });
+        toast.success("Agent details updated successfully!");
+        onClose();
+
+    } catch (error: any) {
+        toast.error(error.message);
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   return (
@@ -63,33 +112,35 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
           </header>
 
           <main className="p-6 space-y-4">
-            <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                First Name
-              </label>
-              <input
-                type="text"
-                id="firstName"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                Last Name
-              </label>
-              <input
-                type="text"
-                id="lastName"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -111,15 +162,17 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition"
+              disabled={isSaving}
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+              disabled={isSaving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50"
             >
-              Save Changes
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </footer>
         </form>

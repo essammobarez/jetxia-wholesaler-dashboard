@@ -69,6 +69,9 @@ const PayNowModal: React.FC<PayNowModalProps> = ({
   // Payment method is now fixed to 'balance' as gateway is disabled.
   const paymentMethod = 'balance';
 
+  // --- NEW: Get the main balance from the reservation prop ---
+  const mainBalance = reservation.agency?.walletBalance?.mainBalance ?? 0;
+
   useState(() => {
     const initialSelection: Record<number, PayableRoom> = {};
     reservation.allRooms.forEach(room => {
@@ -202,16 +205,21 @@ const PayNowModal: React.FC<PayNowModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Pay with Balance Option */}
                 <div className={`p-4 rounded-lg border-2 transition-all border-blue-500 bg-blue-50 dark:bg-blue-900/30`}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                           <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                           <span className="font-semibold text-gray-800 dark:text-gray-200">Pay with Credit Balance</span>
+                           <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                           <div>
+                             <span className="font-semibold text-gray-800 dark:text-gray-200">Pay with Credit Balance</span>
+                              <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                 Balance: {mainBalance.toFixed(2)} {reservation.currency}
+                              </p>
+                           </div>
                         </div>
-                        <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-blue-600">
+                        <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-blue-600 shrink-0">
                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
                         </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">The total amount will be deducted from your balance.</p>
+                    <p className="text-xs text-gray-500 mt-2 pl-8">The total amount will be deducted from your balance.</p>
                 </div>
 
                 {/* Payment Gateway Option (Disabled) */}
