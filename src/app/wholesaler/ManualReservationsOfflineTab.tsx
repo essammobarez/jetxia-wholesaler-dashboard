@@ -2,36 +2,33 @@ import React, { useState, useEffect, ReactNode } from 'react';
 import { NextPage } from 'next';
 import Head from 'next/head';
 import { Plus, Trash2 } from 'lucide-react';
-import {
-  TextField,
-  MenuItem,
-  Button,
-} from '@mui/material';
+import { TextField, MenuItem, Button } from '@mui/material';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
-// External Libraries
+// External Libraries & Dayjs for date handling
 import { Country } from 'country-state-city';
 import currencyCodes from 'currency-codes';
 import ReactCountryFlag from 'react-country-flag';
 import isoCountries from 'i18n-iso-countries';
+import axios from 'axios';
+import dayjs, { Dayjs } from 'dayjs';
 
-// Import the newly created component
+// Import components
 import Agency from './manual-reservation/Agency-offline';
-
 import { CancellationPolicy } from './manual-reservation/CancellationPolicy-offline';
-
+import BackofficeRemarks from './manual-reservation/BackofficeRemarks';
 import { Destination } from './manual-reservation/Destination-offline';
 import { Travellers } from './manual-reservation/Travellers-offline';
 import { ExternalDetails } from './manual-reservation/ExternalDetails-offline';
-import BackofficeRemarks from './manual-reservation/BackofficeRemarks';
 
-// Register English (you can add more locales if needed)
+// Register English locale
 isoCountries.registerLocale(require('i18n-iso-countries/langs/en.json'));
 
-// Types
+// --- TYPES ---
 type TravellerType = 'adult' | 'child';
+
 type Traveller = {
   id: number;
   type: TravellerType;
@@ -52,14 +49,20 @@ type Room = {
   travellers: Traveller[];
 };
 
-// Section wrapper
+type Policy = {
+  id: number;
+  type: string;
+  date: Dayjs | null;
+  price: string;
+};
+
+// --- SHARED COMPONENTS ---
 type SectionProps = {
   title: string;
   children: ReactNode;
   className?: string;
 };
 
-// EXPORTED for use in other components
 export const FormSection: React.FC<SectionProps> = ({ title, children, className = '' }) => (
   <div className={`bg-white shadow-md rounded-xl p-6 md:p-8 ${className}`}>
     <h2 className="text-xl font-semibold mb-6 text-gray-800">{title}</h2>
@@ -67,7 +70,6 @@ export const FormSection: React.FC<SectionProps> = ({ title, children, className
   </div>
 );
 
-// Generic Input
 type MuiInputProps = {
   label: string;
   placeholder: string;
@@ -79,7 +81,6 @@ type MuiInputProps = {
   rows?: number;
 };
 
-// EXPORTED for use in other components
 export const FormInput: React.FC<MuiInputProps> = ({
   label,
   placeholder,
@@ -106,7 +107,6 @@ export const FormInput: React.FC<MuiInputProps> = ({
   />
 );
 
-// Select with flag (only for countries)
 type MuiSelectWithFlagProps = {
   label: string;
   placeholder: string;
@@ -173,7 +173,6 @@ export const FormSelectWithFlag: React.FC<MuiSelectWithFlagProps> = ({
   </TextField>
 );
 
-// Simple Select (for currency, language — no flags)
 type MuiSelectSimpleProps = {
   label: string;
   placeholder: string;
@@ -221,7 +220,7 @@ export const FormSelectSimple: React.FC<MuiSelectSimpleProps> = ({
   </TextField>
 );
 
-// Main Component
+// --- MAIN COMPONENT ---
 const ManualReservation: NextPage = () => {
   const initialRoomId = Date.now();
 
@@ -235,7 +234,7 @@ const ManualReservation: NextPage = () => {
       price: '',
       travellers: [
         {
-          id: initialRoomId + 1, // Ensure unique ID for the initial traveller
+          id: initialRoomId + 1,
           type: 'adult',
           title: '',
           firstName: '',
@@ -248,9 +247,20 @@ const ManualReservation: NextPage = () => {
   ]);
   const [nextRoomId, setNextRoomId] = useState<number>(initialRoomId + 1);
 
-  // Form fields
-  const [selectedAgencyId, setSelectedAgencyId] = useState(''); // New state for selected agency ID
-  const [agencyName, setAgencyName] = useState(''); // New state for the agency name
+  // --- FORM STATE ---
+  // 1. Agency State
+  const [selectedAgencyId, setSelectedAgencyId] = useState('');
+  const [agencyName, setAgencyName] = useState('');
+  const [agencyData, setAgencyData] = useState<{ walletBalance: number; markup: number }>({ walletBalance: 0, markup: 0 });
+
+  // 2. Destination State (Lifted)
+  const [destination, setDestination] = useState('');
+  const [selectedHotelId, setSelectedHotelId] = useState('');
+  const [selectedHotelDetails, setSelectedHotelDetails] = useState<any | null>(null);
+  const [checkIn, setCheckIn] = useState<Dayjs | null>(null);
+  const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
+
+  // 3. External Details State
   const [externalId, setExternalId] = useState('');
   const [reservationStatus, setReservationStatus] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -260,20 +270,30 @@ const ManualReservation: NextPage = () => {
   const [language, setLanguage] = useState('');
   const [agentRef, setAgentRef] = useState('');
   const [supplierConfirmation, setSupplierConfirmation] = useState('');
+
+  // 4. Price Information State
   const [supplierPrice, setSupplierPrice] = useState('');
   const [markup, setMarkup] = useState('');
   const [commission, setCommission] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
+
+  // 5. Cancellation Policy State (Lifted)
+  const [cancellationPolicies, setCancellationPolicies] = useState<Policy[]>([]);
+
+  // 6. Backoffice Remarks State (Lifted)
+  const [addedRemarks, setAddedRemarks] = useState<string[]>([]);
   const [comments, setComments] = useState('');
 
-  // Options
+  // Dropdown options
   const [currencies, setCurrencies] = useState<Array<{ code: string; name: string }>>([]);
   const [languages, setLanguages] = useState<Array<{ code: string; name: string }>>([]);
-
-  // Static options
   const policyOptions = ['Standard Policy', 'Flexible', 'Strict'];
-  const remarksOptions = ['Promotion', 'VIP Guest', 'Special Request'];
 
+  // API Submission State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // --- EFFECTS ---
   useEffect(() => {
     const currencyList = currencyCodes.data.map(curr => ({
       code: curr.code,
@@ -290,7 +310,7 @@ const ManualReservation: NextPage = () => {
     setLanguages(langs);
   }, []);
 
-  // Traveller handlers
+  // --- HANDLERS ---
   const handleAddTraveller = (roomId: number, type: TravellerType) => {
     setRooms(prevRooms =>
       prevRooms.map(room => {
@@ -344,7 +364,6 @@ const ManualReservation: NextPage = () => {
     );
   };
 
-  // Room handlers
   const handleAddRoom = () => {
     const newRoom: Room = {
       id: nextRoomId,
@@ -353,7 +372,7 @@ const ManualReservation: NextPage = () => {
       board: '',
       roomType: '',
       price: '',
-      travellers: [ // Add a default adult traveller
+      travellers: [
         {
           id: Date.now(),
           type: 'adult',
@@ -379,6 +398,85 @@ const ManualReservation: NextPage = () => {
     );
   };
 
+  const handleCreateReservation = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    // **CHANGE HERE**: Remove image properties from hotel details before sending
+    const { mainImageUrl, mainImages, ...hotelDetailsWithoutImages } = selectedHotelDetails || {};
+    const hotelDetailsForPayload = selectedHotelDetails ? hotelDetailsWithoutImages : null;
+
+    const payload = {
+      agencyId: selectedAgencyId,
+      destination: {
+        name: destination,
+        hotelId: selectedHotelId,
+        hotelDetails: hotelDetailsForPayload, // Use the sanitized object
+        checkIn: checkIn ? checkIn.format('YYYY-MM-DD') : null,
+        checkOut: checkOut ? checkOut.format('YYYY-MM-DD') : null,
+      },
+      externalDetails: {
+        externalId,
+        reservationStatus,
+        supplierName,
+        currency,
+        supplierCode,
+        backofficeRef,
+        language,
+        agentRef,
+        supplierConfirmation,
+      },
+      rooms: rooms.map(room => ({
+        roomInfo: room.roomInfo,
+        roomName: room.roomName,
+        board: room.board,
+        roomType: room.roomType,
+        price: parseFloat(room.price) || 0,
+        travellers: room.travellers.map(t => ({
+          type: t.type,
+          title: t.title,
+          firstName: t.firstName,
+          lastName: t.lastName,
+          birthday: t.birthday ? dayjs(t.birthday).format('YYYY-MM-DD') : null,
+          nationality: t.nationality,
+        })),
+      })),
+      priceInfo: {
+        supplierPrice: parseFloat(supplierPrice) || 0,
+        markup: parseFloat(markup) || 0,
+        commission: parseFloat(commission) || 0,
+        totalPrice: parseFloat(totalPrice) || 0,
+      },
+      cancellationPolicies: cancellationPolicies.map(p => ({
+        type: p.type,
+        date: p.date ? p.date.format('YYYY-MM-DD') : null,
+        price: parseFloat(p.price.replace('$', '')) || 0,
+      })),
+      remarks: {
+        selectedRemarks: addedRemarks,
+        comments: comments,
+      },
+    };
+
+    try {
+        const axiosInstance = axios.create({
+            baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+        });
+      const response = await axiosInstance.post('/offline-booking', payload);
+      console.log('Reservation created successfully:', response.data);
+      alert('Reservation created successfully!');
+      // Optionally reset form or redirect here
+    } catch (error) {
+      console.error('Failed to create reservation:', error);
+      const errorMessage = (error as any).response?.data?.message || 'An unexpected error occurred.';
+      setSubmitError(`Failed to create reservation: ${errorMessage}`);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Head>
@@ -391,21 +489,28 @@ const ManualReservation: NextPage = () => {
           </h1>
 
           <main className="space-y-8">
-            {/* 1. Select Agency & Destination */}
             <div className="space-y-8">
-              {/* Use the new component here */}
               <Agency
                 selectedAgencyId={selectedAgencyId}
                 setSelectedAgencyId={setSelectedAgencyId}
                 agencyName={agencyName}
                 setAgencyName={setAgencyName}
+                onAgencyDataSelect={setAgencyData}
               />
-
-              {/* Destination Section - Now a separate component */}
-              <Destination />
+              <Destination
+                destination={destination}
+                setDestination={setDestination}
+                selectedHotelId={selectedHotelId}
+                setSelectedHotelId={setSelectedHotelId}
+                selectedHotelDetails={selectedHotelDetails}
+                setSelectedHotelDetails={setSelectedHotelDetails}
+                checkIn={checkIn}
+                setCheckIn={setCheckIn}
+                checkOut={checkOut}
+                setCheckOut={setCheckOut}
+              />
             </div>
 
-            {/* External Details Section - Now a separate component */}
             <ExternalDetails
               externalId={externalId}
               setExternalId={setExternalId}
@@ -429,7 +534,6 @@ const ManualReservation: NextPage = () => {
               languages={languages}
             />
 
-            {/* 3. Travellers & Rooms */}
             <Travellers
               rooms={rooms}
               handleAddRoom={handleAddRoom}
@@ -440,7 +544,6 @@ const ManualReservation: NextPage = () => {
               handleTravellerChange={handleTravellerChange}
             />
 
-            {/* 4. Price Information */}
             <FormSection title="Price Information">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
                 <FormInput
@@ -474,25 +577,34 @@ const ManualReservation: NextPage = () => {
               </div>
             </FormSection>
 
-            {/* 5. Cancellation Policy (as a separate component) */}
-            <CancellationPolicy policyOptions={policyOptions.map(p => ({ code: p, name: p }))} />
+            <CancellationPolicy
+              policyOptions={policyOptions.map(p => ({ code: p, name: p }))}
+              policies={cancellationPolicies}
+              setPolicies={setCancellationPolicies}
+            />
 
-            {/* 6. Backoffice Remarks (as a separate component) */}
             <BackofficeRemarks
               comments={comments}
               setComments={setComments}
-              remarksOptions={remarksOptions.map(r => ({ code: r, name: r }))}
+              addedRemarks={addedRemarks}
+              setAddedRemarks={setAddedRemarks}
             />
 
-            {/* Footer Actions */}
             <div className="flex justify-end items-center space-x-4 pt-4">
               <Button variant="outlined" size="large">
                 Reset
               </Button>
-              <Button variant="contained" size="large" color="primary">
-                Create Reservation
+              <Button
+                variant="contained"
+                size="large"
+                color="primary"
+                onClick={handleCreateReservation}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Creating...' : 'Create Reservation'}
               </Button>
             </div>
+            {submitError && <p className="text-red-500 text-right mt-2">{submitError}</p>}
           </main>
         </div>
       </div>

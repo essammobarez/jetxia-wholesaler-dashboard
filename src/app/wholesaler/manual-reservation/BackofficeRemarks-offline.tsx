@@ -63,7 +63,7 @@ type MuiSelectCheckboxProps = {
   placeholder: string;
   options: RemarkOption[];
   value: string[];
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange: (e: React.ChangeEvent<{ value: unknown }>) => void;
   className?: string;
 };
 
@@ -133,11 +133,15 @@ const FormSelectCheckbox: React.FC<MuiSelectCheckboxProps> = ({
 type BackofficeRemarksProps = {
   comments: string;
   setComments: (value: string) => void;
+  addedRemarks: string[];
+  setAddedRemarks: (remarks: string[] | ((prev: string[]) => string[])) => void;
 };
 
 const BackofficeRemarks: React.FC<BackofficeRemarksProps> = ({
   comments,
   setComments,
+  addedRemarks,
+  setAddedRemarks,
 }) => {
   // Define enhanced remarks with icons
   const remarksOptions: RemarkOption[] = [
@@ -158,8 +162,7 @@ const BackofficeRemarks: React.FC<BackofficeRemarksProps> = ({
 
   const [openModal, setOpenModal] = useState(false);
   const [selectedRemarks, setSelectedRemarks] = useState<string[]>([]);
-  const [addedRemarks, setAddedRemarks] = useState<string[]>([]);
-
+  
   const handleOpenModal = () => {
     setOpenModal(true);
   };

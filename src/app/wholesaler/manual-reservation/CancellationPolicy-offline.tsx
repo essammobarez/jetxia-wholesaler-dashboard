@@ -25,15 +25,19 @@ interface Policy {
 
 interface CancellationPolicyProps {
   policyOptions: { code: string; name: string }[];
+  policies: Policy[];
+  setPolicies: React.Dispatch<React.SetStateAction<Policy[]>>;
 }
 
-export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({ policyOptions }) => {
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [nextPolicyId, setNextPolicyId] = useState(1);
+export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({
+  policyOptions,
+  policies,
+  setPolicies,
+}) => {
   const [openModal, setOpenModal] = useState(false);
   const [currentPolicy, setCurrentPolicy] = useState<Policy | null>(null);
   
-  // State for the form fields
+  // State for the form fields in the modal
   const [policyType, setPolicyType] = useState('');
   const [policyDate, setPolicyDate] = useState<Dayjs | null>(dayjs());
   const [policyPrice, setPolicyPrice] = useState('');
@@ -59,26 +63,25 @@ export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({ policyOp
 
   const handleSavePolicy = () => {
     if (currentPolicy) {
-      setPolicies(policies.map(p =>
+      setPolicies(prevPolicies => prevPolicies.map(p =>
         p.id === currentPolicy.id
           ? { ...p, type: policyType, date: policyDate, price: `$${policyPrice}` }
           : p
       ));
     } else {
       const newPolicy: Policy = {
-        id: nextPolicyId,
+        id: Date.now(), // Using timestamp for a simple unique key for the session
         type: policyType,
         date: policyDate,
         price: `$${policyPrice}`,
       };
-      setPolicies([...policies, newPolicy]);
-      setNextPolicyId(nextPolicyId + 1);
+      setPolicies(prevPolicies => [...prevPolicies, newPolicy]);
     }
     handleCloseModal();
   };
 
   const handleRemovePolicy = (id: number) => {
-    setPolicies(policies.filter(policy => policy.id !== id));
+    setPolicies(prevPolicies => prevPolicies.filter(policy => policy.id !== id));
   };
 
   return (
@@ -104,9 +107,9 @@ export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({ policyOp
                   </tr>
                 </thead>
                 <tbody>
-                  {policies.map(policy => (
+                  {policies.map((policy, index) => (
                     <tr key={policy.id} className="text-gray-500">
-                      <td className="p-2 text-center">{policy.id}</td>
+                      <td className="p-2 text-center">{index + 1}</td>
                       <td className="p-2 text-center">{policy.type}</td>
                       <td className="p-2 text-center">{policy.date?.format('YYYY-MM-DD')}</td>
                       <td className="p-2 text-center">{policy.price}</td>

@@ -6,6 +6,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { Plus, Trash2 } from 'lucide-react';
 import { Country } from 'country-state-city';
 import ReactCountryFlag from 'react-country-flag';
+import dayjs from 'dayjs';
 
 // Types
 type TravellerType = 'adult' | 'child';
@@ -233,7 +234,7 @@ export const Travellers: React.FC<TravellersProps> = ({
           </Button>
         </div>
 
-        {rooms.map(room => (
+        {rooms.map((room, roomIndex) => (
           <div
             key={room.id}
             className="bg-blue-50 border border-blue-200 rounded-xl p-6 space-y-6 relative"
@@ -249,7 +250,7 @@ export const Travellers: React.FC<TravellersProps> = ({
             </div>
 
             {/* Room Details */}
-            <h3 className="text-lg font-medium text-blue-800">Room #{room.id}</h3>
+            <h3 className="text-lg font-medium text-blue-800">Room #{roomIndex + 1}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-8 items-end">
               <FormSelectSimple
                 label="Room Name"
@@ -345,7 +346,7 @@ export const Travellers: React.FC<TravellersProps> = ({
                   <DatePicker
                     label="Birthday"
                     format="DD/MM/YYYY"
-                    value={traveller.birthday}
+                    value={traveller.birthday ? dayjs(traveller.birthday) : null}
                     onChange={date =>
                       handleTravellerChange(room.id, traveller.id, 'birthday', date)
                     }
