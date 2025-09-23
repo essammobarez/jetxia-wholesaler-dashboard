@@ -18,13 +18,14 @@ import ReactCountryFlag from 'react-country-flag';
 import isoCountries from 'i18n-iso-countries';
 
 // Import the newly created component
-import Agency from './manual-reservation/Agency';
+import Agency from './manual-reservation/Agency-offline';
 
-import { CancellationPolicy } from './manual-reservation/CancellationPolicy';
+import { CancellationPolicy } from './manual-reservation/CancellationPolicy-offline';
+
+import { Destination } from './manual-reservation/Destination-offline';
+import { Travellers } from './manual-reservation/Travellers-offline';
+import { ExternalDetails } from './manual-reservation/ExternalDetails-offline';
 import BackofficeRemarks from './manual-reservation/BackofficeRemarks';
-import { Destination } from './manual-reservation/Destination2';
-import { Travellers } from './manual-reservation/Travellers';
-import { ExternalDetails } from './manual-reservation/ExternalDetails';
 
 // Register English (you can add more locales if needed)
 isoCountries.registerLocale(require('i18n-iso-countries/langs/en.json'));

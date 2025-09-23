@@ -7,9 +7,18 @@ import AddCreditModal from './AddCreditModal';
 import AssignModal from './AssignModal';
 import { TbCreditCardPay } from 'react-icons/tb';
 import { toast } from 'react-toastify';
-import { SubAgencyModal } from './SubAgencyModal'; // <-- IMPORTED HERE
+import { SubAgencyModal } from './SubAgencyModal';
 
 type Supplier = { id: string; name: string; enabled: boolean };
+
+type PartnerProvider = {
+  _id: string;
+  providerId: {
+    _id: string;
+    name: string;
+  };
+  status: boolean;
+};
 
 type PlanType = {
   _id: string;
@@ -19,7 +28,7 @@ type PlanType = {
     provider?: {
       _id: string;
       name: string;
-      isActive: boolean;
+      isActive: boolean; // This property will be populated from partnerProvider
     };
     type: string;
     value: number;
@@ -40,6 +49,7 @@ type AgencyWithState = BaseAgency & {
     mainBalance: number;
     availableCredit: number;
   };
+  partnerProvider: PartnerProvider[]; // Keep the original partner provider data
 };
 
 export default function AgencyAdminPanel() {
@@ -81,8 +91,6 @@ export default function AgencyAdminPanel() {
   const [plans, setPlans] = useState<PlanType[]>([]);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  // ## REMOVED state for sub-agencies from this component ##
-  // ## A new, simpler state to just track which modal to open ##
   const [
     selectedAgencyForSubAgents,
     setSelectedAgencyForSubAgents,
@@ -155,20 +163,43 @@ export default function AgencyAdminPanel() {
 
           let markupPlanName = '—';
           let markupPercentage = 0;
+          let processedMarkupPlan: PlanType | null = null;
 
-          if (
-            item.markupPlan &&
-            Array.isArray(item.markupPlan.markups) &&
-            item.markupPlan.markups.length > 0
-          ) {
+          if (item.markupPlan && Array.isArray(item.markupPlan.markups)) {
             markupPlanName = item.markupPlan.name || '—';
+
             const firstMarkup = item.markupPlan.markups[0];
             if (
+              firstMarkup &&
               firstMarkup.type === 'percentage' &&
               typeof firstMarkup.value === 'number'
             ) {
               markupPercentage = firstMarkup.value;
             }
+
+            const processedMarkups = item.markupPlan.markups.map(
+              (markup: any) => {
+                if (!markup.provider) return markup;
+
+                const partnerInfo = (item.partnerProvider || []).find(
+                  (p: PartnerProvider) =>
+                    p.providerId?._id === markup.provider._id
+                );
+
+                const updatedProvider = {
+                  ...markup.provider,
+                  // ## FIX: Explicitly convert status to a boolean ##
+                  isActive: partnerInfo ? Boolean(partnerInfo.status) : false,
+                };
+
+                return { ...markup, provider: updatedProvider };
+              }
+            );
+
+            processedMarkupPlan = {
+              ...item.markupPlan,
+              markups: processedMarkups,
+            };
           }
 
           return {
@@ -182,19 +213,21 @@ export default function AgencyAdminPanel() {
             status,
             markupPlanName,
             markupPercentage,
-            markupPlan: item.markupPlan || null,
+            markupPlan: processedMarkupPlan,
             suspended,
             displaySupplierName: item.displaySupplierName || false,
             walletBalance: item.walletBalance || {
               mainBalance: 0,
               availableCredit: 0,
             },
+            partnerProvider: item.partnerProvider || [],
           };
         });
 
         setAgencies(enriched);
       } catch (err) {
         console.error('Error fetching data:', err);
+        toast.error('Failed to fetch agency data.');
       } finally {
         setLoading(false);
       }
@@ -203,11 +236,13 @@ export default function AgencyAdminPanel() {
     fetchData();
   }, [API_URL, wholesalerId]);
 
-  const handleProviderToggle = (
+  const handleProviderToggle = async (
     agencyId: string,
     providerId: string,
     newStatus: boolean
   ) => {
+    const originalAgencies = [...agencies];
+
     setAgencies(prevAgencies =>
       prevAgencies.map(agency => {
         if (agency.id === agencyId && agency.markupPlan) {
@@ -230,6 +265,52 @@ export default function AgencyAdminPanel() {
         return agency;
       })
     );
+
+    try {
+      const token =
+        document.cookie
+          .split('; ')
+          .find(r => r.startsWith('authToken='))
+          ?.split('=')[1] || localStorage.getItem('authToken');
+
+      if (!token) {
+        toast.error('Authentication error. Please log in again.');
+        setAgencies(originalAgencies);
+        return;
+      }
+
+      const res = await fetch(
+        `${API_URL}agency/${agencyId}/partner-provider/${providerId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to update provider status.');
+      }
+      
+      const json = await res.json();
+      if (!json.success) {
+          throw new Error(json.message || 'An API error occurred.');
+      }
+
+      toast.success(
+        `Provider status changed to ${newStatus ? 'Enabled' : 'Disabled'}.`
+      );
+    } catch (err) {
+      console.error('Error updating provider status:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Could not update provider status.'
+      );
+      setAgencies(originalAgencies);
+    }
   };
 
   const toggleStatus = async (agency: AgencyWithState) => {
@@ -459,8 +540,6 @@ export default function AgencyAdminPanel() {
     setSelectedAgencyIdForAssign(null);
     setSelectedAgencyNameForAssign(null);
   };
-
-  // ## REMOVED handleViewSubAgencies function. The modal now handles this itself.
 
   if (loading) {
     return (
