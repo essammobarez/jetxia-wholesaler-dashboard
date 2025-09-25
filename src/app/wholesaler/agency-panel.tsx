@@ -1,15 +1,13 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
-import { Eye, Edit2, Trash2, Tag, UserPlus, Users, X } from 'lucide-react';
+import { Eye, Edit2, Trash2, Tag, UserPlus, Users } from 'lucide-react';
 import { Registration, Agency as BaseAgency, AgencyModal } from './AgencyModal';
 import AddCreditModal from './AddCreditModal';
 import AssignModal from './AssignModal';
 import { TbCreditCardPay } from 'react-icons/tb';
 import { toast } from 'react-toastify';
 import { SubAgencyModal } from './SubAgencyModal';
-
-type Supplier = { id: string; name: string; enabled: boolean };
 
 type PartnerProvider = {
   _id: string;
@@ -28,7 +26,6 @@ type PlanType = {
     provider?: {
       _id: string;
       name: string;
-      isActive: boolean; // This property will be populated from partnerProvider
     };
     type: string;
     value: number;
@@ -49,7 +46,7 @@ type AgencyWithState = BaseAgency & {
     mainBalance: number;
     availableCredit: number;
   };
-  partnerProvider: PartnerProvider[]; // Keep the original partner provider data
+  partnerProvider: PartnerProvider[];
 };
 
 export default function AgencyAdminPanel() {
@@ -69,8 +66,6 @@ export default function AgencyAdminPanel() {
     markupPlanName: '',
     markupPercentage: 0,
   });
-  const [showSupplierModal, setShowSupplierModal] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [agencyId, setAgencyId] = useState<string | null>(null);
 
@@ -176,30 +171,7 @@ export default function AgencyAdminPanel() {
             ) {
               markupPercentage = firstMarkup.value;
             }
-
-            const processedMarkups = item.markupPlan.markups.map(
-              (markup: any) => {
-                if (!markup.provider) return markup;
-
-                const partnerInfo = (item.partnerProvider || []).find(
-                  (p: PartnerProvider) =>
-                    p.providerId?._id === markup.provider._id
-                );
-
-                const updatedProvider = {
-                  ...markup.provider,
-                  // ## FIX: Explicitly convert status to a boolean ##
-                  isActive: partnerInfo ? Boolean(partnerInfo.status) : false,
-                };
-
-                return { ...markup, provider: updatedProvider };
-              }
-            );
-
-            processedMarkupPlan = {
-              ...item.markupPlan,
-              markups: processedMarkups,
-            };
+             processedMarkupPlan = { ...item.markupPlan };
           }
 
           return {
@@ -236,83 +208,6 @@ export default function AgencyAdminPanel() {
     fetchData();
   }, [API_URL, wholesalerId]);
 
-  const handleProviderToggle = async (
-    agencyId: string,
-    providerId: string,
-    newStatus: boolean
-  ) => {
-    const originalAgencies = [...agencies];
-
-    setAgencies(prevAgencies =>
-      prevAgencies.map(agency => {
-        if (agency.id === agencyId && agency.markupPlan) {
-          const newMarkups = agency.markupPlan.markups.map(markup => {
-            if (markup.provider?._id === providerId) {
-              return {
-                ...markup,
-                provider: markup.provider
-                  ? { ...markup.provider, isActive: newStatus }
-                  : undefined,
-              };
-            }
-            return markup;
-          });
-          return {
-            ...agency,
-            markupPlan: { ...agency.markupPlan, markups: newMarkups },
-          };
-        }
-        return agency;
-      })
-    );
-
-    try {
-      const token =
-        document.cookie
-          .split('; ')
-          .find(r => r.startsWith('authToken='))
-          ?.split('=')[1] || localStorage.getItem('authToken');
-
-      if (!token) {
-        toast.error('Authentication error. Please log in again.');
-        setAgencies(originalAgencies);
-        return;
-      }
-
-      const res = await fetch(
-        `${API_URL}agency/${agencyId}/partner-provider/${providerId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to update provider status.');
-      }
-      
-      const json = await res.json();
-      if (!json.success) {
-          throw new Error(json.message || 'An API error occurred.');
-      }
-
-      toast.success(
-        `Provider status changed to ${newStatus ? 'Enabled' : 'Disabled'}.`
-      );
-    } catch (err) {
-      console.error('Error updating provider status:', err);
-      toast.error(
-        err instanceof Error ? err.message : 'Could not update provider status.'
-      );
-      setAgencies(originalAgencies);
-    }
-  };
-
   const toggleStatus = async (agency: AgencyWithState) => {
     const token =
       document.cookie
@@ -321,7 +216,7 @@ export default function AgencyAdminPanel() {
         ?.split('=')[1] || localStorage.getItem('authToken');
 
     if (!token) {
-      console.error('Authorization failed. Please log in again.');
+      toast.error('Authorization failed. Please log in again.');
       return;
     }
 
@@ -340,7 +235,7 @@ export default function AgencyAdminPanel() {
 
       const json = await res.json();
       if (!json.success) {
-        console.error('Failed to toggle status:', json.message || json);
+        toast.error(`Failed to toggle status: ${json.message}`);
         return;
       }
 
@@ -351,8 +246,97 @@ export default function AgencyAdminPanel() {
             : a
         )
       );
+      toast.success(`Agency status updated to ${newStatus}.`);
     } catch (err) {
       console.error('Error toggling status:', err);
+      toast.error('An error occurred while updating status.');
+    }
+  };
+
+  // FIX: This function handles the API call and state update for the switch
+  const togglePartnerProviderStatus = async (
+    agencyId: string,
+    providerId: string
+  ) => {
+    const token =
+      document.cookie
+        .split('; ')
+        .find(r => r.startsWith('authToken='))
+        ?.split('=')[1] || localStorage.getItem('authToken');
+
+    if (!token) {
+      toast.error('Authorization failed. Please log in again.');
+      return;
+    }
+
+    const agency = agencies.find(a => a.id === agencyId);
+    const partner = agency?.partnerProvider.find(
+      p => p.providerId._id === providerId
+    );
+
+    if (!agency || !partner) {
+      toast.error('Could not find the specified agency or provider.');
+      return;
+    }
+
+    // Determine the new status to send to the API (the opposite of the current one)
+    const newStatus = !partner.status;
+
+    try {
+      // Call the API with the correct agencyId and providerId
+      const res = await fetch(
+        `${API_URL}agency/${agencyId}/partner-provider/${providerId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.message || 'Failed to update supplier status.');
+        return;
+      }
+
+      toast.success('Supplier status updated successfully!');
+
+      // This helper function creates the updated list of providers
+      const updateProvidersList = (providers: PartnerProvider[]) =>
+        providers.map(p => {
+          if (p.providerId._id === providerId) {
+            // Found the provider that was toggled, return it with the new status
+            return { ...p, status: newStatus };
+          }
+          return p;
+        });
+
+      // Update the main 'agencies' list so the change persists
+      setAgencies(prevAgencies =>
+        prevAgencies.map(a => {
+          if (a.id === agencyId) {
+            return { ...a, partnerProvider: updateProvidersList(a.partnerProvider) };
+          }
+          return a;
+        })
+      );
+      
+      // CRITICAL: Update the 'selected' agency state.
+      // This makes the switch in the open modal update visually.
+      setSelected(prevSelected => {
+        if (!prevSelected || prevSelected.id !== agencyId) return prevSelected;
+        return {
+          ...prevSelected,
+          partnerProvider: updateProvidersList(prevSelected.partnerProvider),
+        };
+      });
+
+    } catch (err) {
+      console.error('Error toggling partner provider status:', err);
+      toast.error('An unexpected error occurred.');
     }
   };
 
@@ -392,7 +376,7 @@ export default function AgencyAdminPanel() {
       }
     };
 
-    if (mode === 'view') {
+    if (mode === 'view' || mode === 'markup') {
       if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
       else commonSetup([]);
     }
@@ -406,10 +390,6 @@ export default function AgencyAdminPanel() {
         phone: agency.phone,
         displaySupplierName: agency.displaySupplierName,
       });
-    }
-
-    if (mode === 'markup') {
-      if (wholesalerId) fetchPlans(wholesalerId).then(commonSetup);
     }
   };
 
@@ -487,6 +467,8 @@ export default function AgencyAdminPanel() {
       const json = await res.json();
       if (!json.success) return;
 
+      const assignedPlan = plans.find(p => p._id === markupPlanId);
+
       setAgencies(prev =>
         prev.map(a =>
           a.id === selected.id
@@ -494,6 +476,7 @@ export default function AgencyAdminPanel() {
                 ...a,
                 markupPlanName: profileForm.markupPlanName,
                 markupPercentage: profileForm.markupPercentage,
+                markupPlan: assignedPlan || a.markupPlan,
               }
             : a
         )
@@ -686,33 +669,6 @@ export default function AgencyAdminPanel() {
                                       <span className="font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full text-xs">
                                         {markup.value}%
                                       </span>
-                                      <Switch
-                                        checked={
-                                          markup.provider?.isActive ?? false
-                                        }
-                                        onChange={newState => {
-                                          if (markup.provider?._id) {
-                                            handleProviderToggle(
-                                              a.id,
-                                              markup.provider._id,
-                                              newState
-                                            );
-                                          }
-                                        }}
-                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-                                          markup.provider?.isActive
-                                            ? 'bg-green-500'
-                                            : 'bg-gray-400'
-                                        }`}
-                                      >
-                                        <span
-                                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                            markup.provider?.isActive
-                                              ? 'translate-x-5'
-                                              : 'translate-x-1'
-                                          }`}
-                                        />
-                                      </Switch>
                                     </div>
                                   </li>
                                 ))}
@@ -848,6 +804,7 @@ export default function AgencyAdminPanel() {
         onToggleSuspend={toggleStatus}
         onDelete={deleteAgency}
         plans={plans}
+        onTogglePartnerProvider={togglePartnerProviderStatus}
       />
 
       {showCreditModal && agencyId && selectedWalletBalance && (
@@ -864,7 +821,7 @@ export default function AgencyAdminPanel() {
         agencyId={selectedAgencyIdForAssign}
         agencyName={selectedAgencyNameForAssign}
       />
-
+      
       <SubAgencyModal
         isOpen={!!selectedAgencyForSubAgents}
         onClose={() => setSelectedAgencyForSubAgents(null)}

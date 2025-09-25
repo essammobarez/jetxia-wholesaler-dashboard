@@ -1,56 +1,25 @@
-'use client';
+'use-client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Download, Filter, Search, Building2, Eye, FileText } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { Building2, Download, Eye, FileText, Search } from 'lucide-react';
 
-interface SupplierBooking {
+// --- INTERFACES ---
+interface StatementBooking {
   _id: string;
+  date: string;
   bookingId: string;
-  agency: {
-    agencyName: string;
-    _id: string;
+  supplier: string;
+  agency: string;
+  wholesaler: string;
+  serviceDate: string;
+  netRate: {
+    value: number;
+    currency: string;
   };
-  supplier: {
-    name: string;
-    _id: string;
-  };
-  status: string;
-  serviceDates: {
-    startDate: string;
-    endDate: string;
-  };
-  priceDetails: {
-    originalPrice: {
-      value: number;
-      currency: string;
-    };
-    price: {
-      value: number;
-      currency: string;
-    };
-    markupApplied?: {
-      type: string;
-      value: number;
-    };
-  };
-  rooms?: Array<{
-    cancellationPolicy?: {
-      policies?: Array<{
-        charge?: {
-          components?: {
-            net?: {
-              value: number;
-              currency: string;
-            };
-          };
-        };
-      }>;
-    };
-  }>;
-  bookingDate: string;
-  vouchedDate?: string;
-  cancelledDate?: string;
-  wasVouched: boolean; // Track if booking was ever vouched
+  status: 'confirmed' | 'cancelled';
+  roomId: string;
+  reservationId:string;
 }
 
 interface Supplier {
@@ -58,179 +27,165 @@ interface Supplier {
   name: string;
 }
 
+// --- HELPER FUNCTIONS ---
+const getWholesalerId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('wholesalerId');
+  }
+  return null;
+};
+
+const getAuthToken = (): string | null => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('authToken');
+    }
+    return null;
+};
+
+// --- COMPONENT ---
 const StatementsOnAccount = () => {
-  const [bookings, setBookings] = useState<SupplierBooking[]>([]);
+  // --- STATE MANAGEMENT ---
+  const [bookings, setBookings] = useState<StatementBooking[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
-  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Date filtering
+
+  // Filters and UI state
+  const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  
-  // Search and filters
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('all'); // all, vouched, cancelled
-  
-  // Statement view
-  const [selectedStatement, setSelectedStatement] = useState<SupplierBooking | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedStatement, setSelectedStatement] = useState<StatementBooking | null>(null);
 
-  // Get wholesaler ID on mount
+  // --- DATA FETCHING ---
+  // This effect now re-runs whenever the start or end date changes
   useEffect(() => {
-    const storedId = localStorage.getItem('wholesalerId');
-    setWholesalerId(storedId);
-  }, []);
-
-  // Fetch suppliers and bookings
-  useEffect(() => {
-    if (!wholesalerId) return;
-
     const fetchData = async () => {
       setLoading(true);
       setError(null);
-      
-      try {
-        // Fetch suppliers
-        const suppliersResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`
-        );
-        const suppliersData = await suppliersResponse.json();
-        setSuppliers(suppliersData || []);
 
-        // Fetch all bookings
-        const bookingsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/booking/wholesaler/${wholesalerId}`
-        );
-        
-        if (!bookingsResponse.ok) {
-          throw new Error(`HTTP error! Status: ${bookingsResponse.status}`);
+      const wholesalerId = getWholesalerId();
+      const token = getAuthToken();
+
+      if (!token) {
+        toast.error("Auth token missing. Please login again.");
+        setError("Authentication token is not available.");
+        setLoading(false);
+        return;
+      }
+      if (!wholesalerId) {
+        toast.error("Wholesaler ID missing.");
+        setError("Wholesaler ID could not be found.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Build the URL for the statements API, adding date params if they exist
+        const statementUrl = new URL(`${process.env.NEXT_PUBLIC_BACKEND_URL}/booking/wholesaler/${wholesalerId}/supplier-statement`);
+        if (startDate) {
+          statementUrl.searchParams.append('startDate', startDate);
+        }
+        if (endDate) {
+          statementUrl.searchParams.append('endDate', endDate);
+        }
+
+        // Fetch suppliers and statements concurrently
+        const [suppliersResponse, statementsResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(statementUrl.toString(), {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+        ]);
+
+        if (suppliersResponse.ok) {
+            const suppliersData = await suppliersResponse.json();
+            setSuppliers(suppliersData?.data || suppliersData || []);
+        } else {
+            console.error("Failed to fetch suppliers");
         }
         
-        const bookingsData = await bookingsResponse.json();
-        const bookingsArray = Array.isArray(bookingsData) ? bookingsData : [bookingsData];
+        if (!statementsResponse.ok) {
+          throw new Error(`HTTP error! Status: ${statementsResponse.status}`);
+        }
         
-        // Filter only vouched bookings (confirmed/ok) and vouched-then-cancelled
-        const vouchedBookings = bookingsArray.filter((booking: any) => {
-          const status = booking.status?.toLowerCase();
-          
-          // Include confirmed/ok bookings (currently vouched)
-          if (status === 'confirmed' || status === 'ok') {
-            return true;
-          }
-          
-          // Include cancelled bookings that were previously vouched
-          if (status === 'cancelled' && booking.wasVouched) {
-            return true;
-          }
-          
-          return false;
-        }).map((booking: any) => ({
-          ...booking,
-          wasVouched: booking.status?.toLowerCase() === 'confirmed' || 
-                     booking.status?.toLowerCase() === 'ok' || 
-                     booking.wasVouched || false
-        }));
-        
-        setBookings(vouchedBookings);
+        const statementsData = await statementsResponse.json();
+        if (statementsData.success) {
+          setBookings(statementsData.data || []);
+        } else {
+          throw new Error(statementsData.message || 'Failed to retrieve statement data.');
+        }
+
       } catch (err: any) {
-        setError(err.message || 'Failed to fetch data');
+        setError(err.message || 'An unexpected error occurred while fetching data.');
         setBookings([]);
-        setSuppliers([]);
+        // Keep suppliers list even if statement fetch fails
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [wholesalerId]);
+  }, [startDate, endDate]); // Dependency array ensures re-fetch on date change
 
-  // Filter bookings based on selected criteria
+  // --- DATA PROCESSING & FILTERING ---
   const filteredBookings = useMemo(() => {
+    const selectedSupplierName = selectedSupplier === 'all' 
+        ? null 
+        : suppliers.find(s => s._id === selectedSupplier)?.name;
+
     return bookings.filter(booking => {
       // Supplier filter
-      if (selectedSupplier !== 'all' && booking.supplier?._id !== selectedSupplier) {
+      if (selectedSupplierName && booking.supplier !== selectedSupplierName) {
         return false;
       }
-
-      // Date range filter
-      if (startDate && new Date(booking.serviceDates?.startDate) < new Date(startDate)) {
-        return false;
-      }
-      if (endDate && new Date(booking.serviceDates?.startDate) > new Date(endDate)) {
-        return false;
-      }
-
       // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        const matches = 
-          booking.bookingId?.toLowerCase().includes(searchLower) ||
-          booking.agency?.agencyName?.toLowerCase().includes(searchLower) ||
-          booking.supplier?.name?.toLowerCase().includes(searchLower);
-        if (!matches) return false;
+        if (
+            !booking.bookingId?.toLowerCase().includes(searchLower) &&
+            !booking.agency?.toLowerCase().includes(searchLower) &&
+            !booking.supplier?.toLowerCase().includes(searchLower)
+        ) return false;
       }
-
       // Status filter
-      if (statusFilter === 'vouched' && 
-          !['confirmed', 'ok'].includes(booking.status?.toLowerCase())) {
+      if (statusFilter === 'vouched' && booking.status !== 'confirmed') {
         return false;
       }
-      if (statusFilter === 'cancelled' && booking.status?.toLowerCase() !== 'cancelled') {
+      if (statusFilter === 'cancelled' && booking.status !== 'cancelled') {
         return false;
       }
-
+      // Date filtering is now handled by the API, so it's removed from here
       return true;
     });
-  }, [bookings, selectedSupplier, startDate, endDate, searchTerm, statusFilter]);
+  }, [bookings, selectedSupplier, suppliers, searchTerm, statusFilter]);
 
-  // Calculate statement summary
   const statementSummary = useMemo(() => {
     return filteredBookings.reduce((acc, booking) => {
-      // Get net rate from booking confirmation
-      const netRate = booking.priceDetails?.originalPrice?.value || 
-                     booking.rooms?.[0]?.cancellationPolicy?.policies?.[0]?.charge?.components?.net?.value || 
-                     0;
-      
-      const currency = booking.priceDetails?.originalPrice?.currency || 
-                      booking.rooms?.[0]?.cancellationPolicy?.policies?.[0]?.charge?.components?.net?.currency || 
-                      'USD';
+        const { value, currency } = booking.netRate;
 
-      if (booking.status?.toLowerCase() === 'cancelled') {
-        acc.totalCancelled += netRate;
-        acc.cancelledCount += 1;
-      } else {
-        acc.totalVouched += netRate;
-        acc.vouchedCount += 1;
-      }
-      
-      acc.totalNet += netRate;
-      acc.currency = currency;
-      
-      return acc;
+        if (booking.status === 'cancelled') {
+            acc.totalCancelled += value;
+            acc.cancelledCount += 1;
+        } else if (booking.status === 'confirmed') {
+            acc.totalVouched += value;
+            acc.vouchedCount += 1;
+        }
+        acc.currency = currency;
+        return acc;
     }, {
-      totalNet: 0,
-      totalVouched: 0,
-      totalCancelled: 0,
-      vouchedCount: 0,
-      cancelledCount: 0,
-      currency: 'USD'
+        totalVouched: 0,
+        totalCancelled: 0,
+        vouchedCount: 0,
+        cancelledCount: 0,
+        currency: 'USD'
     });
   }, [filteredBookings]);
 
-  const getNetRate = (booking: SupplierBooking): number => {
-    return booking.priceDetails?.originalPrice?.value || 
-           booking.rooms?.[0]?.cancellationPolicy?.policies?.[0]?.charge?.components?.net?.value || 
-           0;
-  };
-
-  const getCurrency = (booking: SupplierBooking): string => {
-    return booking.priceDetails?.originalPrice?.currency || 
-           booking.rooms?.[0]?.cancellationPolicy?.policies?.[0]?.charge?.components?.net?.currency || 
-           'USD';
-  };
-
+  // --- RENDER LOGIC ---
   if (loading) {
     return (
       <div className="card-modern p-6 text-center">
@@ -257,9 +212,9 @@ const StatementsOnAccount = () => {
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white flex items-center gap-2">
               <Building2 className="w-6 h-6 text-orange-600" />
               Supplier Statements of Account
-      </h2>
+            </h2>
             <p className="mt-1 text-gray-600 dark:text-gray-400">
-              Net rates from vouched booking confirmations
+              Net rates from vouched and cancelled booking confirmations
             </p>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
@@ -303,7 +258,6 @@ const StatementsOnAccount = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               End Date
@@ -358,7 +312,6 @@ const StatementsOnAccount = () => {
               {statementSummary.currency} {statementSummary.totalVouched.toFixed(2)}
             </p>
           </div>
-          
           <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-red-600 dark:text-red-400">Cancelled (Was Vouched)</h3>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{statementSummary.cancelledCount}</p>
@@ -366,14 +319,12 @@ const StatementsOnAccount = () => {
               -{statementSummary.currency} {statementSummary.totalCancelled.toFixed(2)}
             </p>
           </div>
-          
           <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-orange-600 dark:text-orange-400">Net Balance</h3>
             <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
               {statementSummary.currency} {(statementSummary.totalVouched - statementSummary.totalCancelled).toFixed(2)}
             </p>
           </div>
-          
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Entries</h3>
             <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{filteredBookings.length}</p>
@@ -397,56 +348,52 @@ const StatementsOnAccount = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredBookings.map((booking) => {
-              const netRate = getNetRate(booking);
-              const currency = getCurrency(booking);
-              const isCancelled = booking.status?.toLowerCase() === 'cancelled';
-              
-              return (
-                <tr key={booking._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {new Date(booking.bookingDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400">
-                    {booking.bookingId}
-                  </td>
-                  <td className="px-6 py-4">{booking.supplier?.name || 'N/A'}</td>
-                  <td className="px-6 py-4">{booking.agency?.agencyName || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {new Date(booking.serviceDates?.startDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono font-semibold">
-                    <span className={isCancelled ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>
-                      {isCancelled && '-'}{currency} {netRate.toFixed(2)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      isCancelled
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                        : booking.status?.toLowerCase() === 'confirmed'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                    }`}>
-                      {isCancelled ? 'Cancelled (Was Vouched)' : 'Vouched'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => setSelectedStatement(booking)}
-                      className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg transition-colors"
-                    >
-                      <Eye className="w-3 h-3" />
-                      View
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {filteredBookings.length === 0 && (
+            {filteredBookings.length > 0 ? (
+                filteredBookings.map((booking) => {
+                const isCancelled = booking.status === 'cancelled';
+                return (
+                  <tr key={booking._id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {new Date(booking.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400">
+                      {booking.bookingId}
+                    </td>
+                    <td className="px-6 py-4">{booking.supplier}</td>
+                    <td className="px-6 py-4">{booking.agency}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {new Date(booking.serviceDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono font-semibold">
+                      <span className={isCancelled ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>
+                        {isCancelled && '-'}{booking.netRate.currency} {booking.netRate.value.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        isCancelled
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                          : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+                      }`}>
+                        {isCancelled ? 'Cancelled (Was Vouched)' : 'Vouched'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => setSelectedStatement(booking)}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg transition-colors"
+                      >
+                        <Eye className="w-3 h-3" />
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
               <tr>
-                <td colSpan="8" className="text-center py-10 text-gray-500 dark:text-gray-400">
-                  No vouched bookings found for the selected criteria.
+                <td colSpan={8} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                  No statement entries found for the selected criteria.
                 </td>
               </tr>
             )}
@@ -468,8 +415,7 @@ const StatementsOnAccount = () => {
                   onClick={() => setSelectedStatement(null)}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
-                  <span className="sr-only">Close</span>
-                  ✕
+                  <span className="sr-only">Close</span>✕
                 </button>
               </div>
             </div>
@@ -483,39 +429,35 @@ const StatementsOnAccount = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Net Rate</label>
                   <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-                    {getCurrency(selectedStatement)} {getNetRate(selectedStatement).toFixed(2)}
+                    {selectedStatement.netRate.currency} {selectedStatement.netRate.value.toFixed(2)}
                   </p>
                 </div>
               </div>
-              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Supplier</label>
-                  <p className="text-gray-900 dark:text-white">{selectedStatement.supplier?.name}</p>
+                  <p className="text-gray-900 dark:text-white">{selectedStatement.supplier}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Agency</label>
-                  <p className="text-gray-900 dark:text-white">{selectedStatement.agency?.agencyName}</p>
+                  <p className="text-gray-900 dark:text-white">{selectedStatement.agency}</p>
                 </div>
               </div>
-              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Service Date</label>
                   <p className="text-gray-900 dark:text-white">
-                    {new Date(selectedStatement.serviceDates?.startDate).toLocaleDateString()}
+                    {new Date(selectedStatement.serviceDate).toLocaleDateString()}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>
                   <p className={`font-semibold ${
-                    selectedStatement.status?.toLowerCase() === 'cancelled' 
+                    selectedStatement.status === 'cancelled' 
                       ? 'text-red-600 dark:text-red-400' 
                       : 'text-green-600 dark:text-green-400'
                   }`}>
-                    {selectedStatement.status?.toLowerCase() === 'cancelled' 
-                      ? 'Cancelled (Was Vouched)' 
-                      : 'Vouched'}
+                    {selectedStatement.status === 'cancelled' ? 'Cancelled (Was Vouched)' : 'Vouched'}
                   </p>
                 </div>
               </div>

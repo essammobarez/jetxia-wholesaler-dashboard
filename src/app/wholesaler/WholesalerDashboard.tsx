@@ -572,7 +572,7 @@ export default function WholesalerPage() {
                       <span className="text-sm">
                         {tab === 'CreateOfflineSupplier' && 'Create Supplier'}
                         {tab === 'ManageSupplier' && 'Manage Supplier'}
-                        {tab === 'StatementsOnAccount' && 'Statements on Account'}
+                        {tab === 'StatementsOnAccount' && 'Statements of Account'}
                         {tab === 'PaymentReport' && 'Payment Report'}
                       </span>
                     </button>
