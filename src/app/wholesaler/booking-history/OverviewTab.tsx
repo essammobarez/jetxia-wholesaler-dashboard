@@ -55,6 +55,11 @@ const statusMap = {
   // --- MODIFIED HERE ---
   pending: { icon: FaCommentAlt, color: "text-yellow-500", label: "PayLater" },
   confirmed: { icon: FaCheckCircle, color: "text-green-500", label: "Paid" },
+  onrequest: {
+    icon: FaCommentAlt,
+    color: "text-blue-500",
+    label: "On Request",
+  },
   // --- END MODIFICATION ---
   ok: { icon: FaCheckCircle, color: "text-green-500", label: "OK" },
 };
@@ -81,6 +86,10 @@ const BookingsPage: NextPage = () => {
 
   // State for tracking document generation
   const [generatingDocFor, setGeneratingDocFor] = useState<string | null>(null);
+  // --- NEW: State for tracking which booking status is being updated ---
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
+    null
+  );
 
   // --- NEW: State for the percentage loader ---
   const [loaderProgress, setLoaderProgress] = useState(0);
@@ -553,6 +562,63 @@ const BookingsPage: NextPage = () => {
     );
   });
   // --- End of Filtering Logic ---
+
+  // --- NEW: Handler for "On Request" status changes (Accept/Reject) ---
+  const handleOnRequestStatusChange = async (
+    bookingId: string,
+    newStatus: "confirmed" | "cancelled"
+  ) => {
+    if (!wholesalerId) {
+      toast.error("Wholesaler ID is missing. Cannot update status.");
+      return;
+    }
+
+    setUpdatingBookingId(bookingId); // Set loading state for this specific booking
+    const toastId = toast.loading(`Updating status to ${newStatus}...`);
+
+    const token =
+      document.cookie
+        .split("; ")
+        .find((r) => r.startsWith("authToken="))
+        ?.split("=")[1] || localStorage.getItem("authToken");
+
+    if (!token) {
+      toast.error("Authorization failed. Please log in again.", { id: toastId });
+      setUpdatingBookingId(null);
+      return;
+    }
+
+    const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/wholesaler/${wholesalerId}/onrequest/${bookingId}/status`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "PUT", // Using PUT as we are updating the status resource
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        toast.success("Booking status updated successfully!", { id: toastId });
+        fetchReservations(); // Refresh the data
+      } else {
+        const errorData = await response.json();
+        toast.error(
+          errorData.message || `Failed to update status: ${response.statusText}`,
+          { id: toastId }
+        );
+      }
+    } catch (error) {
+      console.error("Error updating booking status:", error);
+      toast.error("An unexpected error occurred. Please try again.", {
+        id: toastId,
+      });
+    } finally {
+      setUpdatingBookingId(null); // Reset loading state
+    }
+  };
 
   const handleCancelClick = (reservation: Reservation) => {
     setCancelModalRes(reservation);
@@ -1041,60 +1107,113 @@ const BookingsPage: NextPage = () => {
                 </div>
                 {/* Right side: Action Buttons */}
                 <div className="flex items-center flex-wrap gap-2 mt-4 lg:mt-0 shrink-0 lg:pl-4">
-                  <button
-                    onClick={() =>
-                      router.push(
-                        "/wholesaler?page=Booking&tab=ManualReservationsOnline"
-                      )
-                    }
-                    className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                  >
-                    <FaPlus />
-                    <span>Add Service</span>
-                  </button>
-                  <button
-                    onClick={() => handleCancelClick(reservationForModals)}
-                    disabled={overallStatusKey === "cancelled"}
-                    className={`${baseButtonStyles} ${cancelButtonStyles}`}
-                  >
-                    <FaBan />
-                    <span>Cancel</span>
-                  </button>
+                  {/***************************************************/}
+                  {/* START OF MODIFICATION                           */}
+                  {/***************************************************/}
+                  {r.topStatus.toLowerCase() === "onrequest" ? (
+                    <>
+                      <button
+                        onClick={() =>
+                          handleOnRequestStatusChange(r.dbId, "confirmed")
+                        }
+                        disabled={updatingBookingId === r.dbId}
+                        className={`${baseButtonStyles} ${payButtonStyles}`}
+                      >
+                        <FaCheckCircle />
+                        <span>
+                          {updatingBookingId === r.dbId
+                            ? "Accepting..."
+                            : "Accept"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOnRequestStatusChange(r.dbId, "cancelled")
+                        }
+                        disabled={updatingBookingId === r.dbId}
+                        className={`${baseButtonStyles} ${cancelButtonStyles}`}
+                      >
+                        <FaBan />
+                        <span>
+                          {updatingBookingId === r.dbId
+                            ? "Rejecting..."
+                            : "Reject"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setViewModalRes(reservationForModals)}
+                        disabled={updatingBookingId === r.dbId}
+                        className={`${baseButtonStyles} ${viewButtonStyles}`}
+                      >
+                        <FaEye />
+                        <span>View</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() =>
+                          router.push(
+                            "/wholesaler?page=Booking&tab=ManualReservationsOnline"
+                          )
+                        }
+                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
+                      >
+                        <FaPlus />
+                        <span>Add Service</span>
+                      </button>
+                      <button
+                        onClick={() => handleCancelClick(reservationForModals)}
+                        disabled={overallStatusKey === "cancelled"}
+                        className={`${baseButtonStyles} ${cancelButtonStyles}`}
+                      >
+                        <FaBan />
+                        <span>Cancel</span>
+                      </button>
 
-                  {r.paymentType.toLowerCase() === "paylater" && (
-                    <button
-                      onClick={() => setPayModalRes(reservationForModals)}
-                      disabled={overallStatusKey === "cancelled"}
-                      className={`${baseButtonStyles} ${payButtonStyles}`}
-                    >
-                      <FaCreditCard />
-                      <span>PayNow</span>
-                    </button>
+                      {r.paymentType.toLowerCase() === "paylater" && (
+                        <button
+                          onClick={() => setPayModalRes(reservationForModals)}
+                          disabled={overallStatusKey === "cancelled"}
+                          className={`${baseButtonStyles} ${payButtonStyles}`}
+                        >
+                          <FaCreditCard />
+                          <span>PayNow</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() =>
+                          handleGenerateVoucher(reservationForModals)
+                        }
+                        disabled={isGenerating || isLoaderVisible}
+                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
+                      >
+                        <FaTicketAlt />
+                        <span>Voucher</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleGenerateInvoice(reservationForModals)
+                        }
+                        disabled={isGenerating || isLoaderVisible}
+                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
+                      >
+                        <FaFileInvoiceDollar />
+                        <span>Invoice</span>
+                      </button>
+                      <button
+                        onClick={() => setViewModalRes(reservationForModals)}
+                        className={`${baseButtonStyles} ${viewButtonStyles}`}
+                      >
+                        <FaEye />
+                        <span>View</span>
+                      </button>
+                    </>
                   )}
-
-                  <button
-                    onClick={() => handleGenerateVoucher(reservationForModals)}
-                    disabled={isGenerating || isLoaderVisible}
-                    className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                  >
-                    <FaTicketAlt />
-                    <span>Voucher</span>
-                  </button>
-                  <button
-                    onClick={() => handleGenerateInvoice(reservationForModals)}
-                    disabled={isGenerating || isLoaderVisible}
-                    className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                  >
-                    <FaFileInvoiceDollar />
-                    <span>Invoice</span>
-                  </button>
-                  <button
-                    onClick={() => setViewModalRes(reservationForModals)}
-                    className={`${baseButtonStyles} ${viewButtonStyles}`}
-                  >
-                    <FaEye />
-                    <span>View</span>
-                  </button>
+                  {/***************************************************/}
+                  {/* END OF MODIFICATION                             */}
+                  {/***************************************************/}
                 </div>
               </div>
 

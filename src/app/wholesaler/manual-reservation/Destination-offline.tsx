@@ -183,8 +183,31 @@ const HotelDetails: React.FC<{ hotel: HotelFromCitySearch | null }> = ({ hotel }
 };
 
 // --- MAIN COMPONENT ---
-export const Destination = () => {
-  const [destination, setDestination] = useState('');
+type DestinationProps = {
+    destination: string;
+    setDestination: (value: string) => void;
+    selectedHotelId: string;
+    setSelectedHotelId: (id: string) => void;
+    selectedHotelDetails: HotelFromCitySearch | null;
+    setSelectedHotelDetails: (hotel: HotelFromCitySearch | null) => void;
+    checkIn: Dayjs | null;
+    setCheckIn: (date: Dayjs | null) => void;
+    checkOut: Dayjs | null;
+    setCheckOut: (date: Dayjs | null) => void;
+};
+
+export const Destination: React.FC<DestinationProps> = ({
+    destination,
+    setDestination,
+    selectedHotelId,
+    setSelectedHotelId,
+    selectedHotelDetails,
+    setSelectedHotelDetails,
+    checkIn,
+    setCheckIn,
+    checkOut,
+    setCheckOut,
+}) => {
   const [cities, setCities] = useState<City[]>([]);
   const [hotels, setHotels] = useState<HotelFromDestinationSearch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -193,14 +216,10 @@ export const Destination = () => {
 
   const [hotelsFromCitySearch, setHotelsFromCitySearch] = useState<HotelFromCitySearch[]>([]);
   const [hotelLoading, setHotelLoading] = useState(false);
-  const [selectedHotelId, setSelectedHotelId] = useState('');
-  const [selectedHotelDetails, setSelectedHotelDetails] = useState<HotelFromCitySearch | null>(null);
-
+  
   const [hotelInputValue, setHotelInputValue] = useState('');
   const [showHotelSuggestions, setShowHotelSuggestions] = useState(false);
 
-  const [checkIn, setCheckIn] = useState<Dayjs | null>(null);
-  const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
   const [nights, setNights] = useState<number | ''>('');
 
   const debouncedSearch = useRef(
@@ -240,7 +259,7 @@ export const Destination = () => {
       setSelectedHotelDetails(null);
       setHotelInputValue('');
     }
-  }, [selectedHotelId, hotelsFromCitySearch]);
+  }, [selectedHotelId, hotelsFromCitySearch, setSelectedHotelDetails]);
 
   const handleDestinationInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
