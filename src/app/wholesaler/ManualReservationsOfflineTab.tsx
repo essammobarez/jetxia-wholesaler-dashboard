@@ -14,6 +14,9 @@ import ReactCountryFlag from 'react-country-flag';
 import isoCountries from 'i18n-iso-countries';
 import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+
+dayjs.extend(isSameOrAfter);
 
 // Import components
 import Agency from './manual-reservation/Agency-offline';
@@ -163,7 +166,7 @@ export const FormSelectWithFlag: React.FC<MuiSelectWithFlagProps> = ({
           <ReactCountryFlag
             countryCode={option.code}
             svg
-            style={{ width: '1.5em', height: '1.5em', marginRight: 8 }}
+            style={{ width: '1.em', height: '1.5em', marginRight: 8 }}
             title={option.name}
           />
           {option.name}
@@ -402,70 +405,129 @@ const ManualReservation: NextPage = () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // **CHANGE HERE**: Remove image properties from hotel details before sending
-    const { mainImageUrl, mainImages, ...hotelDetailsWithoutImages } = selectedHotelDetails || {};
-    const hotelDetailsForPayload = selectedHotelDetails ? hotelDetailsWithoutImages : null;
+    const duration = checkOut && checkIn ? checkOut.diff(checkIn, 'days') : 0;
 
     const payload = {
-      agencyId: selectedAgencyId,
-      destination: {
-        name: destination,
-        hotelId: selectedHotelId,
-        hotelDetails: hotelDetailsForPayload, // Use the sanitized object
-        checkIn: checkIn ? checkIn.format('YYYY-MM-DD') : null,
-        checkOut: checkOut ? checkOut.format('YYYY-MM-DD') : null,
+      hotel: {
+        name: selectedHotelDetails?.name || 'Grand Palace Hotel Dubai',
+        stars: selectedHotelDetails?.rating || 5,
+        city: selectedHotelDetails?.location?.city || 'Dubai',
+        country: selectedHotelDetails?.location?.countryCode || 'AE',
       },
-      externalDetails: {
-        externalId,
-        reservationStatus,
-        supplierName,
-        currency,
-        supplierCode,
-        backofficeRef,
-        language,
-        agentRef,
-        supplierConfirmation,
+      serviceDates: {
+        startDate: checkIn ? checkIn.toISOString() : null,
+        endDate: checkOut ? checkOut.toISOString() : null,
+        duration: duration,
+        durationType: 'nights',
       },
-      rooms: rooms.map(room => ({
-        roomInfo: room.roomInfo,
-        roomName: room.roomName,
-        board: room.board,
-        roomType: room.roomType,
-        price: parseFloat(room.price) || 0,
-        travellers: room.travellers.map(t => ({
-          type: t.type,
-          title: t.title,
-          firstName: t.firstName,
-          lastName: t.lastName,
-          birthday: t.birthday ? dayjs(t.birthday).format('YYYY-MM-DD') : null,
-          nationality: t.nationality,
-        })),
-      })),
-      priceInfo: {
-        supplierPrice: parseFloat(supplierPrice) || 0,
-        markup: parseFloat(markup) || 0,
-        commission: parseFloat(commission) || 0,
-        totalPrice: parseFloat(totalPrice) || 0,
-      },
-      cancellationPolicies: cancellationPolicies.map(p => ({
-        type: p.type,
-        date: p.date ? p.date.format('YYYY-MM-DD') : null,
-        price: parseFloat(p.price.replace('$', '')) || 0,
-      })),
-      remarks: {
-        selectedRemarks: addedRemarks,
-        comments: comments,
+      rooms: rooms.map(room => {
+        const finalPrice = parseFloat(room.price) || 0;
+        const markupValue = parseFloat(markup) || 0;
+        const originalPriceValue = markupValue > 0 ? finalPrice / (1 + markupValue / 100) : finalPrice;
+
+        // Find the latest cancellation date without the 'max' plugin
+        let latestPolicyDate: Dayjs | null = null;
+        if (cancellationPolicies.length > 0) {
+          const policyDates = cancellationPolicies
+            .map(p => p.date)
+            .filter((d): d is Dayjs => d !== null);
+
+          if (policyDates.length > 0) {
+            const maxTimestamp = Math.max(...policyDates.map(d => d.valueOf()));
+            latestPolicyDate = dayjs(maxTimestamp);
+          }
+        }
+
+        return {
+          name: room.roomName,
+          board: room.board,
+          status: 'pending',
+          providerType: 'offline',
+          provider: supplierCode || "685c3b910f8ec655c1330cc0", // Using supplierCode or fallback
+          price: {
+            value: finalPrice,
+            currency: currency || 'AED',
+          },
+          roomPriceDetails: {
+            price: {
+              value: finalPrice,
+              currency: currency || 'AED',
+            },
+            originalPrice: {
+              value: parseFloat(originalPriceValue.toFixed(2)),
+              currency: currency || 'AED',
+            },
+            markupApplied: {
+              type: 'percentage',
+              value: markupValue,
+              description: `${markupValue}% agency markup`,
+            },
+          },
+          guests: room.travellers.map((t, index) => ({
+            firstName: t.firstName,
+            lastName: t.lastName,
+            email: `${t.firstName || 'guest'}.${t.lastName || index}@example.com`,
+            type: t.type,
+            lead: index === 0,
+            nationality: t.nationality,
+          })),
+          cancellationPolicy: {
+            date: latestPolicyDate ? latestPolicyDate.toISOString() : null,
+            policies: cancellationPolicies.map(p => {
+              const chargeValue = parseFloat(p.price) || 0;
+              return {
+                type: 'partial', // Matching example payload
+                date: p.date ? p.date.toISOString() : null,
+                charge: {
+                  value: chargeValue,
+                  currency: currency || 'AED',
+                  components: { // Mocking components as state does not support this level of detail
+                    net: {
+                      value: chargeValue,
+                      currency: currency || 'AED',
+                    },
+                    commission: {
+                      value: 0,
+                      currency: currency || 'AED',
+                    },
+                    selling: {
+                      value: 0,
+                      currency: currency || 'AED',
+                    },
+                  },
+                },
+              };
+            }),
+          },
+        };
+      }),
+      agency: selectedAgencyId || '685c00d086af26e690860b6f',
+      wholesaler: supplierCode || "6520a1243f90bc1234567892", // Using supplierCode or fallback
+      bookingType: 'PAYLATER',
+      priceDetails: {
+        price: {
+          value: parseFloat(totalPrice) || 0,
+          currency: currency || 'AED',
+        },
+        originalPrice: {
+          value: parseFloat(supplierPrice) || 0,
+          currency: currency || 'AED',
+        },
+        markupApplied: {
+          type: 'percentage',
+          value: parseFloat(markup) || 0,
+          description: 'Agency markup applied',
+        },
       },
     };
 
     try {
-        const axiosInstance = axios.create({
-            baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
-        });
-      const response = await axiosInstance.post('/offline-booking', payload);
+      const axiosInstance = axios.create({
+        baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+      });
+      const response = await axiosInstance.post('/booking/manual-reservation', payload);
       console.log('Reservation created successfully:', response.data);
       alert('Reservation created successfully!');
-      // Optionally reset form or redirect here
     } catch (error) {
       console.error('Failed to create reservation:', error);
       const errorMessage = (error as any).response?.data?.message || 'An unexpected error occurred.';
