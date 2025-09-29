@@ -1,8 +1,15 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, useCallback } from 'react';
 import { NextPage } from 'next';
 import Head from 'next/head';
-import { Plus, Trash2 } from 'lucide-react';
-import { TextField, MenuItem, Button } from '@mui/material';
+import Link from 'next/link';
+// External Libraries
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+
+// UPDATED ICON IMPORTS
+import { Plus, Trash2, Clock, Wallet, Edit, CheckCircle, X, Calendar, User, Building, MapPin, Hash, DollarSign, FileText, MessageSquare, Briefcase, Star, BedDouble } from 'lucide-react';
+// UPDATED MUI IMPORTS
+import { TextField, MenuItem, Button, FormControl, RadioGroup, FormControlLabel, Radio, Typography, Modal, Box, IconButton, Divider, Grid } from '@mui/material';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -18,13 +25,18 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 
 dayjs.extend(isSameOrAfter);
 
-// Import components
+// Import components and utility functions
 import Agency from './manual-reservation/Agency-offline';
 import { CancellationPolicy } from './manual-reservation/CancellationPolicy-offline';
 import BackofficeRemarks from './manual-reservation/BackofficeRemarks';
 import { Destination } from './manual-reservation/Destination-offline';
 import { Travellers } from './manual-reservation/Travellers-offline';
 import { ExternalDetails } from './manual-reservation/ExternalDetails-offline';
+import { PriceInformation } from './manual-reservation/PriceInformation';
+import PreviewModal from './PreviewModal';
+import { generateVoucherPDF, Reservation } from './voucher/VoucherUtils';
+import { generateInvoicePDF, generateInvoiceNumber, InvoiceData } from './voucher/InvoiceUtils';
+import BookingSuccess from './BookingSuccess'; // <-- NEW: IMPORT THE SEPARATE COMPONENT
 
 // Register English locale
 isoCountries.registerLocale(require('i18n-iso-countries/langs/en.json'));
@@ -58,6 +70,21 @@ type Policy = {
   date: Dayjs | null;
   price: string;
 };
+
+// --- API RESPONSE TYPE ---
+type BookingSuccessData = {
+    bookingId: string;
+    booking: {
+        hotel: {
+            name: string;
+            stars: number;
+            city: string;
+            country: string;
+        };
+        fullDetails?: any;
+    };
+};
+
 
 // --- SHARED COMPONENTS ---
 type SectionProps = {
@@ -166,7 +193,7 @@ export const FormSelectWithFlag: React.FC<MuiSelectWithFlagProps> = ({
           <ReactCountryFlag
             countryCode={option.code}
             svg
-            style={{ width: '1.em', height: '1.5em', marginRight: 8 }}
+            style={{ width: '1em', height: '1.5em', marginRight: 8 }}
             title={option.name}
           />
           {option.name}
@@ -225,45 +252,43 @@ export const FormSelectSimple: React.FC<MuiSelectSimpleProps> = ({
 
 // --- MAIN COMPONENT ---
 const ManualReservation: NextPage = () => {
-  const initialRoomId = Date.now();
+  const getInitialRooms = (): Room[] => {
+      const initialRoomId = Date.now();
+      return [
+          {
+              id: initialRoomId,
+              roomInfo: '',
+              roomName: '',
+              board: '',
+              roomType: '',
+              price: '',
+              travellers: [
+                  {
+                      id: initialRoomId + 1,
+                      type: 'adult',
+                      title: '',
+                      firstName: '',
+                      lastName: '',
+                      birthday: null,
+                      nationality: '',
+                  },
+              ],
+          },
+      ];
+  };
 
-  const [rooms, setRooms] = useState<Room[]>([
-    {
-      id: initialRoomId,
-      roomInfo: '',
-      roomName: '',
-      board: '',
-      roomType: '',
-      price: '',
-      travellers: [
-        {
-          id: initialRoomId + 1,
-          type: 'adult',
-          title: '',
-          firstName: '',
-          lastName: '',
-          birthday: null,
-          nationality: '',
-        },
-      ],
-    },
-  ]);
-  const [nextRoomId, setNextRoomId] = useState<number>(initialRoomId + 1);
+  const [rooms, setRooms] = useState<Room[]>(getInitialRooms());
+  const [nextRoomId, setNextRoomId] = useState<number>(() => Date.now() + 2);
 
   // --- FORM STATE ---
-  // 1. Agency State
   const [selectedAgencyId, setSelectedAgencyId] = useState('');
   const [agencyName, setAgencyName] = useState('');
   const [agencyData, setAgencyData] = useState<{ walletBalance: number; markup: number }>({ walletBalance: 0, markup: 0 });
-
-  // 2. Destination State (Lifted)
   const [destination, setDestination] = useState('');
   const [selectedHotelId, setSelectedHotelId] = useState('');
   const [selectedHotelDetails, setSelectedHotelDetails] = useState<any | null>(null);
   const [checkIn, setCheckIn] = useState<Dayjs | null>(null);
   const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
-
-  // 3. External Details State
   const [externalId, setExternalId] = useState('');
   const [reservationStatus, setReservationStatus] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -273,45 +298,168 @@ const ManualReservation: NextPage = () => {
   const [language, setLanguage] = useState('');
   const [agentRef, setAgentRef] = useState('');
   const [supplierConfirmation, setSupplierConfirmation] = useState('');
-
-  // 4. Price Information State
   const [supplierPrice, setSupplierPrice] = useState('');
   const [markup, setMarkup] = useState('');
   const [commission, setCommission] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
-
-  // 5. Cancellation Policy State (Lifted)
   const [cancellationPolicies, setCancellationPolicies] = useState<Policy[]>([]);
-
-  // 6. Backoffice Remarks State (Lifted)
   const [addedRemarks, setAddedRemarks] = useState<string[]>([]);
   const [comments, setComments] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(''); // <-- MODIFIED LINE
+  const [paymentDeadline, setPaymentDeadline] = useState<Dayjs | null>(null);
 
   // Dropdown options
   const [currencies, setCurrencies] = useState<Array<{ code: string; name: string }>>([]);
   const [languages, setLanguages] = useState<Array<{ code: string; name: string }>>([]);
-  const policyOptions = ['Standard Policy', 'Flexible', 'Strict'];
 
   // API Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+ 
+  // Modal State
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // --- EFFECTS ---
-  useEffect(() => {
-    const currencyList = currencyCodes.data.map(curr => ({
-      code: curr.code,
-      name: `${curr.code} - ${curr.currency}`,
-    }));
-    setCurrencies(currencyList);
+  // --- NEW: BOOKING & DOWNLOAD STATES ---
+  const [bookingSuccessData, setBookingSuccessData] = useState<BookingSuccessData | null>(null);
+  const [isDownloadingVoucher, setIsDownloadingVoucher] = useState(false);
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
 
-    const langs = Object.entries(isoCountries.getNames('en', { select: 'official' }))
-      .map(([code, name]) => ({
-        code,
-        name: name as string,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    setLanguages(langs);
+  // --- DYNAMIC WHOLESALER ID ---
+  const getWholesalerId = useCallback(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("wholesalerId") || "";
+    return "";
   }, []);
+ 
+  // --- VOUCHER DOWNLOAD HANDLER ---
+  const handleDownloadVoucher = async (data: BookingSuccessData) => {
+    setIsDownloadingVoucher(true);
+    try {
+        const allPassengers = rooms.flatMap((room, roomIndex) =>
+            room.travellers.map((traveller, travellerIndex) => ({
+                firstName: traveller.firstName,
+                lastName: traveller.lastName,
+                lead: roomIndex === 0 && travellerIndex === 0,
+                nationality: traveller.nationality,
+            }))
+        );
+
+        const reservationDataForVoucher: Reservation = {
+            bookingId: data.bookingId,
+            reservationId: supplierConfirmation || externalId,
+            providerId: supplierCode,
+            checkIn: checkIn ? checkIn.toISOString() : undefined,
+            checkOut: checkOut ? checkOut.toISOString() : undefined,
+            agency: {
+                agencyName: agencyName || "Your Travel Agency",
+                address: "123 Travel Lane, Suite 100, Dubai, UAE",
+                phoneNumber: "+971 4 123 4567",
+            },
+            passengers: allPassengers,
+            hotelInfo: {
+                id: selectedHotelId,
+                name: selectedHotelDetails?.name,
+                address: {
+                    fullAddress: `${selectedHotelDetails?.location?.city}, ${selectedHotelDetails?.location?.countryCode}`,
+                    city: selectedHotelDetails?.location?.city,
+                    countryCode: selectedHotelDetails?.location?.countryCode,
+                },
+            },
+            allRooms: rooms.map(room => ({
+                roomName: room.roomName,
+                board: room.board,
+            })),
+        };
+
+        await generateVoucherPDF(reservationDataForVoucher);
+
+    } catch (error) {
+        console.error("Failed to generate voucher:", error);
+        alert("Sorry, there was an error creating the voucher. Please try again.");
+    } finally {
+        setIsDownloadingVoucher(false);
+    }
+  };
+
+  // --- NEW: INVOICE DOWNLOAD HANDLER ---
+  const handleDownloadInvoice = async (data: BookingSuccessData) => {
+    setIsDownloadingInvoice(true);
+    try {
+        const allPassengers = rooms.flatMap((room, roomIndex) =>
+            room.travellers.map((traveller, travellerIndex) => ({
+                firstName: traveller.firstName,
+                lastName: traveller.lastName,
+                lead: roomIndex === 0 && travellerIndex === 0,
+            }))
+        );
+
+        const reservationDetailsForInvoice: Reservation = {
+            agencyName: agencyName || "Travel Agency",
+            passengers: allPassengers,
+            hotelInfo: {
+                name: selectedHotelDetails?.name || "N/A",
+            },
+            checkIn: checkIn ? checkIn.toISOString() : undefined,
+            checkOut: checkOut ? checkOut.toISOString() : undefined,
+            currency: currency || "USD",
+            priceDetails: {
+                price: {
+                    value: parseFloat(totalPrice) || 0,
+                },
+            },
+        };
+
+        const today = new Date();
+        const invoiceData: InvoiceData = {
+            invoiceNumber: generateInvoiceNumber(),
+            invoiceDate: today.toLocaleDateString("en-GB"),
+            dueDate: new Date(today.setDate(today.getDate() + 15)).toLocaleDateString("en-GB"),
+            reservation: reservationDetailsForInvoice,
+        };
+
+        await generateInvoicePDF(invoiceData);
+
+    } catch (error) {
+        console.error("Failed to generate invoice:", error);
+        alert("Sorry, there was an error creating the invoice. Please try again.");
+    } finally {
+        setIsDownloadingInvoice(false);
+    }
+  };
+
+
+  // --- FORM RESET FUNCTION ---
+  const handleBookAgain = () => {
+    setRooms(getInitialRooms());
+    setNextRoomId(Date.now() + 2);
+    setSelectedAgencyId('');
+    setAgencyName('');
+    setAgencyData({ walletBalance: 0, markup: 0 });
+    setDestination('');
+    setSelectedHotelId('');
+    setSelectedHotelDetails(null);
+    setCheckIn(null);
+    setCheckOut(null);
+    setExternalId('');
+    setReservationStatus('');
+    setSupplierName('');
+    setCurrency('');
+    setSupplierCode('');
+    setBackofficeRef('');
+    setLanguage('');
+    setAgentRef('');
+    setSupplierConfirmation('');
+    setMarkup('');
+    setCommission('');
+    setCancellationPolicies([]);
+    setAddedRemarks([]);
+    setComments('');
+    setPaymentMethod('');
+    setPaymentDeadline(null);
+    setIsSubmitting(false);
+    setSubmitError(null);
+    setIsPreviewModalOpen(false);
+    setBookingSuccessData(null);
+  };
 
   // --- HANDLERS ---
   const handleAddTraveller = (roomId: number, type: TravellerType) => {
@@ -401,11 +549,103 @@ const ManualReservation: NextPage = () => {
     );
   };
 
-  const handleCreateReservation = async () => {
+  // --- EFFECTS ---
+  useEffect(() => {
+    const currencyList = currencyCodes.data.map(curr => ({
+      code: curr.code,
+      name: `${curr.code} - ${curr.currency}`,
+    }));
+    setCurrencies(currencyList);
+
+    const langs = Object.entries(isoCountries.getNames('en', { select: 'official' }))
+      .map(([code, name]) => ({
+        code,
+        name: name as string,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    setLanguages(langs);
+  }, []);
+ 
+  // --- EFFECT FOR PRICE CALCULATION ---
+  useEffect(() => {
+    const totalRoomPrice = rooms.reduce((sum, room) => {
+      const price = parseFloat(room.price) || 0;
+      return sum + price;
+    }, 0);
+
+    const calculatedSupplierPrice = totalRoomPrice.toFixed(2);
+    setSupplierPrice(calculatedSupplierPrice);
+
+    const markupValue = parseFloat(markup) || 0;
+    const finalSupplierPrice = parseFloat(calculatedSupplierPrice) || 0;
+
+    let calculatedTotalPrice = finalSupplierPrice;
+    if (markupValue >= 0) {
+      calculatedTotalPrice = finalSupplierPrice * (1 + markupValue / 100);
+    }
+
+    setTotalPrice(calculatedTotalPrice.toFixed(2));
+
+  }, [rooms, markup]);
+ 
+  // --- EFFECT FOR PAYMENT DEADLINE ---
+  useEffect(() => {
+    if (cancellationPolicies && cancellationPolicies.length > 0) {
+        const dates = cancellationPolicies
+            .map(p => p.date)
+            .filter((d): d is Dayjs => d !== null && dayjs(d).isValid());
+
+        if (dates.length > 0) {
+            const earliestDate = dates.reduce((earliest, current) =>
+                current.isBefore(earliest) ? current : earliest
+            );
+            setPaymentDeadline(earliestDate);
+        } else {
+            setPaymentDeadline(null);
+        }
+    } else {
+        setPaymentDeadline(null);
+    }
+  }, [cancellationPolicies]);
+
+
+  // --- OPEN PREVIEW MODAL ---
+  const handleCreateReservation = () => {
+    setIsPreviewModalOpen(true);
+  };
+
+  // --- CONFIRM AND SUBMIT BOOKING ---
+  const handleConfirmBooking = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
     const duration = checkOut && checkIn ? checkOut.diff(checkIn, 'days') : 0;
+    const wholesalerId = getWholesalerId();
+    const currentCurrency = currency || 'AED';
+
+    const formattedPolicies = cancellationPolicies
+      .filter(p => p.date && p.price)
+      .map(p => {
+          const chargeValue = parseFloat(p.price) || 0;
+          return {
+              type: p.type,
+              date: p.date!.toISOString(),
+              charge: {
+                  value: chargeValue,
+                  currency: currentCurrency,
+                  components: {
+                      net: { value: chargeValue, currency: currentCurrency },
+                      commission: { value: 0, currency: currentCurrency },
+                      selling: { value: 0, currency: currentCurrency }
+                  }
+              }
+          };
+      });
+
+    const cancellationPolicyPayload = {
+      date: paymentDeadline ? paymentDeadline.toISOString() : null,
+      policies: formattedPolicies,
+    };
 
     const payload = {
       hotel: {
@@ -421,47 +661,24 @@ const ManualReservation: NextPage = () => {
         durationType: 'nights',
       },
       rooms: rooms.map(room => {
-        const finalPrice = parseFloat(room.price) || 0;
         const markupValue = parseFloat(markup) || 0;
-        const originalPriceValue = markupValue > 0 ? finalPrice / (1 + markupValue / 100) : finalPrice;
-
-        // Find the latest cancellation date without the 'max' plugin
-        let latestPolicyDate: Dayjs | null = null;
-        if (cancellationPolicies.length > 0) {
-          const policyDates = cancellationPolicies
-            .map(p => p.date)
-            .filter((d): d is Dayjs => d !== null);
-
-          if (policyDates.length > 0) {
-            const maxTimestamp = Math.max(...policyDates.map(d => d.valueOf()));
-            latestPolicyDate = dayjs(maxTimestamp);
-          }
-        }
+        const roomOriginalPrice = parseFloat(room.price) || 0;
+        const finalRoomPrice = roomOriginalPrice * (1 + markupValue / 100);
 
         return {
           name: room.roomName,
           board: room.board,
           status: 'pending',
           providerType: 'offline',
-          provider: supplierCode || "685c3b910f8ec655c1330cc0", // Using supplierCode or fallback
+          provider: supplierCode || "685c3b910f8ec655c1330cc0",
           price: {
-            value: finalPrice,
-            currency: currency || 'AED',
+            value: finalRoomPrice.toFixed(2),
+            currency: currentCurrency,
           },
           roomPriceDetails: {
-            price: {
-              value: finalPrice,
-              currency: currency || 'AED',
-            },
-            originalPrice: {
-              value: parseFloat(originalPriceValue.toFixed(2)),
-              currency: currency || 'AED',
-            },
-            markupApplied: {
-              type: 'percentage',
-              value: markupValue,
-              description: `${markupValue}% agency markup`,
-            },
+            price: { value: finalRoomPrice.toFixed(2), currency: currentCurrency },
+            originalPrice: { value: roomOriginalPrice, currency: currentCurrency },
+            markupApplied: { type: 'percentage', value: markupValue, description: `${markupValue}% agency markup` },
           },
           guests: room.travellers.map((t, index) => ({
             firstName: t.firstName,
@@ -471,53 +688,16 @@ const ManualReservation: NextPage = () => {
             lead: index === 0,
             nationality: t.nationality,
           })),
-          cancellationPolicy: {
-            date: latestPolicyDate ? latestPolicyDate.toISOString() : null,
-            policies: cancellationPolicies.map(p => {
-              const chargeValue = parseFloat(p.price) || 0;
-              return {
-                type: 'partial', // Matching example payload
-                date: p.date ? p.date.toISOString() : null,
-                charge: {
-                  value: chargeValue,
-                  currency: currency || 'AED',
-                  components: { // Mocking components as state does not support this level of detail
-                    net: {
-                      value: chargeValue,
-                      currency: currency || 'AED',
-                    },
-                    commission: {
-                      value: 0,
-                      currency: currency || 'AED',
-                    },
-                    selling: {
-                      value: 0,
-                      currency: currency || 'AED',
-                    },
-                  },
-                },
-              };
-            }),
-          },
+          cancellationPolicy: cancellationPolicyPayload,
         };
       }),
-      agency: selectedAgencyId || '685c00d086af26e690860b6f',
-      wholesaler: supplierCode || "6520a1243f90bc1234567892", // Using supplierCode or fallback
-      bookingType: 'PAYLATER',
+      agency: selectedAgencyId,
+      wholesaler: wholesalerId,
+      bookingType: paymentMethod,
       priceDetails: {
-        price: {
-          value: parseFloat(totalPrice) || 0,
-          currency: currency || 'AED',
-        },
-        originalPrice: {
-          value: parseFloat(supplierPrice) || 0,
-          currency: currency || 'AED',
-        },
-        markupApplied: {
-          type: 'percentage',
-          value: parseFloat(markup) || 0,
-          description: 'Agency markup applied',
-        },
+        price: { value: parseFloat(totalPrice) || 0, currency: currentCurrency },
+        originalPrice: { value: parseFloat(supplierPrice) || 0, currency: currentCurrency },
+        markupApplied: { type: 'percentage', value: parseFloat(markup) || 0, description: 'Agency markup applied' },
       },
     };
 
@@ -526,150 +706,156 @@ const ManualReservation: NextPage = () => {
         baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
       });
       const response = await axiosInstance.post('/booking/manual-reservation', payload);
+     
       console.log('Reservation created successfully:', response.data);
-      alert('Reservation created successfully!');
+      setBookingSuccessData(response.data.data);
+      setIsPreviewModalOpen(false);
+
     } catch (error) {
       console.error('Failed to create reservation:', error);
       const errorMessage = (error as any).response?.data?.message || 'An unexpected error occurred.';
       setSubmitError(`Failed to create reservation: ${errorMessage}`);
-      alert(`Error: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // --- BUTTON DISABLED LOGIC ---
+  const isCreateReservationDisabled = isSubmitting || !paymentMethod || !totalPrice || parseFloat(totalPrice) <= 0;
+
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Head>
-        <title>Manual Reservation</title>
+        <title>{bookingSuccessData ? 'Booking Confirmed' : 'Manual Reservation'}</title>
       </Head>
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-10">
-        <div className="max-w-5xl mx-auto">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
-            Manual Reservation
-          </h1>
 
-          <main className="space-y-8">
-            <div className="space-y-8">
-              <Agency
-                selectedAgencyId={selectedAgencyId}
-                setSelectedAgencyId={setSelectedAgencyId}
-                agencyName={agencyName}
-                setAgencyName={setAgencyName}
-                onAgencyDataSelect={setAgencyData}
-              />
-              <Destination
-                destination={destination}
-                setDestination={setDestination}
-                selectedHotelId={selectedHotelId}
-                setSelectedHotelId={setSelectedHotelId}
-                selectedHotelDetails={selectedHotelDetails}
-                setSelectedHotelDetails={setSelectedHotelDetails}
-                checkIn={checkIn}
-                setCheckIn={setCheckIn}
-                checkOut={checkOut}
-                setCheckOut={setCheckOut}
-              />
+      {bookingSuccessData ? (
+        <BookingSuccess
+            data={bookingSuccessData}
+            onBookAgain={handleBookAgain}
+            onDownloadVoucher={handleDownloadVoucher}
+            onDownloadInvoice={handleDownloadInvoice}
+            isDownloadingVoucher={isDownloadingVoucher}
+            isDownloadingInvoice={isDownloadingInvoice}
+        />
+      ) : (
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-10">
+            <div className="max-w-5xl mx-auto">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+                    Manual Reservation
+                </h1>
+                <main className="space-y-8">
+                    <div className="space-y-8">
+                        <Agency
+                            selectedAgencyId={selectedAgencyId}
+                            setSelectedAgencyId={setSelectedAgencyId}
+                            agencyName={agencyName}
+                            setAgencyName={setAgencyName}
+                            onAgencyDataSelect={setAgencyData}
+                        />
+                        <Destination
+                            destination={destination}
+                            setDestination={setDestination}
+                            selectedHotelId={selectedHotelId}
+                            setSelectedHotelId={setSelectedHotelId}
+                            selectedHotelDetails={selectedHotelDetails}
+                            setSelectedHotelDetails={setSelectedHotelDetails}
+                            checkIn={checkIn}
+                            setCheckIn={setCheckIn}
+                            checkOut={checkOut}
+                            setCheckOut={setCheckOut}
+                        />
+                    </div>
+
+                    <ExternalDetails
+                        externalId={externalId} setExternalId={setExternalId}
+                        reservationStatus={reservationStatus} setReservationStatus={setReservationStatus}
+                        supplierName={supplierName} setSupplierName={setSupplierName}
+                        currency={currency} setCurrency={setCurrency}
+                        supplierCode={supplierCode} setSupplierCode={setSupplierCode}
+                        backofficeRef={backofficeRef} setBackofficeRef={setBackofficeRef}
+                        language={language} setLanguage={setLanguage}
+                        agentRef={agentRef} setAgentRef={setAgentRef}
+                        supplierConfirmation={supplierConfirmation} setSupplierConfirmation={setSupplierConfirmation}
+                        currencies={currencies} languages={languages}
+                    />
+
+                    <Travellers
+                        rooms={rooms} handleAddRoom={handleAddRoom}
+                        handleRemoveRoom={handleRemoveRoom} handleRoomChange={handleRoomChange}
+                        handleAddTraveller={handleAddTraveller} handleRemoveTraveller={handleRemoveTraveller}
+                        handleTravellerChange={handleTravellerChange}
+                    />
+
+                    <PriceInformation
+                        supplierPrice={supplierPrice} markup={markup} setMarkup={setMarkup}
+                        commission={commission} setCommission={setCommission} totalPrice={totalPrice}
+                    />
+
+                    <CancellationPolicy
+                        policies={cancellationPolicies} setPolicies={setCancellationPolicies}
+                        totalPrice={totalPrice}
+                    />
+                    <BackofficeRemarks
+                        addedRemarks={addedRemarks} setAddedRemarks={setAddedRemarks}
+                        comments={comments} setComments={setComments}
+                    />
+
+                    <FormSection title="Payment Method">
+                        <RadioGroup
+                            aria-label="payment-method" name="payment-method-group"
+                            value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
+                        >
+                            <div>
+                                <FormControlLabel value="PAYLATER" control={<Radio />} disabled={!paymentDeadline}
+                                    label={ <div className="flex items-center gap-2"> <Clock className="h-5 w-5" /> <span>Paylater</span> </div> }
+                                />
+                                {!paymentDeadline && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: -1 }}>
+                                        Paylater option is unavailable because a cancellation deadline has not been set.
+                                    </Typography>
+                                )}
+                                {paymentDeadline && (
+                                    <div className="ml-10 mt-1 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-900">
+                                        <p className="font-semibold"> Please complete payment by {paymentDeadline.format('MMMM D, YYYY, [at] HH:mm:ss')} to secure your booking. </p>
+                                        <p className="mt-1"> Unpaid reservation will be automatically canceled after this time. </p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="mt-4">
+                                <FormControlLabel value="CREDIT" control={<Radio />}
+                                    label={ <div className="flex items-center gap-2"> <Wallet className="h-5 w-5" /> <span> Available credit: <strong>{agencyData.walletBalance.toFixed(2)} {currency || 'USD'}</strong> </span> </div> }
+                                />
+                            </div>
+                        </RadioGroup>
+                    </FormSection>
+
+                    <div className="flex justify-end p-6 rounded-xl">
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleCreateReservation}
+                            disabled={isCreateReservationDisabled}
+                        >
+                            Create Reservation
+                        </Button>
+                    </div>
+                </main>
             </div>
-
-            <ExternalDetails
-              externalId={externalId}
-              setExternalId={setExternalId}
-              reservationStatus={reservationStatus}
-              setReservationStatus={setReservationStatus}
-              supplierName={supplierName}
-              setSupplierName={setSupplierName}
-              currency={currency}
-              setCurrency={setCurrency}
-              supplierCode={supplierCode}
-              setSupplierCode={setSupplierCode}
-              backofficeRef={backofficeRef}
-              setBackofficeRef={setBackofficeRef}
-              language={language}
-              setLanguage={setLanguage}
-              agentRef={agentRef}
-              setAgentRef={setAgentRef}
-              supplierConfirmation={supplierConfirmation}
-              setSupplierConfirmation={setSupplierConfirmation}
-              currencies={currencies}
-              languages={languages}
+            <PreviewModal
+                isPreviewModalOpen={isPreviewModalOpen} setIsPreviewModalOpen={setIsPreviewModalOpen}
+                handleConfirmBooking={handleConfirmBooking} isSubmitting={isSubmitting} submitError={submitError}
+                agencyName={agencyName} agencyData={agencyData} selectedHotelDetails={selectedHotelDetails}
+                checkIn={checkIn} checkOut={checkOut} externalId={externalId} reservationStatus={reservationStatus}
+                supplierName={supplierName} currency={currency} supplierCode={supplierCode} backofficeRef={backofficeRef}
+                language={language} agentRef={agentRef} supplierConfirmation={supplierConfirmation} rooms={rooms}
+                supplierPrice={supplierPrice} markup={markup} totalPrice={totalPrice} paymentMethod={paymentMethod}
+                paymentDeadline={paymentDeadline} cancellationPolicies={cancellationPolicies}
+                addedRemarks={addedRemarks} comments={comments}
             />
-
-            <Travellers
-              rooms={rooms}
-              handleAddRoom={handleAddRoom}
-              handleRemoveRoom={handleRemoveRoom}
-              handleRoomChange={handleRoomChange}
-              handleAddTraveller={handleAddTraveller}
-              handleRemoveTraveller={handleRemoveTraveller}
-              handleTravellerChange={handleTravellerChange}
-            />
-
-            <FormSection title="Price Information">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
-                <FormInput
-                  label="Supplier Price"
-                  placeholder="Enter supplier price"
-                  value={supplierPrice}
-                  onChange={e => setSupplierPrice(e.target.value)}
-                  className="md:col-span-2"
-                />
-                <FormInput
-                  label="Markup"
-                  placeholder="Enter markup"
-                  value={markup}
-                  onChange={e => setMarkup(e.target.value)}
-                  className="md:col-span-2"
-                />
-                <FormInput
-                  label="Commission"
-                  placeholder="Enter commission"
-                  value={commission}
-                  onChange={e => setCommission(e.target.value)}
-                  className="md:col-span-2"
-                />
-                <FormInput
-                  label="Total Price"
-                  placeholder="Enter total price"
-                  value={totalPrice}
-                  onChange={e => setTotalPrice(e.target.value)}
-                  className="md:col-span-2"
-                />
-              </div>
-            </FormSection>
-
-            <CancellationPolicy
-              policyOptions={policyOptions.map(p => ({ code: p, name: p }))}
-              policies={cancellationPolicies}
-              setPolicies={setCancellationPolicies}
-            />
-
-            <BackofficeRemarks
-              comments={comments}
-              setComments={setComments}
-              addedRemarks={addedRemarks}
-              setAddedRemarks={setAddedRemarks}
-            />
-
-            <div className="flex justify-end items-center space-x-4 pt-4">
-              <Button variant="outlined" size="large">
-                Reset
-              </Button>
-              <Button
-                variant="contained"
-                size="large"
-                color="primary"
-                onClick={handleCreateReservation}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Creating...' : 'Create Reservation'}
-              </Button>
-            </div>
-            {submitError && <p className="text-red-500 text-right mt-2">{submitError}</p>}
-          </main>
         </div>
-      </div>
+      )}
     </LocalizationProvider>
   );
 };

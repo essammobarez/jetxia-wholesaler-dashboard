@@ -2,9 +2,9 @@ import React, { useState, useEffect, ReactNode, useRef } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip, Button } from '@mui/material';
-import { Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon, Search as SearchIcon } from '@mui/icons-material';
-import { Dayjs } from 'dayjs';
+import { TextField, MenuItem, CircularProgress, Typography, IconButton, Tooltip } from '@mui/material';
+import { Close as CloseIcon, Star as StarIcon, Apartment as ApartmentIcon } from '@mui/icons-material';
+import dayjs, { Dayjs } from 'dayjs'; // <-- ADDED dayjs import for date logic
 import { debounce } from 'lodash';
 import axios from 'axios';
 
@@ -216,11 +216,14 @@ export const Destination: React.FC<DestinationProps> = ({
 
   const [hotelsFromCitySearch, setHotelsFromCitySearch] = useState<HotelFromCitySearch[]>([]);
   const [hotelLoading, setHotelLoading] = useState(false);
-  
+ 
   const [hotelInputValue, setHotelInputValue] = useState('');
   const [showHotelSuggestions, setShowHotelSuggestions] = useState(false);
 
   const [nights, setNights] = useState<number | ''>('');
+
+  // --- NEW: State to control the checkout calendar visibility ---
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const debouncedSearch = useRef(
     debounce(async (searchTerm: string) => {
@@ -242,7 +245,7 @@ export const Destination: React.FC<DestinationProps> = ({
   useEffect(() => {
     if (checkIn && checkOut) {
       const diff = checkOut.diff(checkIn, 'day');
-      setNights(diff >= 0 ? diff : '');
+      setNights(diff > 0 ? diff : '');
     } else {
       setNights('');
     }
@@ -312,6 +315,45 @@ export const Destination: React.FC<DestinationProps> = ({
   const filteredHotels = hotelsFromCitySearch.filter(hotel =>
     hotel.name.toLowerCase().includes(hotelInputValue.toLowerCase())
   );
+
+  // --- NEW: Advanced styles for the calendar ---
+  const datePickerSlotProps = {
+    layout: {
+      sx: {
+        '.MuiDateCalendar-root': {
+          backgroundColor: '#f8fafc',
+        },
+        '.MuiPickersCalendarHeader-root': {
+          backgroundColor: '#f1f5f9',
+          borderBottom: '1px solid #e2e8f0',
+        },
+        '.MuiPickersCalendarHeader-label': {
+          fontWeight: 'bold',
+        },
+        '.MuiPickersDay-root': {
+          borderRadius: '8px',
+          transition: 'background-color 0.2s ease-in-out, color 0.2s ease-in-out',
+          '&:hover': {
+            backgroundColor: 'rgba(14, 165, 233, 0.1)', // Light Sky Blue hover
+          },
+          '&.Mui-selected': {
+            backgroundColor: '#0ea5e9', // Sky Blue 500 for selected date
+            color: '#ffffff',
+            fontWeight: 'bold',
+            '&:hover': {
+              backgroundColor: '#0284c7', // Darker Sky Blue on hover
+            },
+            '&:focus': {
+              backgroundColor: '#0ea5e9',
+            },
+          },
+          '&.MuiPickersDay-today': {
+            border: '1px solid #0ea5e9',
+          },
+        },
+      },
+    },
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -440,8 +482,19 @@ export const Destination: React.FC<DestinationProps> = ({
               label="Check-in"
               format="DD/MM/YYYY"
               value={checkIn}
-              onChange={(newValue) => setCheckIn(newValue)}
+              onChange={(newValue) => {
+                setCheckIn(newValue);
+                if (newValue) {
+                  // If new check-in is after current check-out, clear check-out
+                  if (checkOut && newValue.isAfter(checkOut)) {
+                    setCheckOut(null);
+                  }
+                  setIsCheckoutOpen(true); // Open check-out calendar
+                }
+              }}
+              disablePast // Block past dates
               slotProps={{
+                ...datePickerSlotProps, // Apply advanced styles
                 textField: {
                   InputLabelProps: { shrink: true },
                   placeholder: 'DD/MM/YYYY',
@@ -456,12 +509,18 @@ export const Destination: React.FC<DestinationProps> = ({
               value={checkOut}
               onChange={(newValue) => setCheckOut(newValue)}
               minDate={checkIn ? checkIn.add(1, 'day') : undefined}
+              disabled={!checkIn} // Disable until check-in is selected
+              open={isCheckoutOpen} // Control open state
+              onOpen={() => setIsCheckoutOpen(true)}
+              onClose={() => setIsCheckoutOpen(false)}
               slotProps={{
+                ...datePickerSlotProps, // Apply advanced styles
                 textField: {
                   InputLabelProps: { shrink: true },
                   placeholder: 'DD/MM/YYYY',
                   variant: 'outlined',
                   fullWidth: true,
+                  disabled: !checkIn, // Also disable the text field visually
                 },
               }}
             />

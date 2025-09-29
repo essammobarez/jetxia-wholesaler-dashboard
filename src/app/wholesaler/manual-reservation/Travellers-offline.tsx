@@ -16,7 +16,7 @@ type Traveller = {
   title: string;
   firstName: string;
   lastName: string;
-  birthday: string | null;
+  birthdate: string | null; // Changed from birthday
   nationality: string; // ISO country code
 };
 
@@ -344,11 +344,11 @@ export const Travellers: React.FC<TravellersProps> = ({
                     }
                   />
                   <DatePicker
-                    label="Birthday"
+                    label="Birthdate" // Changed from Birthday
                     format="DD/MM/YYYY"
-                    value={traveller.birthday ? dayjs(traveller.birthday) : null}
+                    value={traveller.birthdate ? dayjs(traveller.birthdate) : null} // Changed from birthday
                     onChange={date =>
-                      handleTravellerChange(room.id, traveller.id, 'birthday', date)
+                      handleTravellerChange(room.id, traveller.id, 'birthdate', date) // Changed from birthday
                     }
                     slotProps={{
                       textField: {
