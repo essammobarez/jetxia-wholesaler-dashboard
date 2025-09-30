@@ -305,7 +305,7 @@ const ManualReservation: NextPage = () => {
   const [cancellationPolicies, setCancellationPolicies] = useState<Policy[]>([]);
   const [addedRemarks, setAddedRemarks] = useState<string[]>([]);
   const [comments, setComments] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState(''); // <-- MODIFIED LINE
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentDeadline, setPaymentDeadline] = useState<Dayjs | null>(null);
 
   // Dropdown options
@@ -315,7 +315,7 @@ const ManualReservation: NextPage = () => {
   // API Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
- 
+
   // Modal State
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
@@ -329,7 +329,7 @@ const ManualReservation: NextPage = () => {
     if (typeof window !== "undefined") return localStorage.getItem("wholesalerId") || "";
     return "";
   }, []);
- 
+
   // --- VOUCHER DOWNLOAD HANDLER ---
   const handleDownloadVoucher = async (data: BookingSuccessData) => {
     setIsDownloadingVoucher(true);
@@ -565,7 +565,7 @@ const ManualReservation: NextPage = () => {
       .sort((a, b) => a.name.localeCompare(b.name));
     setLanguages(langs);
   }, []);
- 
+
   // --- EFFECT FOR PRICE CALCULATION ---
   useEffect(() => {
     const totalRoomPrice = rooms.reduce((sum, room) => {
@@ -577,17 +577,15 @@ const ManualReservation: NextPage = () => {
     setSupplierPrice(calculatedSupplierPrice);
 
     const markupValue = parseFloat(markup) || 0;
+    const commissionValue = parseFloat(commission) || 0;
     const finalSupplierPrice = parseFloat(calculatedSupplierPrice) || 0;
 
-    let calculatedTotalPrice = finalSupplierPrice;
-    if (markupValue >= 0) {
-      calculatedTotalPrice = finalSupplierPrice * (1 + markupValue / 100);
-    }
+    const calculatedTotalPrice = (finalSupplierPrice + markupValue) - commissionValue;
 
     setTotalPrice(calculatedTotalPrice.toFixed(2));
 
-  }, [rooms, markup]);
- 
+  }, [rooms, markup, commission]);
+
   // --- EFFECT FOR PAYMENT DEADLINE ---
   useEffect(() => {
     if (cancellationPolicies && cancellationPolicies.length > 0) {
@@ -622,21 +620,33 @@ const ManualReservation: NextPage = () => {
     const duration = checkOut && checkIn ? checkOut.diff(checkIn, 'days') : 0;
     const wholesalerId = getWholesalerId();
     const currentCurrency = currency || 'AED';
+    const finalTotalPrice = parseFloat(totalPrice) || 0;
+    const finalSupplierPrice = parseFloat(supplierPrice) || 0;
+    const finalCommissionValue = parseFloat(commission) || 0;
 
+    // MODIFIED: This section now correctly populates selling and commission values.
     const formattedPolicies = cancellationPolicies
       .filter(p => p.date && p.price)
       .map(p => {
-          const chargeValue = parseFloat(p.price) || 0;
           return {
               type: p.type,
               date: p.date!.toISOString(),
               charge: {
-                  value: chargeValue,
+                  value: finalTotalPrice,
                   currency: currentCurrency,
                   components: {
-                      net: { value: chargeValue, currency: currentCurrency },
-                      commission: { value: 0, currency: currentCurrency },
-                      selling: { value: 0, currency: currentCurrency }
+                      net: {
+                          value: finalSupplierPrice,
+                          currency: currentCurrency
+                      },
+                      commission: {
+                          value: finalCommissionValue,
+                          currency: currentCurrency
+                      },
+                      selling: {
+                          value: finalSupplierPrice,
+                          currency: currentCurrency
+                      }
                   }
               }
           };
@@ -661,9 +671,7 @@ const ManualReservation: NextPage = () => {
         durationType: 'nights',
       },
       rooms: rooms.map(room => {
-        const markupValue = parseFloat(markup) || 0;
         const roomOriginalPrice = parseFloat(room.price) || 0;
-        const finalRoomPrice = roomOriginalPrice * (1 + markupValue / 100);
 
         return {
           name: room.roomName,
@@ -672,13 +680,12 @@ const ManualReservation: NextPage = () => {
           providerType: 'offline',
           provider: supplierCode || "685c3b910f8ec655c1330cc0",
           price: {
-            value: finalRoomPrice.toFixed(2),
+            value: finalTotalPrice.toFixed(2),
             currency: currentCurrency,
           },
           roomPriceDetails: {
-            price: { value: finalRoomPrice.toFixed(2), currency: currentCurrency },
+            price: { value: finalTotalPrice.toFixed(2), currency: currentCurrency },
             originalPrice: { value: roomOriginalPrice, currency: currentCurrency },
-            markupApplied: { type: 'percentage', value: markupValue, description: `${markupValue}% agency markup` },
           },
           guests: room.travellers.map((t, index) => ({
             firstName: t.firstName,
@@ -695,9 +702,9 @@ const ManualReservation: NextPage = () => {
       wholesaler: wholesalerId,
       bookingType: paymentMethod,
       priceDetails: {
-        price: { value: parseFloat(totalPrice) || 0, currency: currentCurrency },
-        originalPrice: { value: parseFloat(supplierPrice) || 0, currency: currentCurrency },
-        markupApplied: { type: 'percentage', value: parseFloat(markup) || 0, description: 'Agency markup applied' },
+        price: { value: finalTotalPrice, currency: currentCurrency },
+        originalPrice: { value: finalSupplierPrice, currency: currentCurrency },
+        markupApplied: { type: 'fixed', value: parseFloat(markup) || 0, description: 'Fixed markup applied' },
       },
     };
 
@@ -706,7 +713,7 @@ const ManualReservation: NextPage = () => {
         baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
       });
       const response = await axiosInstance.post('/booking/manual-reservation', payload);
-     
+      
       console.log('Reservation created successfully:', response.data);
       setBookingSuccessData(response.data.data);
       setIsPreviewModalOpen(false);

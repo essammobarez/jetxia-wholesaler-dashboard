@@ -82,30 +82,26 @@ export const PriceInformation: React.FC<PriceInformationProps> = ({
 }) => {
   return (
     // Removed max-w-xl to allow full width
-    <FormSection title="Price Information"> 
-      
+    <FormSection title="Price Information">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-8">
-        
         {/* Supplier Price - Spans 1 column */}
         <FormInput
           label="Supplier Price"
           placeholder="Calculated price"
           value={supplierPrice}
           type="number"
-          className="md:col-span-1" 
+          className="md:col-span-1"
           disabled
         />
-        
         {/* Markup - Spans 1 column */}
         <FormInput
-          label="Markup (%)"
+          label="Markup"
           placeholder="Enter markup"
           value={markup}
           type="number"
           onChange={e => setMarkup(e.target.value)}
           className="md:col-span-1"
         />
-        
         {/* Commission - Spans 1 column */}
         <FormInput
           label="Commission"
@@ -115,7 +111,6 @@ export const PriceInformation: React.FC<PriceInformationProps> = ({
           onChange={e => setCommission(e.target.value)}
           className="md:col-span-1"
         />
-        
         {/* Total Price - Spans 1 column */}
         <FormInput
           label="Total Price"
