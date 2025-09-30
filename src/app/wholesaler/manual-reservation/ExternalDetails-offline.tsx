@@ -109,11 +109,11 @@ const FormSelectSimple: React.FC<MuiSelectSimpleProps> = ({
     </TextField>
 );
 
-// Define the type for the provider data
+// Define the type for the provider data, now with a source property
 type Provider = {
     _id: string;
     name: string;
-    // Add other fields from the fetch idea if needed, but _id and name are essential
+    source?: 'online' | 'offline'; // To track if a provider is online or offline
 };
 
 // ExternalDetailsProps
@@ -135,6 +135,7 @@ type ExternalDetailsProps = {
     supplierConfirmation: string;
     setSupplierConfirmation: (value: string) => void;
     currencies: Array<{ code: string; name: string }>;
+    setSupplierType: (value: 'online' | 'offline' | '') => void;
 };
 
 // New ExternalDetails component
@@ -156,6 +157,7 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
     supplierConfirmation,
     setSupplierConfirmation,
     currencies,
+    setSupplierType,
 }) => {
     const [wholesalerId, setWholesalerId] = useState<string | null>(null);
     const [providers, setProviders] = useState<Provider[]>([]);
@@ -163,10 +165,11 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
     // State to hold the _id of the selected provider
     const [selectedProviderId, setSelectedProviderId] = useState<string>('');
 
+    // MODIFIED: 'confirm' is now 'confirmed'
     const reservationStatusOptions = [
-        { code: 'CONF', name: 'Confirmed' },
-        { code: 'PEND', name: 'Pending' },
-        { code: 'CANC', name: 'Cancelled' },
+        { code: 'confirmed', name: 'Confirmed' },
+        { code: 'pending', name: 'Pending' },
+        { code: 'cancelled', name: 'Cancelled' },
     ];
 
     // 1. Fetch wholesalerId from localStorage
@@ -179,23 +182,44 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
         }
     }, []);
 
-    // 2. Fetch providers when wholesalerId is available
+    // 2. Fetch both online and offline providers when wholesalerId is available
     useEffect(() => {
         const fetchProviders = async (id: string) => {
             setLoadingProviders(true);
             const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-            const endpoint = `/offline-provider/by-wholesaler/${id}`;
-            const url = `${baseUrl}${endpoint}`;
+            
+            const offlineUrl = `${baseUrl}/offline-provider/by-wholesaler/${id}`;
+            const onlineUrl = `${baseUrl}/provider`;
 
             try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                const [offlineResponse, onlineResponse] = await Promise.all([
+                    fetch(offlineUrl),
+                    fetch(onlineUrl),
+                ]);
+
+                if (!offlineResponse.ok) {
+                    throw new Error(`HTTP error! Offline providers status: ${offlineResponse.status}`);
                 }
-                const data: Provider[] = await response.json();
-                setProviders(data);
+                if (!onlineResponse.ok) {
+                    throw new Error(`HTTP error! Online providers status: ${onlineResponse.status}`);
+                }
+
+                const offlineData: Provider[] = await offlineResponse.json();
+                const onlineResponseData = await onlineResponse.json();
+                
+                const onlineData: Provider[] = onlineResponseData.data || [];
+
+                // Mark providers with their source ('offline' or 'online')
+                const offlineProviders = offlineData.map(p => ({ ...p, source: 'offline' as const }));
+                const onlineProviders = onlineData.map(p => ({ ...p, source: 'online' as const }));
+
+                // Combine the marked providers into a single list
+                const combinedProviders = [...offlineProviders, ...onlineProviders];
+
+                setProviders(combinedProviders);
+
             } catch (error) {
-                console.error('Error fetching offline providers:', error);
+                console.error('Error fetching providers:', error);
                 setProviders([]); // Clear providers on error
             } finally {
                 setLoadingProviders(false);
@@ -212,22 +236,24 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
         const providerId = e.target.value; // The value is the provider's _id
         setSelectedProviderId(providerId); // Set the selected ID
         
-        // Find the selected provider object
         const selectedProvider = providers.find(p => p._id === providerId);
         
-        // 3. Set supplierName and auto-fill supplierCode with _id
+        // 3. Set supplierName (just the name, without icon/status) and auto-fill supplierCode with _id
         if (selectedProvider) {
             setSupplierName(selectedProvider.name);
             setSupplierCode(selectedProvider._id); // Auto-fill with _id
+            setSupplierType(selectedProvider.source || '');
         } else {
             setSupplierName('');
             setSupplierCode('');
+            setSupplierType('');
         }
     };
 
+    // Create options for the dropdown with WiFi icons and status text
     const providerOptions = providers.map(p => ({
-        code: p._id, // Use _id as the code for the select value
-        name: p.name, // Use name for display
+        code: p._id,
+        name: `${p.source === 'online' ? '📶 ' : '📴 '} ${p.name} (${p.source === 'online' ? 'Online' : 'Offline'})`,
     }));
 
     return (
@@ -247,13 +273,13 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
                     value={reservationStatus}
                     onChange={e => setReservationStatus(e.target.value)}
                 />
-                {/* Changed Supplier Name to Select Supplier using FormSelectSimple */}
+                {/* Select Supplier dropdown now shows status with WiFi icons */}
                 <FormSelectSimple
                     label={loadingProviders ? "Loading Suppliers..." : "Select Supplier"}
                     placeholder="Select a supplier"
                     options={providerOptions}
-                    value={selectedProviderId} // Use selectedProviderId to manage the selection
-                    onChange={handleSupplierSelect} // Use the new handler
+                    value={selectedProviderId}
+                    onChange={handleSupplierSelect}
                     className={loadingProviders ? 'opacity-50' : ''}
                 />
                 <FormSelectSimple
@@ -263,7 +289,6 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
                     value={currency}
                     onChange={e => setCurrency(e.target.value)}
                 />
-                {/* Supplier Code input field has been removed from the UI */}
                 <FormInput
                     label="Backoffice Ref"
                     placeholder="Enter backoffice ref"

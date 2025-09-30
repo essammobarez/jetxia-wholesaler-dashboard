@@ -294,6 +294,7 @@ const ManualReservation: NextPage = () => {
   const [supplierName, setSupplierName] = useState('');
   const [currency, setCurrency] = useState('');
   const [supplierCode, setSupplierCode] = useState('');
+  const [supplierType, setSupplierType] = useState<'online' | 'offline' | ''>('');
   const [backofficeRef, setBackofficeRef] = useState('');
   const [language, setLanguage] = useState('');
   const [agentRef, setAgentRef] = useState('');
@@ -444,6 +445,7 @@ const ManualReservation: NextPage = () => {
     setSupplierName('');
     setCurrency('');
     setSupplierCode('');
+    setSupplierType('');
     setBackofficeRef('');
     setLanguage('');
     setAgentRef('');
@@ -624,7 +626,6 @@ const ManualReservation: NextPage = () => {
     const finalSupplierPrice = parseFloat(supplierPrice) || 0;
     const finalCommissionValue = parseFloat(commission) || 0;
 
-    // MODIFIED: This section now correctly populates selling and commission values.
     const formattedPolicies = cancellationPolicies
       .filter(p => p.date && p.price)
       .map(p => {
@@ -676,8 +677,8 @@ const ManualReservation: NextPage = () => {
         return {
           name: room.roomName,
           board: room.board,
-          status: 'pending',
-          providerType: 'offline',
+          status: reservationStatus || 'pending', 
+          providerType: supplierType,
           provider: supplierCode || "685c3b910f8ec655c1330cc0",
           price: {
             value: finalTotalPrice.toFixed(2),
@@ -786,6 +787,7 @@ const ManualReservation: NextPage = () => {
                         agentRef={agentRef} setAgentRef={setAgentRef}
                         supplierConfirmation={supplierConfirmation} setSupplierConfirmation={setSupplierConfirmation}
                         currencies={currencies} languages={languages}
+                        setSupplierType={setSupplierType}
                     />
 
                     <Travellers
