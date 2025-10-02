@@ -1,6 +1,6 @@
 "use client";
 import { NextPage } from "next";
-import { useRouter } from "next/navigation"; // MODIFIED: Import useRouter
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BiTransferAlt } from "react-icons/bi";
@@ -21,18 +21,16 @@ import {
 } from "react-icons/fa";
 import { FiLayout } from "react-icons/fi";
 import { RiPlaneLine } from "react-icons/ri";
+import React from "react";
+
+import AddConfirmationModal from "./AddConfirmationModal";
 import { BookingModal, Reservation } from "./BookingModal";
 import EditPriceModal from "./EditPriceModal";
-// NOTE: Assuming these utility files exist based on the original code.
-import { generateInvoiceNumber, generateInvoicePDF } from "./InvoiceGenerator";
-import { generateVoucherPDF } from "./voucher";
-// --- Import the cancellation modal ---
-import React from "react";
-import RoomCancellationModal from "./RoomCancellationModal";
-// --- NEW: Import the PayOptionsModal ---
-import PayOptionsModal from "./payoptionsmodal";
-// --- NEW: Import the separated loading modal component ---
+import { generateInvoicePDF } from "./InvoiceGenerator";
 import PercentageLoaderModal from "./LoadingModal";
+import RoomCancellationModal from "./RoomCancellationModal";
+import PayOptionsModal from "./payoptionsmodal";
+import { generateVoucherPDF } from "./voucher";
 
 const navItems = [
   { label: "Hotels & Apartments", Icon: FaBuilding },
@@ -52,7 +50,6 @@ const statusMap = {
     color: "text-green-500",
     label: "Completed",
   },
-  // --- MODIFIED HERE ---
   pending: { icon: FaCommentAlt, color: "text-yellow-500", label: "PayLater" },
   confirmed: { icon: FaCheckCircle, color: "text-green-500", label: "Paid" },
   onrequest: {
@@ -60,12 +57,11 @@ const statusMap = {
     color: "text-blue-500",
     label: "On Request",
   },
-  // --- END MODIFICATION ---
   ok: { icon: FaCheckCircle, color: "text-green-500", label: "OK" },
 };
 
 const BookingsPage: NextPage = () => {
-  const router = useRouter(); // MODIFIED: Initialize the router
+  const router = useRouter();
   const [darkMode, setDarkMode] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,30 +78,30 @@ const BookingsPage: NextPage = () => {
   );
   const [payModalRes, setPayModalRes] = useState<Reservation | null>(null);
 
+  const [confirmationModalData, setConfirmationModalData] = useState<{
+    reservation: Reservation;
+    reservationId: number;
+  } | null>(null);
+
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
-  // State for tracking document generation
   const [generatingDocFor, setGeneratingDocFor] = useState<string | null>(null);
-  // --- NEW: State for tracking which booking status is being updated ---
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
     null
   );
 
-  // --- NEW: State for the percentage loader ---
   const [loaderProgress, setLoaderProgress] = useState(0);
   const [isLoaderVisible, setIsLoaderVisible] = useState(false);
   const [loaderMessage, setLoaderMessage] = useState("");
 
-  // Search and filter states
   const [searchHotelName, setSearchHotelName] = useState("");
   const [searchBookingId, setSearchBookingId] = useState("");
   const [searchCheckInDate, setSearchCheckInDate] = useState("");
   const [searchCheckOutDate, setSearchCheckOutDate] = useState("");
   const [searchGuestName, setSearchGuestName] = useState("");
   const [searchAgencyName, setSearchAgencyName] = useState("");
-  const [searchStatus, setSearchStatus] = useState(""); // Empty string means "All"
+  const [searchStatus, setSearchStatus] = useState("");
 
-  // State to manage which card is expanded on mobile
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
@@ -162,7 +158,6 @@ const BookingsPage: NextPage = () => {
         Authorization: `Bearer ${token}`,
       };
     } else {
-      // Original logic for non-sales roles
       if (wholesalerId) {
         endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/wholesaler/${wholesalerId}`;
       } else {
@@ -176,29 +171,23 @@ const BookingsPage: NextPage = () => {
       const res = await fetch(endpoint, options);
       if (res.ok) {
         const responseData = await res.json();
-
-        // Handle both direct array and nested { data: [...] } structures
         let bookingsArray: any[] = [];
         if (responseData && Array.isArray(responseData.data)) {
-          bookingsArray = responseData.data; // For "sales" role
+          bookingsArray = responseData.data;
         } else if (Array.isArray(responseData)) {
-          bookingsArray = responseData; // For other roles
+          bookingsArray = responseData;
         }
 
         if (bookingsArray.length > 0) {
           const mapped: Reservation[] = bookingsArray.map((item: any) => {
-            // --- NEW: Process data for all rooms for the modal ---
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
                 room.bookingData?.detailedInfo?.service || {};
-
-              // --- START: Cancellation Policy Update ---
               const cancellationDetails =
                 room.bookingData?.initialResponse?.HotelDetails
                   ?.RoomDetails?.[0]?.CancellationPolicyDetails?.Cancellation;
 
               let finalCancellationPolicy = room.cancellationPolicy ?? null;
-
               if (cancellationDetails && Array.isArray(cancellationDetails)) {
                 const parsedPolicies = cancellationDetails
                   .map((policy: any) => {
@@ -211,24 +200,19 @@ const BookingsPage: NextPage = () => {
 
                     const timeStr = String(
                       policy.FromTime || "12:00 AM"
-                    ).replace(/[\s\u202F]+/g, " "); // Handle regular and non-breaking spaces
+                    ).replace(/[\s\u202F]+/g, " ");
 
                     const timeParts = timeStr.match(
                       /(\d+):(\d+)\s*(AM|PM)/i
                     );
                     let hours = 0;
                     let minutes = 0;
-
                     if (timeParts) {
                       hours = parseInt(timeParts[1], 10);
                       minutes = parseInt(timeParts[2], 10);
                       const modifier = timeParts[3].toUpperCase();
-                      if (modifier === "PM" && hours < 12) {
-                        hours += 12;
-                      }
-                      if (modifier === "AM" && hours === 12) {
-                        hours = 0; // Midnight case
-                      }
+                      if (modifier === "PM" && hours < 12) hours += 12;
+                      if (modifier === "AM" && hours === 12) hours = 0;
                     }
                     const startDate = new Date(
                       Date.UTC(year, month - 1, day, hours, minutes)
@@ -251,7 +235,6 @@ const BookingsPage: NextPage = () => {
                   finalCancellationPolicy = null;
                 }
               }
-              // --- END: Cancellation Policy Update ---
 
               const roomGuests = Array.isArray(room.guests)
                 ? room.guests.map((p: any) => ({
@@ -271,8 +254,6 @@ const BookingsPage: NextPage = () => {
               const roomInfo = detailedService.rooms?.[0] || {};
               const firstGuestInRoom = room.guests?.[0];
 
-              // --- START: Room Name Fix ---
-              // Fetch room name exclusively from the response, no static fallback
               const descriptiveRoomName =
                 room.bookingData?.initialResponse?.HotelDetails
                   ?.RoomDetails?.[0]?.RoomType;
@@ -280,7 +261,6 @@ const BookingsPage: NextPage = () => {
               const finalRoomName = String(
                 descriptiveRoomName || genericRoomName || ""
               );
-              // --- END: Room Name Fix ---
 
               return {
                 reservationId: Number(room.reservationId ?? 0),
@@ -296,22 +276,23 @@ const BookingsPage: NextPage = () => {
                 priceCommission: Number(
                   detailedService.prices?.total?.commission?.value ?? 0
                 ),
-                cancellationPolicy: finalCancellationPolicy, // Use the processed policy
+                cancellationPolicy: finalCancellationPolicy,
                 guests: roomGuests,
                 remarks: [],
-                roomName: finalRoomName, // Use the fixed room name
+                roomName: finalRoomName,
                 board: String(roomInfo.board ?? room.board ?? "N/A"),
                 boardBasis: String(roomInfo.boardBasis ?? "N/A"),
                 info: String(roomInfo.info ?? ""),
                 nationality: firstGuestInRoom?.nationality ?? "",
+                reference: room.reference ?? {
+                  external: null,
+                  confirmation: null,
+                },
               };
             });
 
-            // Aggregate all passengers from all rooms for the main passenger list
             const allPassengers = allRoomsData.flatMap((r) => r.guests);
 
-            // --- Use the first room's data for the main list view ---
-            // Create a modified first room object that has the processed cancellation policy
             const rawFirstRoom = item.rooms?.[0] || {};
             const room = {
               ...rawFirstRoom,
@@ -331,12 +312,9 @@ const BookingsPage: NextPage = () => {
             const dbId = String(item._id ?? "");
             const agency = item.agency;
             const agencyName = item.agency?.agencyName ?? "N/A";
-
-            // --- MODIFICATION START: Extract Source ---
             const source =
               item.rooms?.[0]?.bookingData?.initialResponse?.BookingDetails
                 ?.Source ?? null;
-            // --- MODIFICATION END ---
 
             const wholesaler = item.wholesaler;
             const wholesalerName =
@@ -348,7 +326,6 @@ const BookingsPage: NextPage = () => {
 
             const providerId = room.provider?._id ?? "N/A";
             const providerName = room.provider?.name ?? "N/A";
-
             const clientRef = String(item.clientReference ?? "");
             const serviceType = "hotel";
             const initStatus = String(room.status ?? "").toLowerCase();
@@ -360,7 +337,6 @@ const BookingsPage: NextPage = () => {
 
             const paymentType = String(item.bookingType ?? "");
             const paymentStatus = String(item.status ?? "");
-
             const rateDescription = String(
               detailedService.rateDetails?.name ?? room.board ?? ""
             );
@@ -375,7 +351,6 @@ const BookingsPage: NextPage = () => {
 
             const price = priceIssueSelling;
             const currency = String(item.totalPrice?.currency ?? "USD");
-
             const cancellationDate = String(
               room.cancellationPolicy?.date ?? ""
             );
@@ -395,10 +370,8 @@ const BookingsPage: NextPage = () => {
 
             const destinationCity = item.hotel?.city ?? "";
             const destinationCountry = item.hotel?.country ?? "";
-
             const firstGuest = room.guests?.[0];
             const nationality = firstGuest?.nationality ?? "";
-
             const remarks: any[] = [];
 
             const hotelInfo = {
@@ -469,7 +442,7 @@ const BookingsPage: NextPage = () => {
               freeCancellation,
               priceDetails: item.priceDetails,
               allRooms: allRoomsData,
-              source, // --- MODIFICATION: Added source to the final object
+              source,
             };
           });
           setReservations(mapped);
@@ -498,27 +471,17 @@ const BookingsPage: NextPage = () => {
     fetchReservations();
   }, [fetchReservations]);
 
-  // --- Start of Filtering Logic ---
   const filteredReservations = reservations.filter((r) => {
-    // Hotel Name Filter
     const hotelNameMatch =
       !searchHotelName ||
       r.hotelInfo.name.toLowerCase().includes(searchHotelName.toLowerCase());
-
-    // Booking ID Filter
     const bookingIdMatch =
       !searchBookingId ||
       r.bookingId.toLowerCase().includes(searchBookingId.toLowerCase());
-
-    // Check-in Date Filter
     const checkInDateMatch =
       !searchCheckInDate || r.checkIn.startsWith(searchCheckInDate);
-
-    // Check-out Date Filter
     const checkOutDateMatch =
       !searchCheckOutDate || r.checkOut.startsWith(searchCheckOutDate);
-
-    // Guest Name Filter
     const guestNameMatch =
       !searchGuestName ||
       r.passengers.some((p) =>
@@ -526,16 +489,12 @@ const BookingsPage: NextPage = () => {
           .toLowerCase()
           .includes(searchGuestName.toLowerCase())
       );
-
-    // Agency Name Filter
     const agencyNameMatch =
       !searchAgencyName ||
       r.agencyName.toLowerCase().includes(searchAgencyName.toLowerCase());
-
-    // Status Filter for PAYLATER, Credit, and cancelled
     const statusMatch = (() => {
       if (!searchStatus) {
-        return true; // "All Statuses" selected, so no filter is applied
+        return true;
       }
       const status = searchStatus.toLowerCase();
       if (status === "cancelled") {
@@ -544,11 +503,10 @@ const BookingsPage: NextPage = () => {
         );
         return isAnyRoomCancelled || r.topStatus.toLowerCase() === "cancelled";
       }
-      // For PAYLATER and Credit, we check the separate paymentType field
       if (status === "paylater" || status === "credit") {
         return r.paymentType.toLowerCase() === status;
       }
-      return true; // Fallback to not filter if status is unrecognized
+      return true;
     })();
 
     return (
@@ -561,9 +519,7 @@ const BookingsPage: NextPage = () => {
       statusMatch
     );
   });
-  // --- End of Filtering Logic ---
 
-  // --- NEW: Handler for "On Request" status changes (Accept/Reject) ---
   const handleOnRequestStatusChange = async (
     bookingId: string,
     newStatus: "confirmed" | "cancelled"
@@ -572,10 +528,8 @@ const BookingsPage: NextPage = () => {
       toast.error("Wholesaler ID is missing. Cannot update status.");
       return;
     }
-
-    setUpdatingBookingId(bookingId); // Set loading state for this specific booking
+    setUpdatingBookingId(bookingId);
     const toastId = toast.loading(`Updating status to ${newStatus}...`);
-
     const token =
       document.cookie
         .split("; ")
@@ -587,22 +541,19 @@ const BookingsPage: NextPage = () => {
       setUpdatingBookingId(null);
       return;
     }
-
     const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL}booking/wholesaler/${wholesalerId}/onrequest/${bookingId}/status`;
-
     try {
       const response = await fetch(endpoint, {
-        method: "PUT", // Using PUT as we are updating the status resource
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
-
       if (response.ok) {
         toast.success("Booking status updated successfully!", { id: toastId });
-        fetchReservations(); // Refresh the data
+        fetchReservations();
       } else {
         const errorData = await response.json();
         toast.error(
@@ -616,47 +567,45 @@ const BookingsPage: NextPage = () => {
         id: toastId,
       });
     } finally {
-      setUpdatingBookingId(null); // Reset loading state
+      setUpdatingBookingId(null);
     }
   };
 
   const handleCancelClick = (reservation: Reservation) => {
     setCancelModalRes(reservation);
   };
+  
+  const handleAddConfirmationClick = (
+    reservation: Reservation,
+    reservationId: number
+  ) => {
+    setConfirmationModalData({ reservation, reservationId });
+  };
 
-  // --- Handler for successful cancellation from the modal ---
+
   const handleCancellationSuccess = () => {
-    setCancelModalRes(null); // Close the modal
-    fetchReservations(); // Refresh the list of reservations
+    setCancelModalRes(null);
+    fetchReservations();
   };
-
-  // --- Handler for successful payment from the modal ---
   const handlePaymentSuccess = () => {
-    setPayModalRes(null); // Close the modal
-    fetchReservations(); // Refresh the list of reservations
+    setPayModalRes(null);
+    fetchReservations();
   };
 
-  // --- NEW: Helper for simulating loader progress ---
   const simulateProgress = (callback: () => Promise<void>) => {
     setIsLoaderVisible(true);
     setLoaderProgress(0);
-
-    // Simulate a gradual progress increase
     const interval = setInterval(() => {
       setLoaderProgress((prev) => {
         if (prev >= 95) {
           clearInterval(interval);
           return prev;
         }
-        // Increment randomly for a more natural feel
         return prev + Math.floor(Math.random() * 5) + 5;
       });
     }, 200);
-
-    // Execute the actual document generation
     callback()
       .then(() => {
-        // On success, jump to 100% and close after a short delay
         clearInterval(interval);
         setLoaderProgress(100);
         setTimeout(() => {
@@ -664,43 +613,29 @@ const BookingsPage: NextPage = () => {
         }, 500);
       })
       .catch(() => {
-        // On error, immediately hide the loader
         clearInterval(interval);
         setIsLoaderVisible(false);
       });
   };
 
-  // --- UPDATED: Handlers for Voucher and Invoice generation ---
   const handleGenerateInvoice = (reservation: Reservation) => {
     if (generatingDocFor || isLoaderVisible) return;
     setGeneratingDocFor(reservation.bookingId);
     setLoaderMessage("Generating Invoice...");
-
     const generationTask = async () => {
       try {
-        const invoiceNumber = generateInvoiceNumber();
-        const invoiceDate = new Date().toLocaleDateString();
-        const dueDate = new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ).toLocaleDateString();
-
         await generateInvoicePDF({
-          invoiceNumber,
-          invoiceDate,
-          dueDate,
           reservation,
         });
-
         toast.success("Invoice generated successfully!");
       } catch (error) {
         console.error("Error generating invoice:", error);
         toast.error("Failed to generate invoice. Please try again.");
-        throw error; // Re-throw to be caught by simulateProgress
+        throw error;
       } finally {
         setGeneratingDocFor(null);
       }
     };
-
     simulateProgress(generationTask);
   };
 
@@ -708,19 +643,17 @@ const BookingsPage: NextPage = () => {
     if (generatingDocFor || isLoaderVisible) return;
     setGeneratingDocFor(reservation.bookingId);
     setLoaderMessage("Generating Voucher...");
-
     const generationTask = async () => {
       try {
         await generateVoucherPDF(reservation);
         toast.success("Voucher generated!");
       } catch (e) {
         toast.error("Failed to generate voucher");
-        throw e; // Re-throw to be caught by simulateProgress
+        throw e;
       } finally {
         setGeneratingDocFor(null);
       }
     };
-
     simulateProgress(generationTask);
   };
 
@@ -758,17 +691,13 @@ const BookingsPage: NextPage = () => {
     ? calculatePricesForEditModal()
     : null;
 
-  // Helper function to format dates to DD/MM/YYYY
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return "—";
     try {
       const date = new Date(dateString);
-      // Check if the date is valid
-      if (isNaN(date.getTime())) {
-        return "—";
-      }
+      if (isNaN(date.getTime())) return "—";
       const day = String(date.getDate()).padStart(2, "0");
-      const month = String(date.getMonth() + 1).padStart(2, "0"); // Months are 0-indexed
+      const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
       return `${day}/${month}/${year}`;
     } catch (error) {
@@ -777,20 +706,16 @@ const BookingsPage: NextPage = () => {
     }
   };
 
-  // Helper function to format dates and times to DD/MM/YYYY at HH:MM
   const formatDateTime = (dateString: string | null | undefined): string => {
     if (!dateString) return "—";
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return "—";
-      }
+      if (isNaN(date.getTime())) return "—";
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
       const hours = String(date.getHours()).padStart(2, "0");
       const minutes = String(date.getMinutes()).padStart(2, "0");
-      // Format: DD/MM/YYYY at HH:MM
       return `${day}/${month}/${year} at ${hours}:${minutes}`;
     } catch (error) {
       console.error("Error formatting date and time:", dateString, error);
@@ -882,9 +807,7 @@ const BookingsPage: NextPage = () => {
           </nav>
         </div>
       </header>
-
       <main className="px-6 py-8">
-        {/* Search and Filter Form */}
         <div className="mb-8 p-6 bg-white/70 dark:bg-gray-800/70 rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50">
           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
             Search & Filter
@@ -964,11 +887,8 @@ const BookingsPage: NextPage = () => {
             </div>
           </div>
         )}
-
         {filteredReservations.map((r) => {
           const isExpanded = expandedCardId === r.bookingId;
-
-          // Determine the overall status. If any room is cancelled, the whole booking is considered cancelled for the UI.
           const isAnyRoomCancelled = r.allRooms.some(
             (room) => room.status.toLowerCase() === "cancelled"
           );
@@ -976,10 +896,7 @@ const BookingsPage: NextPage = () => {
             ? "cancelled"
             : r.topStatus.toLowerCase();
           const statusKey = overallStatusKey as keyof typeof statusMap;
-
-          // --- NEW: Check if the booking is cancelled ---
           const isCancelled = overallStatusKey === "cancelled";
-
           const statusDetails = statusMap[statusKey] || statusMap.pending;
           const IconStatus = statusDetails.icon;
           const leadPassenger =
@@ -987,17 +904,14 @@ const BookingsPage: NextPage = () => {
           const guestName = leadPassenger
             ? `${leadPassenger.firstName} ${leadPassenger.lastName}`
             : "N/A";
+          
+          const firstRoomNeedingConfirmation = r.allRooms.find(
+            (room) => room.reference?.confirmation === null && room.status.toLowerCase() !== 'cancelled'
+          );
 
-          // --- MODIFIED PRICE CALCULATION ---
           let S, C, M, D, NP, SP;
-
           if (isCancelled) {
-            S = 0;
-            C = 0;
-            M = 0;
-            D = 0;
-            NP = 0;
-            SP = 0;
+            S = C = M = D = NP = SP = 0;
           } else {
             S = r.priceDetails?.originalPrice?.value ?? r.priceIssueNet;
             C = r.priceIssueCommission;
@@ -1011,15 +925,13 @@ const BookingsPage: NextPage = () => {
                 M = r.priceDetails.markupApplied.value;
               }
             } else {
-              const tempD = 0.0;
-              M = SP_from_api - S + C + tempD;
+              M = SP_from_api - S + C;
             }
             D = 0.0;
             NP = S + M;
             SP = NP - C - D;
           }
 
-          // --- NEW: Create a modified reservation object for props if cancelled ---
           const reservationForModals = isCancelled
             ? {
                 ...r,
@@ -1041,7 +953,7 @@ const BookingsPage: NextPage = () => {
                 },
                 allRooms: r.allRooms.map((room) => ({
                   ...room,
-                  status: "cancelled", // Set room status to cancelled
+                  status: "cancelled",
                   priceNet: 0,
                   priceCommission: 0,
                 })),
@@ -1055,9 +967,7 @@ const BookingsPage: NextPage = () => {
               key={r.bookingId}
               className="bg-white dark:bg-gray-800 rounded-lg mb-4 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
             >
-              {/* --- Card Header with Actions --- */}
               <div className="p-4 flex flex-col lg:flex-row lg:justify-between lg:items-center">
-                {/* Left side: Hotel Info & Mobile Toggle */}
                 <div className="flex items-start justify-between w-full lg:w-auto">
                   <div
                     className="flex items-center space-x-3 min-w-0 cursor-pointer lg:cursor-default"
@@ -1087,7 +997,6 @@ const BookingsPage: NextPage = () => {
                       </p>
                     </div>
                   </div>
-                  {/* --- Mobile Toggle Button --- */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1105,11 +1014,8 @@ const BookingsPage: NextPage = () => {
                     />
                   </button>
                 </div>
-                {/* Right side: Action Buttons */}
+
                 <div className="flex items-center flex-wrap gap-2 mt-4 lg:mt-0 shrink-0 lg:pl-4">
-                  {/***************************************************/}
-                  {/* START OF MODIFICATION                           */}
-                  {/***************************************************/}
                   {r.topStatus.toLowerCase() === "onrequest" ? (
                     <>
                       <button
@@ -1182,6 +1088,21 @@ const BookingsPage: NextPage = () => {
                         </button>
                       )}
 
+                      {firstRoomNeedingConfirmation && !isCancelled && (
+                        <button
+                          onClick={() =>
+                            handleAddConfirmationClick(
+                              r,
+                              firstRoomNeedingConfirmation.reservationId
+                            )
+                          }
+                          className={`${baseButtonStyles} bg-purple-500 hover:bg-purple-600 text-white border-purple-600`}
+                        >
+                          <FaCheckCircle />
+                          <span>Add Confirmation</span>
+                        </button>
+                      )}
+                      
                       <button
                         onClick={() =>
                           handleGenerateVoucher(reservationForModals)
@@ -1211,164 +1132,89 @@ const BookingsPage: NextPage = () => {
                       </button>
                     </>
                   )}
-                  {/***************************************************/}
-                  {/* END OF MODIFICATION                             */}
-                  {/***************************************************/}
                 </div>
               </div>
-
-              {/* --- Expandable Content --- */}
+              
               <div
                 className={`
-                  transition-all duration-500 ease-in-out
-                  ${
-                    isExpanded
-                      ? "max-h-[1500px] opacity-100"
-                      : "max-h-0 opacity-0"
-                  }
-                  overflow-hidden
-                  lg:max-h-full lg:opacity-100
-                `}
+                transition-all duration-500 ease-in-out
+                ${
+                  isExpanded
+                    ? "max-h-[1500px] opacity-100"
+                    : "max-h-0 opacity-0"
+                }
+                overflow-hidden
+                lg:max-h-full lg:opacity-100
+              `}
               >
-                {/* --- Main Content Area with Full-Height Rooms Column --- */}
                 <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
                   <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-x-8">
-                    {/* --- LEFT SIDE: All details except rooms (takes up 3 of 4 columns) --- */}
                     <div className="lg:col-span-3 space-y-6">
-                      {/* Section 1: Guest, Agency, Created On */}
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Guest
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {guestName}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Agency
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.agencyName}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Created On
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {formatDate(r.createdAt)}
-                          </p>
-                        </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Guest</p>
+                           <p className="text-gray-800 dark:text-gray-200">{guestName}</p>
+                         </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Agency</p>
+                           <p className="text-gray-800 dark:text-gray-200">{r.agencyName}</p>
+                         </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Created On</p>
+                           <p className="text-gray-800 dark:text-gray-200">{formatDate(r.createdAt)}</p>
+                         </div>
                       </div>
-
-                      {/* Section 2: Price & Dates */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div className="md:col-span-1">
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">
-                            Price ({r.currency})
-                          </p>
-                          <div className="space-y-1 text-sm dark:text-gray-100">
-                            <div className="flex justify-between">
-                              <span>S (Suppl.):</span>{" "}
-                              <span>{S.toFixed(2)}</span>
+                         <div className="md:col-span-1">
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">Price ({r.currency})</p>
+                            <div className="space-y-1 text-sm dark:text-gray-100">
+                                <div className="flex justify-between"><span>S (Suppl.):</span> <span>{S.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>M (Markup):</span> <span>{M.toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1"><span>NP (Net):</span> <span>{NP.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-red-500"><span>C (Comm.):</span> <span>{C.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-red-500"><span>D (Disc.):</span> <span>{D.toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1"><span>SP (Sell):</span> <span>{SP.toFixed(2)}</span></div>
                             </div>
-                            <div className="flex justify-between">
-                              <span>M (Markup):</span>{" "}
-                              <span>{M.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1">
-                              <span>NP (Net):</span> <span>{NP.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-red-500">
-                              <span>C (Comm.):</span>{" "}
-                              <span>{C.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-red-500">
-                              <span>D (Disc.):</span>{" "}
-                              <span>{D.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1">
-                              <span>SP (Sell):</span>{" "}
-                              <span>{SP.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Check In
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {formatDate(r.checkIn)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Check Out
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {formatDate(r.checkOut)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Nights
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {r.nights || "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Payment
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {r.paymentType || "—"}
-                            </p>
-                          </div>
-                        </div>
+                         </div>
+                         <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
+                             <div>
+                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check In</p>
+                               <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkIn)}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check Out</p>
+                               <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkOut)}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nights</p>
+                               <p className="text-gray-800 dark:text-gray-200">{r.nights || "—"}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Payment</p>
+                               <p className="text-gray-800 dark:text-gray-200">{r.paymentType || "—"}</p>
+                             </div>
+                         </div>
                       </div>
-
-                      {/* Section 3: Destination, Nationality & Provider */}
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Destination
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.destinationCity && r.destinationCountry
-                              ? `${r.destinationCity}, ${r.destinationCountry}`
-                              : "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Nationality
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.nationality || "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Provider
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.providerName}
-                          </p>
-                        </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Destination</p>
+                           <p className="text-gray-800 dark:text-gray-200">{r.destinationCity && r.destinationCountry ? `${r.destinationCity}, ${r.destinationCountry}` : "—"}</p>
+                         </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nationality</p>
+                           <p className="text-gray-800 dark:text-gray-200">{r.nationality || "—"}</p>
+                         </div>
+                         <div>
+                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Provider</p>
+                           <p className="text-gray-800 dark:text-gray-200">{r.providerName}</p>
+                         </div>
                       </div>
                     </div>
 
-                    {/* --- RIGHT SIDE: Rooms column (takes up 1 of 4 columns) --- */}
                     <div className="lg:col-span-1 mt-6 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 lg:pl-8 lg:border-l border-gray-200 dark:border-gray-700">
-                      <div className="text-sm">
-                        <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                          Rooms
-                        </p>
-                        <div className="mt-1">
+                       <div className="text-sm">
+                         <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Rooms</p>
+                          <div className="mt-1">
                           {reservationForModals.allRooms.map((room, index) => {
                             let cancellationDateString = null;
                             if (
@@ -1376,60 +1222,38 @@ const BookingsPage: NextPage = () => {
                               room.cancellationPolicy.policies.length > 0 &&
                               room.cancellationPolicy.policies[0].startDate
                             ) {
-                              cancellationDateString =
-                                room.cancellationPolicy.policies[0].startDate;
+                              cancellationDateString = room.cancellationPolicy.policies[0].startDate;
                             } else if (room.cancellationPolicy?.date) {
-                              cancellationDateString =
-                                room.cancellationPolicy.date;
+                              cancellationDateString = room.cancellationPolicy.date;
                             }
-
                             return (
-                              <React.Fragment
-                                key={room.reservationId || index}
-                              >
+                              <React.Fragment key={room.reservationId || index}>
                                 <div className="py-2">
-                                  <p
-                                    className="font-semibold text-sm text-gray-900 dark:text-gray-100"
-                                    title={`${room.roomName} (${room.status})`}
-                                  >
+                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100" title={`${room.roomName} (${room.status})`}>
                                     {room.roomName}
-                                    <span
-                                      className={`ml-2 capitalize font-medium ${
-                                        room.status === "cancelled"
-                                          ? "text-red-500"
-                                          : room.status === "pending"
-                                          ? "text-yellow-500"
-                                          : "text-green-600"
-                                      }`}
-                                    >
-                                      (
-                                      {room.status === "pending"
-                                        ? "Payment Pending"
-                                        : room.status === "confirmed"
-                                        ? "Paid"
-                                        : room.status}
-                                      )
+                                    <span className={`ml-2 capitalize font-medium ${
+                                      room.status === "cancelled" ? "text-red-500"
+                                      : room.status === "pending" ? "text-yellow-500"
+                                      : "text-green-600"
+                                    }`}>
+                                      ({room.status === "pending" ? "Payment Pending"
+                                        : room.status === "confirmed" ? "Paid"
+                                        : room.status})
                                     </span>
                                   </p>
                                   {cancellationDateString && (
                                     <p className="text-sm font-medium mt-0.5">
-                                      <span className="text-red-600 dark:text-red-500">
-                                        Auto cancellation by---{" "}
-                                      </span>
-                                      <span className="text-red-600 dark:text-red-500">
-                                        {formatDateTime(cancellationDateString)}
-                                      </span>
+                                      <span className="text-red-600 dark:text-red-500">Auto cancellation by--- </span>
+                                      <span className="text-red-600 dark:text-red-500">{formatDateTime(cancellationDateString)}</span>
                                     </p>
                                   )}
                                 </div>
-                                {index < r.allRooms.length - 1 && (
-                                  <hr className="border-gray-200 dark:border-gray-600" />
-                                )}
+                                {index < r.allRooms.length - 1 && (<hr className="border-gray-200 dark:border-gray-600" />)}
                               </React.Fragment>
                             );
                           })}
-                        </div>
-                      </div>
+                          </div>
+                       </div>
                     </div>
                   </div>
                 </div>
@@ -1455,7 +1279,6 @@ const BookingsPage: NextPage = () => {
         calculatedPrices={editModalCalculatedPrices}
       />
 
-      {/* --- UPDATED: Props for RoomCancellationModal have changed --- */}
       {cancelModalRes && (
         <RoomCancellationModal
           reservation={cancelModalRes}
@@ -1464,7 +1287,6 @@ const BookingsPage: NextPage = () => {
         />
       )}
 
-      {/* --- NEW: Render the payment modal --- */}
       {payModalRes && (
         <PayOptionsModal
           reservation={payModalRes}
@@ -1472,8 +1294,22 @@ const BookingsPage: NextPage = () => {
           onClose={() => setPayModalRes(null)}
         />
       )}
+      
+      {/* --- MODIFIED: onSuccess handler now only closes the modal --- */}
+      {confirmationModalData && (
+        <AddConfirmationModal
+          isOpen={!!confirmationModalData}
+          onClose={() => setConfirmationModalData(null)}
+          onSuccess={() => {
+            // Per the request, we only close the modal on success.
+            // This will show the toast and keep the button visible.
+            setConfirmationModalData(null);
+          }}
+          bookingId={confirmationModalData.reservation.dbId}
+          reservationId={confirmationModalData.reservationId}
+        />
+      )}
 
-      {/* --- NEW: Render the Percentage Loader Modal --- */}
       <PercentageLoaderModal
         isOpen={isLoaderVisible}
         progress={loaderProgress}
