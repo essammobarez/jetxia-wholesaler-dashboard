@@ -288,6 +288,7 @@ const BookingsPage: NextPage = () => {
                   external: null,
                   confirmation: null,
                 },
+                confirmationNo: room.confirmationNo ?? null,
               };
             });
 
@@ -1151,69 +1152,69 @@ const BookingsPage: NextPage = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-x-8">
                     <div className="lg:col-span-3 space-y-6">
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Guest</p>
-                           <p className="text-gray-800 dark:text-gray-200">{guestName}</p>
-                         </div>
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Agency</p>
-                           <p className="text-gray-800 dark:text-gray-200">{r.agencyName}</p>
-                         </div>
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Created On</p>
-                           <p className="text-gray-800 dark:text-gray-200">{formatDate(r.createdAt)}</p>
-                         </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Guest</p>
+                            <p className="text-gray-800 dark:text-gray-200">{guestName}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Agency</p>
+                            <p className="text-gray-800 dark:text-gray-200">{r.agencyName}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Created On</p>
+                            <p className="text-gray-800 dark:text-gray-200">{formatDate(r.createdAt)}</p>
+                          </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                         <div className="md:col-span-1">
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">Price ({r.currency})</p>
-                            <div className="space-y-1 text-sm dark:text-gray-100">
-                                <div className="flex justify-between"><span>S (Suppl.):</span> <span>{S.toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>M (Markup):</span> <span>{M.toFixed(2)}</span></div>
-                                <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1"><span>NP (Net):</span> <span>{NP.toFixed(2)}</span></div>
-                                <div className="flex justify-between text-red-500"><span>C (Comm.):</span> <span>{C.toFixed(2)}</span></div>
-                                <div className="flex justify-between text-red-500"><span>D (Disc.):</span> <span>{D.toFixed(2)}</span></div>
-                                <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1"><span>SP (Sell):</span> <span>{SP.toFixed(2)}</span></div>
-                            </div>
-                         </div>
-                         <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
-                             <div>
-                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check In</p>
-                               <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkIn)}</p>
-                             </div>
-                             <div>
-                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check Out</p>
-                               <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkOut)}</p>
-                             </div>
-                             <div>
-                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nights</p>
-                               <p className="text-gray-800 dark:text-gray-200">{r.nights || "—"}</p>
-                             </div>
-                             <div>
-                               <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Payment</p>
-                               <p className="text-gray-800 dark:text-gray-200">{r.paymentType || "—"}</p>
-                             </div>
-                         </div>
+                          <div className="md:col-span-1">
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">Price ({r.currency})</p>
+                              <div className="space-y-1 text-sm dark:text-gray-100">
+                                  <div className="flex justify-between"><span>S (Suppl.):</span> <span>{S.toFixed(2)}</span></div>
+                                  <div className="flex justify-between"><span>M (Markup):</span> <span>{M.toFixed(2)}</span></div>
+                                  <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1"><span>NP (Net):</span> <span>{NP.toFixed(2)}</span></div>
+                                  <div className="flex justify-between text-red-500"><span>C (Comm.):</span> <span>{C.toFixed(2)}</span></div>
+                                  <div className="flex justify-between text-red-500"><span>D (Disc.):</span> <span>{D.toFixed(2)}</span></div>
+                                  <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1"><span>SP (Sell):</span> <span>{SP.toFixed(2)}</span></div>
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
+                              <div>
+                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check In</p>
+                                <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkIn)}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check Out</p>
+                                <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkOut)}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nights</p>
+                                <p className="text-gray-800 dark:text-gray-200">{r.nights || "—"}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Payment</p>
+                                <p className="text-gray-800 dark:text-gray-200">{r.paymentType || "—"}</p>
+                              </div>
+                          </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Destination</p>
-                           <p className="text-gray-800 dark:text-gray-200">{r.destinationCity && r.destinationCountry ? `${r.destinationCity}, ${r.destinationCountry}` : "—"}</p>
-                         </div>
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nationality</p>
-                           <p className="text-gray-800 dark:text-gray-200">{r.nationality || "—"}</p>
-                         </div>
-                         <div>
-                           <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Provider</p>
-                           <p className="text-gray-800 dark:text-gray-200">{r.providerName}</p>
-                         </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Destination</p>
+                            <p className="text-gray-800 dark:text-gray-200">{r.destinationCity && r.destinationCountry ? `${r.destinationCity}, ${r.destinationCountry}` : "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nationality</p>
+                            <p className="text-gray-800 dark:text-gray-200">{r.nationality || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Provider</p>
+                            <p className="text-gray-800 dark:text-gray-200">{r.providerName}</p>
+                          </div>
                       </div>
                     </div>
 
                     <div className="lg:col-span-1 mt-6 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 lg:pl-8 lg:border-l border-gray-200 dark:border-gray-700">
-                       <div className="text-sm">
-                         <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Rooms</p>
+                        <div className="text-sm">
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Rooms</p>
                           <div className="mt-1">
                           {reservationForModals.allRooms.map((room, index) => {
                             let cancellationDateString = null;
@@ -1247,13 +1248,19 @@ const BookingsPage: NextPage = () => {
                                       <span className="text-red-600 dark:text-red-500">{formatDateTime(cancellationDateString)}</span>
                                     </p>
                                   )}
+                                  {room.confirmationNo && (
+                                    <p className="text-sm font-medium mt-5">
+  <span className="text-gray-800 dark:text-gray-200">Confirmation No: </span>
+  <span className="font-bold text-blue-600 dark:text-blue-400">{room.confirmationNo}</span>
+</p>
+                                  )}
                                 </div>
                                 {index < r.allRooms.length - 1 && (<hr className="border-gray-200 dark:border-gray-600" />)}
                               </React.Fragment>
                             );
                           })}
                           </div>
-                       </div>
+                        </div>
                     </div>
                   </div>
                 </div>
