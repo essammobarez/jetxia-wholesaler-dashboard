@@ -64,7 +64,7 @@ import OutstandingReport from './OutstandingReport';
 import ReportsDashboard from './ReportsDashboard';
 import StatementOfAccount from './StatementOfAccount';
 
-// Import for Coupon management
+// New imports for Coupon management
 import ManageCoupon from './ManageCoupon';
 
 // ✨ UPDATED: Import for Campaign Pages & new subscriber page
@@ -72,6 +72,14 @@ import ManageCoupon from './ManageCoupon';
 import CreateCampaign from './CreateCampaign';
 import CreateSubscriber from './create-subscriber'; // ✨ NEW: Import the new component
 import CampaignListItem from './campaign/CampaignListItem';
+
+// ✨ NEW: Import for Mapping Tabs
+import NationalityTab from './mapping/NationalityTab';
+import CountryTab from './mapping/CountryTab';
+import CitiesTab from './mapping/CitiesTab';
+import HotelsTab from './mapping/HotelsTab';
+import HotelContentTab from './mapping/HotelContentTab';
+import MappingDashboardTab from './mapping/DashboardTab';
 
 // This is the full list of all possible menu items
 const allMenuItems = [
@@ -99,6 +107,7 @@ const allMenuItems = [
   // 'Notifications',
   // 'Integrations',
   'Mapped Hotels',
+  'Mapping', // ✨ NEW: Added Mapping menu
   'API Management',
 
   // 'Logs',
@@ -432,7 +441,7 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person'].includes(item) && (
+                {['Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -630,6 +639,28 @@ export default function WholesalerPage() {
                         {tab === 'PaymentReport' && 'Payment Report'}
                         {tab === 'AdvancedAnalytics' && 'Advanced Analytics'}
                       </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {expandedMenu === 'Mapping' && item === 'Mapping' && (
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['Nationality', 'Country', 'Cities', 'Hotels', 'Hotel Content'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Mapping');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">{tab}</span>
                     </button>
                   ))}
                 </div>
@@ -843,6 +874,65 @@ export default function WholesalerPage() {
 
             {activePage === 'API Management' && <APIManagement />}
             {activePage === 'Mapped Hotels' && <MappedHotels />}
+
+          {/* ✨ NEW: Mapping Module */}
+          {activePage === 'Mapping' && (
+            <div className="animate-fade-scale">
+              {/* 📊 Mapping Dashboard */}
+              <div className="mb-8">
+                <MappingDashboardTab />
+              </div>
+              
+              {activeTab === 'Nationality' && <NationalityTab />}
+              {activeTab === 'Country' && <CountryTab />}
+              {activeTab === 'Cities' && <CitiesTab />}
+              {activeTab === 'Hotels' && <HotelsTab />}
+              {activeTab === 'Hotel Content' && <HotelContentTab />}
+              {!activeTab && (
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Mapping Management</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Select a mapping module from the sidebar to manage data mapping across suppliers.</p>
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                        </svg>
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Nationality</span>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Country</span>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Cities</span>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-6 h-6 text-orange-600 dark:text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+                        </svg>
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Hotels</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {activePage === 'Metrics' && <Metrics />}
           {/* {activePage === 'Payment' && <Payment />} */}
