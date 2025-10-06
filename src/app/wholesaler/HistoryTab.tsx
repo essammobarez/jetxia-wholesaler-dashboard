@@ -36,13 +36,18 @@ interface RoomInfo {
   childrenAges?: number[];
 }
 
+interface RoomData {
+  roomType: string;
+  price: number;
+}
+
 interface HistoryRow {
   User: string;
   LoginDate: string;
   Search: string;
   Hotel: string;
   HotelCode: string;
-  Room: string[];
+  Room: RoomData[];
   BookingStages: string[];
   Destination?: string;
   CheckInDate?: string;
@@ -282,7 +287,7 @@ const HistoryPage: NextPage = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['User', 'Login Date', 'Search Query', 'Hotel', 'Hotel Code', 'Destination', 'Check In', 'Check Out', 'Rooms Info', 'Booking Stages'];
+    const headers = ['User', 'Login Date', 'Search Query', 'Hotel', 'Hotel Code', 'Destination', 'Check In', 'Check Out', 'Rooms Info', 'Room Details', 'Booking Stages'];
     const csvData = filteredData.map(record => [
       record.User,
       formatDate(record.LoginDate),
@@ -293,6 +298,7 @@ const HistoryPage: NextPage = () => {
       record.CheckInDate ? formatDate(record.CheckInDate) : '',
       record.CheckOutDate ? formatDate(record.CheckOutDate) : '',
       formatRoomsInfo(record.RoomsInfo),
+      record.Room?.length > 0 ? record.Room.map(room => `${room.roomType} - $${room.price.toFixed(2)}`).join(', ') : '',
       Array.isArray(record.BookingStages) ? record.BookingStages.join(', ') : ''
     ]);
     const csvContent = [headers, ...csvData].map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -428,7 +434,7 @@ const HistoryPage: NextPage = () => {
                   </div>
 
                   {/* Search & Hotel Info */}
-                  <div className="lg:col-span-4">
+                  <div className="lg:col-span-3">
                     <div className="space-y-2">
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{record.Search}</p>
@@ -443,19 +449,28 @@ const HistoryPage: NextPage = () => {
 
                   {/* Booking Details */}
                   <div className="lg:col-span-3">
-                    {(record.CheckInDate || record.RoomsInfo) && (
-                      <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-                        {record.CheckInDate && record.CheckOutDate && (
-                          <div className="flex items-center"><Calendar className="w-3 h-3 mr-2 flex-shrink-0" /><span>{formatDate(record.CheckInDate)} - {formatDate(record.CheckOutDate)}</span></div>
-                        )}
-                        {record.Room?.length > 0 && (
-                          <div className="flex items-center"><Bed className="w-3 h-3 mr-2 flex-shrink-0" /><span>{record.Room.join(', ')}</span></div>
-                        )}
-                        {record.RoomsInfo && (
-                          <div className="flex items-center"><Users className="w-3 h-3 mr-2 flex-shrink-0" /><span>{formatRoomsInfo(record.RoomsInfo)}</span></div>
-                        )}
+                    <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                      {record.CheckInDate && record.CheckOutDate && (
+                        <div className="flex items-center"><Calendar className="w-3 h-3 mr-2 flex-shrink-0" /><span>{formatDate(record.CheckInDate)} - {formatDate(record.CheckOutDate)}</span></div>
+                      )}
+                      {record.RoomsInfo && (
+                        <div className="flex items-center"><Users className="w-3 h-3 mr-2 flex-shrink-0" /><span>{formatRoomsInfo(record.RoomsInfo)}</span></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Room Data */}
+                  <div className="lg:col-span-3">
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {record.Room?.length > 0 ? `$${record.Room[0].price.toFixed(2)}` : 'N/A'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {record.Room?.length > 0 ? record.Room[0].roomType : 'No booking proceeded'}
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Revenue & Status */}
