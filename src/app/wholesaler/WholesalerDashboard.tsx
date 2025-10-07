@@ -9,6 +9,7 @@ import {
   Search,
   Sun,
 } from 'lucide-react';
+import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -741,13 +742,10 @@ export default function WholesalerPage() {
               </button>
 
               <div className="relative">
-                <button
-                  aria-label="View notifications"
-                  className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 relative"
-                >
-                  <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                </button>
+                <NotificationDropdown 
+                  classes="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300"
+                  theme={darkMode ? "dark" : "light"}
+                />
               </div>
             </div>
           </div>
