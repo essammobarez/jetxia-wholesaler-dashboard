@@ -8,6 +8,8 @@ import AssignModal from './AssignModal';
 import { TbCreditCardPay } from 'react-icons/tb';
 import { toast } from 'react-toastify';
 import { SubAgencyModal } from './SubAgencyModal';
+// NEW: Import the delete confirmation modal
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 type PartnerProvider = {
   _id: string;
@@ -90,6 +92,10 @@ export default function AgencyAdminPanel() {
     selectedAgencyForSubAgents,
     setSelectedAgencyForSubAgents,
   ] = useState<{ id: string; name: string } | null>(null);
+    
+  // NEW: State to manage which agency is targeted for deletion
+  const [agencyToDelete, setAgencyToDelete] = useState<AgencyWithState | null>(null);
+
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
   const [wholesalerId, setWholesalerId] = useState<string | null>(null);
@@ -171,7 +177,7 @@ export default function AgencyAdminPanel() {
             ) {
               markupPercentage = firstMarkup.value;
             }
-             processedMarkupPlan = { ...item.markupPlan };
+              processedMarkupPlan = { ...item.markupPlan };
           }
 
           return {
@@ -253,7 +259,6 @@ export default function AgencyAdminPanel() {
     }
   };
 
-  // FIX: This function handles the API call and state update for the switch
   const togglePartnerProviderStatus = async (
     agencyId: string,
     providerId: string
@@ -279,11 +284,9 @@ export default function AgencyAdminPanel() {
       return;
     }
 
-    // Determine the new status to send to the API (the opposite of the current one)
     const newStatus = !partner.status;
 
     try {
-      // Call the API with the correct agencyId and providerId
       const res = await fetch(
         `${API_URL}agency/${agencyId}/partner-provider/${providerId}`,
         {
@@ -304,17 +307,14 @@ export default function AgencyAdminPanel() {
 
       toast.success('Supplier status updated successfully!');
 
-      // This helper function creates the updated list of providers
       const updateProvidersList = (providers: PartnerProvider[]) =>
         providers.map(p => {
           if (p.providerId._id === providerId) {
-            // Found the provider that was toggled, return it with the new status
             return { ...p, status: newStatus };
           }
           return p;
         });
 
-      // Update the main 'agencies' list so the change persists
       setAgencies(prevAgencies =>
         prevAgencies.map(a => {
           if (a.id === agencyId) {
@@ -324,8 +324,6 @@ export default function AgencyAdminPanel() {
         })
       );
       
-      // CRITICAL: Update the 'selected' agency state.
-      // This makes the switch in the open modal update visually.
       setSelected(prevSelected => {
         if (!prevSelected || prevSelected.id !== agencyId) return prevSelected;
         return {
@@ -488,11 +486,47 @@ export default function AgencyAdminPanel() {
     closeModal();
   };
 
-  const deleteAgency = (agency: BaseAgency) => {
-    if (confirm(`Delete agency "${agency.agencyName}" permanently?`)) {
-      setAgencies(prev => prev.filter(a => a.id !== agency.id));
+  // NEW: Handler for the delete API call
+  const handleConfirmDelete = async () => {
+    if (!agencyToDelete) return;
+
+    const token =
+      document.cookie
+        .split('; ')
+        .find(r => r.startsWith('authToken='))
+        ?.split('=')[1] || localStorage.getItem('authToken');
+
+    if (!token) {
+        toast.error('Authorization failed. Please log in again.');
+        return;
     }
-    closeModal();
+    
+    const agencyId = agencyToDelete.id;
+
+    try {
+        const res = await fetch(`${API_URL}agency/${agencyId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        const json = await res.json();
+
+        if (res.ok && json.success) {
+            toast.success(`Agency "${agencyToDelete.agencyName}" deleted successfully.`);
+            setAgencies(prev => prev.filter(a => a.id !== agencyId));
+        } else {
+            toast.error(json.message || 'Failed to delete agency.');
+        }
+    } catch (err) {
+        console.error('Error deleting agency:', err);
+        toast.error('An error occurred while deleting the agency.');
+    } finally {
+        // Close the confirmation modal regardless of outcome
+        setAgencyToDelete(null);
+    }
   };
 
   const closeModal = () => setModalMode(null);
@@ -638,20 +672,20 @@ export default function AgencyAdminPanel() {
                             />
                             <div
                               className={`
-                                                absolute left-1/2 -translate-x-1/2 w-max max-w-xs
-                                                bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
-                                                ${
-                                                  isTopRow
-                                                    ? 'top-full mt-2'
-                                                    : 'bottom-full mb-2'
-                                                }
-                                                ${
-                                                  activeTooltip === a.id
-                                                    ? 'visible opacity-100'
-                                                    : 'invisible opacity-0'
-                                                }
-                                                lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
-                                            `}
+                                      absolute left-1/2 -translate-x-1/2 w-max max-w-xs
+                                      bg-gray-800 text-white text-sm rounded-lg shadow-lg p-3 z-50 transition-opacity
+                                      ${
+                                        isTopRow
+                                          ? 'top-full mt-2'
+                                          : 'bottom-full mb-2'
+                                      }
+                                      ${
+                                        activeTooltip === a.id
+                                          ? 'visible opacity-100'
+                                          : 'invisible opacity-0'
+                                      }
+                                      lg:invisible lg:opacity-0 lg:group-hover:visible lg:group-hover:opacity-100
+                                    `}
                             >
                               <h4 className="font-bold border-b border-gray-600 pb-1 mb-2">
                                 Providers & Markups
@@ -675,14 +709,14 @@ export default function AgencyAdminPanel() {
                               </ul>
                               <div
                                 className={`
-                                                    absolute left-1/2 -translate-x-1/2 w-0 h-0
-                                                    border-x-8 border-x-transparent
-                                                    ${
-                                                      isTopRow
-                                                        ? 'bottom-full border-b-8 border-b-gray-800'
-                                                        : 'top-full border-t-8 border-t-gray-800'
-                                                    }
-                                                `}
+                                          absolute left-1/2 -translate-x-1/2 w-0 h-0
+                                          border-x-8 border-x-transparent
+                                          ${
+                                            isTopRow
+                                              ? 'bottom-full border-b-8 border-b-gray-800'
+                                              : 'top-full border-t-8 border-t-gray-800'
+                                          }
+                                        `}
                               />
                             </div>
                           </div>
@@ -777,7 +811,8 @@ export default function AgencyAdminPanel() {
                       </Switch>
                       <button
                         title="Delete"
-                        onClick={() => deleteAgency(a)}
+                        // NEW: On click, set the agency to be deleted to open the confirmation modal
+                        onClick={() => setAgencyToDelete(a)}
                         className="p-2 bg-red-200 rounded-full hover:bg-red-300 transition"
                       >
                         <Trash2 size={18} className="text-red-700" />
@@ -802,7 +837,11 @@ export default function AgencyAdminPanel() {
         onSave={saveEdit}
         onSaveProfile={saveProfile}
         onToggleSuspend={toggleStatus}
-        onDelete={deleteAgency}
+        // NEW: The delete button inside the main modal will now also trigger our confirmation modal
+        onDelete={(agency) => {
+            closeModal(); // Close the AgencyModal first
+            setAgencyToDelete(agency as AgencyWithState); // Then open the confirmation modal
+        }}
         plans={plans}
         onTogglePartnerProvider={togglePartnerProviderStatus}
       />
@@ -827,6 +866,14 @@ export default function AgencyAdminPanel() {
         onClose={() => setSelectedAgencyForSubAgents(null)}
         agencyId={selectedAgencyForSubAgents?.id}
         agencyName={selectedAgencyForSubAgents?.name}
+      />
+
+      {/* NEW: Render the delete confirmation modal conditionally */}
+      <DeleteConfirmationModal
+        isOpen={!!agencyToDelete}
+        onClose={() => setAgencyToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        agencyName={agencyToDelete?.agencyName || ''}
       />
     </div>
   );
