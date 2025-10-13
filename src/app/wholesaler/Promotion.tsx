@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // Import the useRouter hook
 
 // --- Interfaces ---
 interface Provider {
@@ -37,8 +38,10 @@ const NotificationPopup: React.FC<{
 }> = ({ notification, onClose }) => {
   if (!notification.show) return null;
 
-  const baseClasses = 'fixed top-5 right-5 w-auto max-w-sm p-4 rounded-lg shadow-lg text-white flex items-center justify-between z-50';
-  const typeClasses = notification.type === 'success' ? 'bg-green-500' : 'bg-red-500';
+  const baseClasses =
+    'fixed top-5 right-5 w-auto max-w-sm p-4 rounded-lg shadow-lg text-white flex items-center justify-between z-50';
+  const typeClasses =
+    notification.type === 'success' ? 'bg-green-500' : 'bg-red-500';
 
   return (
     <div className={`${baseClasses} ${typeClasses}`}>
@@ -49,7 +52,6 @@ const NotificationPopup: React.FC<{
     </div>
   );
 };
-
 
 // --- Main Component ---
 const Promotion: React.FC<PromotionProps> = ({
@@ -68,6 +70,7 @@ const Promotion: React.FC<PromotionProps> = ({
     type: 'success',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter(); // Initialize the router
 
   // --- Effects ---
   useEffect(() => {
@@ -100,7 +103,7 @@ const Promotion: React.FC<PromotionProps> = ({
       }
     })();
   }, []);
-  
+
   // Auto-hide notification after 3 seconds
   useEffect(() => {
     if (notification.show) {
@@ -115,7 +118,7 @@ const Promotion: React.FC<PromotionProps> = ({
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ show: true, message, type });
   };
-  
+
   const onCheckbox = (index: number) => {
     setSelected(prev => {
       const next = [...prev];
@@ -139,7 +142,7 @@ const Promotion: React.FC<PromotionProps> = ({
 
   const handleSave = async () => {
     setIsLoading(true);
-    
+
     if (!createdBy) {
       showNotification('Error: Creator ID is missing.', 'error');
       setIsLoading(false);
@@ -149,27 +152,30 @@ const Promotion: React.FC<PromotionProps> = ({
     const markupsToSubmit = rows
       .map((row, i) => {
         if (!selected[i] || !percentages[i]) return null;
-        
+
         const value = parseFloat(percentages[i].replace('%', ''));
         if (isNaN(value)) return null;
 
         return {
           provider: row.id,
-          type: row.type, 
+          type: row.type,
           value,
         };
       })
       .filter(Boolean) as { provider: string; type: string; value: number }[];
 
     if (!markupsToSubmit.length) {
-      showNotification('Please select a provider and set a valid markup value.', 'error');
+      showNotification(
+        'Please select a provider and set a valid markup value.',
+        'error'
+      );
       setIsLoading(false);
       return;
     }
 
     const payload = {
-      name,      // from props
-      service,   // from props
+      name, // from props
+      service, // from props
       createdBy, // from props
       markups: markupsToSubmit,
     };
@@ -189,17 +195,27 @@ const Promotion: React.FC<PromotionProps> = ({
         console.error('API Error:', errorData);
         throw new Error(`Failed to save plan: ${errorData}`);
       }
-      
-      showNotification('Plan saved successfully!', 'success');
-      // Optionally call another callback on successful save
-      // onSave();
 
+      showNotification('Plan saved successfully!', 'success');
+
+      // --- 🚀 ADDED: Automatic navigation after success ---
+      // Wait for the notification to be visible, then navigate.
+      setTimeout(() => {
+        router.push('/wholesaler?page=Markup&tab=PlanList');
+      }, 1500); // 1.5-second delay
+      
     } catch (err) {
       console.error('Save error:', err);
-      showNotification(err instanceof Error ? err.message : 'An unexpected error occurred.', 'error');
-    } finally {
+      showNotification(
+        err instanceof Error ? err.message : 'An unexpected error occurred.',
+        'error'
+      );
+      // Keep loading false if there is an error, to allow another attempt.
       setIsLoading(false);
     }
+    // We remove setIsLoading(false) from the 'finally' block in the success case
+    // because the page will navigate away, so resetting the state isn't necessary.
+    // It remains in the error catch block.
   };
 
   return (
@@ -243,8 +259,12 @@ const Promotion: React.FC<PromotionProps> = ({
                       {row.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-medium text-sm sm:text-base">{row.name}</p>
-                      <p className="text-xs sm:text-sm text-gray-500">{row.handle}</p>
+                      <p className="font-medium text-sm sm:text-base">
+                        {row.name}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        {row.handle}
+                      </p>
                     </div>
                   </div>
                 </label>
