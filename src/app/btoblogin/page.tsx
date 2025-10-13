@@ -97,7 +97,7 @@ const InputField: FC<InputFieldProps> = ({
   </div>
 );
 
-// --- OTP Input Component (Unchanged) ---
+// --- OTP Input Component (For Google Auth - Numeric only) ---
 interface OtpInputProps {
   length: number;
   value: string;
@@ -137,9 +137,68 @@ const OtpInput: FC<OtpInputProps> = ({ length, value, onChange }) => {
       {Array.from({ length }, (_, index) => (
         <input
           key={index}
-          ref={(el) => (inputRefs.current[index] = el as HTMLInputElement)}
+          ref={(el) => {
+            if (el) inputRefs.current[index] = el;
+          }}
           type="text"
           inputMode="numeric"
+          maxLength={1}
+          value={value[index] || ''}
+          onChange={(e) => handleChange(e.target, index)}
+          onKeyDown={(e) => handleKeyDown(e, index)}
+          onFocus={(e) => e.target.select()}
+          className="w-10 h-12 text-center text-2xl font-semibold bg-gray-50 border-2 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+        />
+      ))}
+    </div>
+  );
+};
+
+// --- Email OTP Input Component (Alphanumeric) ---
+interface EmailOtpInputProps {
+  length: number;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const EmailOtpInput: FC<EmailOtpInputProps> = ({ length, value, onChange }) => {
+  const inputRefs = useRef<HTMLInputElement[]>([]);
+
+  const handleChange = (element: HTMLInputElement, index: number) => {
+    const enteredValue = element.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const newOtp = [...value.split('')];
+    newOtp[index] = enteredValue.slice(-1);
+    onChange(newOtp.join(''));
+    if (enteredValue && index < length - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === 'Backspace' && !e.currentTarget.value && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (pasteData.length === length) {
+      onChange(pasteData);
+      inputRefs.current[length - 1]?.focus();
+    }
+  };
+
+  return (
+    <div className="flex justify-center gap-2 my-3" onPaste={handlePaste}>
+      {Array.from({ length }, (_, index) => (
+        <input
+          key={index}
+          ref={(el) => {
+            if (el) inputRefs.current[index] = el;
+          }}
+          type="text"
+          inputMode="text"
           maxLength={1}
           value={value[index] || ''}
           onChange={(e) => handleChange(e.target, index)}
@@ -163,9 +222,10 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [verificationMethod, setVerificationMethod] = useState<'email' | 'google'>('email');
-  type AuthStep = 'credentials' | 'email-verify-pending' | '2fa-setup' | '2fa-verify';
+  type AuthStep = 'credentials' | 'email-verify-pending' | 'email-verify-otp' | '2fa-setup' | '2fa-verify';
   const [authStep, setAuthStep] = useState<AuthStep>('credentials');
   const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
   const [setupSecret, setSetupSecret] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [countdown, setCountdown] = useState(300);
@@ -360,6 +420,50 @@ export default function Login() {
         setIsLoading(false);
     }
   };
+
+  const handleEmailOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
+    setIsLoading(true);
+
+    try {
+      if (emailOtp.length !== 6) {
+        throw new Error('Please enter a valid 6-character code.');
+      }
+
+      const res = await fetch(`${API_URL}auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.toLowerCase(),
+          code: emailOtp,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Invalid OTP. Please try again.');
+      }
+
+      const accessToken = data.data?.accessToken || data.data?.token;
+      if (accessToken) {
+        const expires = new Date(Date.now() + 86400e3).toUTCString();
+        document.cookie = `authToken=${accessToken}; expires=${expires}; path=/; SameSite=Lax; Secure`;
+        localStorage.setItem('authToken', accessToken);
+      }
+
+      toast.success('Verification successful! Redirecting...');
+      router.push('/wholesaler');
+
+    } catch (err: any) {
+      setMessage(err.message);
+      setMessageType('error');
+      toast.error(err.message);
+      setEmailOtp('');
+    } finally {
+      setIsLoading(false);
+    }
+  };
     
   // --- Render logic for different authentication steps ---
   const renderAuthStep = () => {
@@ -480,13 +584,24 @@ export default function Login() {
 
       case 'email-verify-pending':
         return (
-          <div className="text-center py-8">
-            <svg className="mx-auto h-12 w-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-            <h1 className="mt-3 text-xl font-semibold text-gray-800">Please check your email to verify your account.</h1>
-            <div className="mt-3 flex items-center justify-center space-x-2 text-gray-500">
-              <span>Waiting for verification: {formatTime(countdown)}</span>
+          <form onSubmit={handleEmailOtpSubmit} className="text-center">
+            <h2 className="mb-2 text-xl font-bold text-gray-800">Verify your email address</h2>
+            <p className="mb-3 text-sm text-gray-600">
+              An OTP has been sent to <span className="font-bold text-green-600">{email.toLowerCase()}</span>
+            </p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Enter the 6-character code</p>
+            <EmailOtpInput length={6} value={emailOtp} onChange={setEmailOtp} />
+            {countdown > 0 && (
+              <div className="mt-2 text-sm text-gray-500">
+                <span>Expires in: {formatTime(countdown)}</span>
+              </div>
+            )}
+            <div className="pt-2">
+              <button type="submit" disabled={isLoading || emailOtp.length !== 6} className={buttonClassName}>
+                {isLoading ? 'Verifying...' : 'Verify & Login'}
+              </button>
             </div>
-          </div>
+          </form>
         );
 
       default:
