@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import toast, { Toaster } from 'react-hot-toast';
+import { useAppSelector } from '@/hooks/useRedux';
 
 // 2FA Imports
 import { authenticator } from 'otplib';
@@ -263,6 +264,16 @@ export default function Login() {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [authStep, router]);
+
+  // --- Check if user is already logged in ---
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  
+  useEffect(() => {
+    const authToken = localStorage.getItem('authToken');
+    if (isAuthenticated || authToken) {
+      router.push('/wholesaler');
+    }
+  }, [isAuthenticated, router]);
 
   // --- New Effect Hook to fetch wholesaler logo ---
   useEffect(() => {
