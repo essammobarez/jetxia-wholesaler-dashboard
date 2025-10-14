@@ -8,6 +8,7 @@ import { FaTrash, FaMapMarkerAlt, FaPhone, FaEnvelope, FaHotel, FaCity, FaBuildi
 import { Building2, Eye, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { Country, State, City as CityLib } from 'country-state-city';
 import ReactCountryFlag from 'react-country-flag';
+import toast, { Toaster } from 'react-hot-toast';
 
 // === Types ===
 type MappedSupplier = {
@@ -47,6 +48,12 @@ type Hotel = {
   specialDeals: boolean;
   mainImageUrl: string;
   mappedSuppliers: MappedSupplier[];
+  mappingMetadata?: {
+    status?: string;
+    lastMappedAt?: string;
+    mappingMethod?: string;
+    confidenceScore?: number;
+  };
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -231,14 +238,22 @@ const SupplierDataDisplay = ({ supplierId, hotelId }: { supplierId: string; hote
 // === Modal: Hotel Detail ===
 const HotelDetailModal = ({
   hotel,
+  hotelDetails,
+  isLoading,
   onClose,
   onRemoveSupplier,
 }: {
   hotel: Hotel | null;
+  hotelDetails: any;
+  isLoading: boolean;
   onClose: () => void;
   onRemoveSupplier: (hotelId: string, supplierMappingId: string) => void;
 }) => {
   if (!hotel) return null;
+
+  // Use API data if available, otherwise fallback to hotel prop
+  const displayData = hotelDetails || hotel;
+  const hasSupplierData = hotelDetails && hotelDetails.supplierData;
 
   const getHighResImageUrl = (url: string) => {
     try {
@@ -264,54 +279,105 @@ const HotelDetailModal = ({
         className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative h-72 w-full">
-          <Image
-            src={getHighResImageUrl(hotel.mainImageUrl)}
-            alt={hotel.name}
-            fill
-            className="object-cover rounded-t-2xl"
-            quality={100}
-            sizes="(max-width: 768px) 100vw, 50vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent rounded-t-2xl" />
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-2.5 text-xl leading-none hover:bg-white transition-colors shadow-lg"
-            aria-label="Close modal"
-          >
-            <IoClose />
-          </button>
-          <div className="absolute bottom-4 left-6 right-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-yellow-400 flex">
-                {Array.from({ length: Math.round(hotel.stars) }).map((_, i) => (
-                  <IoStarSharp key={i} className="w-5 h-5" />
-                ))}
-              </span>
-              <span className="text-white font-semibold text-sm bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full">
-                {hotel.stars.toFixed(1)} Star
-              </span>
+        {isLoading ? (
+          <div className="animate-pulse">
+            {/* Header Skeleton */}
+            <div className="relative h-72 w-full bg-gray-300"></div>
+            
+            {/* Content Skeleton */}
+            <div className="p-6">
+              <div className="h-4 bg-gray-300 rounded w-32 mb-2"></div>
+              <div className="h-5 bg-gray-300 rounded w-3/4 mb-4"></div>
+              <div className="h-4 bg-gray-300 rounded w-1/2 mb-6"></div>
+              
+              {/* Facilities Skeleton */}
+              <div className="mb-6">
+                <div className="h-6 bg-gray-300 rounded w-24 mb-3"></div>
+                <div className="flex flex-wrap gap-2">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-8 bg-gray-200 rounded-lg w-24"></div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Board Basis Skeleton */}
+              <div className="mb-6">
+                <div className="h-6 bg-gray-300 rounded w-24 mb-3"></div>
+                <div className="flex gap-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="h-8 bg-gray-200 rounded-lg w-20"></div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Suppliers Skeleton */}
+              <div>
+                <div className="h-6 bg-gray-300 rounded w-40 mb-4"></div>
+                <div className="space-y-4">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="bg-gray-100 p-4 rounded-xl">
+                      <div className="h-5 bg-gray-300 rounded w-32 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-56"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <h2 className="text-3xl font-bold text-white drop-shadow-lg">{hotel.name}</h2>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="relative h-72 w-full">
+              <Image
+                src={getHighResImageUrl(displayData.mainImageUrl || displayData.mainImages?.[0])}
+                alt={displayData.name}
+                fill
+                className="object-cover rounded-t-2xl"
+                quality={100}
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent rounded-t-2xl" />
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full p-2.5 text-xl leading-none hover:bg-white transition-colors shadow-lg"
+                aria-label="Close modal"
+              >
+                <IoClose />
+              </button>
+              <div className="absolute bottom-4 left-6 right-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-yellow-400 flex">
+                    {Array.from({ length: Math.round(displayData.stars || 0) }).map((_, i) => (
+                      <IoStarSharp key={i} className="w-5 h-5" />
+                    ))}
+                  </span>
+                  <span className="text-white font-semibold text-sm bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full">
+                    {(displayData.stars || 0).toFixed(1)} Star
+                  </span>
+                </div>
+                <h2 className="text-3xl font-bold text-white drop-shadow-lg">{displayData.name}</h2>
+              </div>
+            </div>
+          </>
+        )}
 
-        <div>
-          <div className="sticky top-0 z-10 bg-white px-6 pt-5 pb-4 border-b border-gray-200">
-            <p className="text-xs text-gray-500 font-mono mb-2">
-              ID: <code className="bg-gray-100 px-2 py-1 rounded text-gray-700">{hotel._id}</code>
-            </p>
-            <div className="flex items-start gap-2 text-gray-700">
-              <IoLocationSharp className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm">
-                {hotel.address}, {hotel.city.name}, {hotel.country.name}, {hotel.zipCode}
+        {!isLoading && (
+          <div>
+            <div className="sticky top-0 z-10 bg-white px-6 pt-5 pb-4 border-b border-gray-200">
+              <p className="text-xs text-gray-500 font-mono mb-2">
+                ID: <code className="bg-gray-100 px-2 py-1 rounded text-gray-700">{displayData._id}</code>
+              </p>
+              <div className="flex items-start gap-2 text-gray-700">
+                <IoLocationSharp className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm">
+                  {displayData.address}, {displayData.city?.name}, {displayData.country?.name}, {displayData.zipCode}
+                </p>
+              </div>
+              <p className="text-sm text-gray-700 mt-2 flex items-center gap-2">
+                <FaPhone className="w-4 h-4 text-green-600" />
+                {displayData.telephone}
               </p>
             </div>
-            <p className="text-sm text-gray-700 mt-2 flex items-center gap-2">
-              <FaPhone className="w-4 h-4 text-green-600" />
-              {hotel.telephone}
-            </p>
-          </div>
 
           <div className="px-6 pb-6">
             <div className="mt-6">
@@ -320,14 +386,18 @@ const HotelDetailModal = ({
                 Facilities
               </h3>
               <div className="flex flex-wrap gap-2">
-                {hotel.facilities.map((facility) => (
-                  <span
-                    key={facility._id}
-                    className="text-sm font-medium bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-lg shadow-sm"
-                  >
-                    {facility.name}
-                  </span>
-                ))}
+                {displayData.facilities && displayData.facilities.length > 0 ? (
+                  displayData.facilities.map((facility: any, idx: number) => (
+                    <span
+                      key={facility._id || idx}
+                      className="text-sm font-medium bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-lg shadow-sm"
+                    >
+                      {facility.name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-500">No facilities available</span>
+                )}
               </div>
             </div>
 
@@ -337,69 +407,154 @@ const HotelDetailModal = ({
                 Board Basis
               </h3>
               <div className="flex flex-wrap gap-2">
-                {hotel.boardBasis.map((basis, index) => (
-                  <span
-                    key={index}
-                    className="text-sm font-medium bg-purple-100 text-purple-800 px-3 py-1.5 rounded-lg shadow-sm"
-                  >
-                    {basis}
-                  </span>
-                ))}
+                {displayData.boardBasis && displayData.boardBasis.length > 0 ? (
+                  displayData.boardBasis.map((basis: string, index: number) => (
+                    <span
+                      key={index}
+                      className="text-sm font-medium bg-purple-100 text-purple-800 px-3 py-1.5 rounded-lg shadow-sm"
+                    >
+                      {basis}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-500">No board basis available</span>
+                )}
               </div>
             </div>
 
-            {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 0 && (
+            {displayData.mappedSuppliers && displayData.mappedSuppliers.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
                   Mapped Suppliers
                   <span className="text-sm font-normal text-gray-600">
-                    ({hotel.mappedSuppliers.length})
+                    ({displayData.mappedSuppliers.length})
                   </span>
                 </h3>
                 <div className="space-y-4">
-                  {hotel.mappedSuppliers.map((supplier) => (
-                    <div
-                      key={supplier._id}
-                      className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="text-base font-bold text-blue-700 capitalize mb-1">
-                            {supplier.source}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-1">
-                            Supplier Hotel ID:{' '}
-                            <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                              {supplier.supplierHotelId}
-                            </code>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Supplier:{' '}
-                            <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                              {supplier.supplier}
-                            </code>
-                          </p>
+                  {displayData.mappedSuppliers.map((supplier: any) => {
+                    // Get supplier data from API response if available
+                    const supplierDetails = hasSupplierData && displayData.supplierData[supplier.source]?.[0]?.data;
+                    
+                    return (
+                      <div
+                        key={supplier._id}
+                        className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <p className="text-base font-bold text-blue-700 capitalize mb-1">
+                              {supplier.source}
+                            </p>
+                            <p className="text-sm text-gray-600 mb-1">
+                              Supplier Hotel ID:{' '}
+                              <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                {supplier.supplierHotelId}
+                              </code>
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Supplier:{' '}
+                              <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                {supplier.supplier}
+                              </code>
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => onRemoveSupplier(hotel._id, supplier._id)}
+                            className="bg-gradient-to-r from-red-600 to-red-700 text-white p-2.5 rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                            aria-label="Remove supplier"
+                          >
+                            <FaTrash className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => onRemoveSupplier(hotel._id, supplier._id)}
-                          className="bg-gradient-to-r from-red-600 to-red-700 text-white p-2.5 rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
-                          aria-label="Remove supplier"
-                        >
-                          <FaTrash className="w-4 h-4" />
-                        </button>
+
+                        {supplierDetails && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                            {/* Supplier Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                              {supplierDetails.name && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Name:</span>
+                                  <p className="text-gray-600 mt-0.5">{supplierDetails.name}</p>
+                                </div>
+                              )}
+                              {supplierDetails.address && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Address:</span>
+                                  <p className="text-gray-600 mt-0.5">{supplierDetails.address}</p>
+                                </div>
+                              )}
+                              {supplierDetails.telephone && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Phone:</span>
+                                  <p className="text-gray-600 mt-0.5">{supplierDetails.telephone}</p>
+                                </div>
+                              )}
+                              {supplierDetails.stars && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Stars:</span>
+                                  <p className="text-gray-600 mt-0.5 flex items-center gap-1">
+                                    {supplierDetails.stars} 
+                                    {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
+                                      <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
+                                    ))}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Board Basis */}
+                            {supplierDetails.boardBasis && supplierDetails.boardBasis.length > 0 && (
+                              <div>
+                                <span className="font-semibold text-gray-700 text-sm">Board Basis:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {supplierDetails.boardBasis.map((basis: string, idx: number) => (
+                                    <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
+                                      {basis}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Facilities */}
+                            {supplierDetails.facilities && supplierDetails.facilities.length > 0 && (
+                              <div>
+                                <span className="font-semibold text-gray-700 text-sm">Facilities ({supplierDetails.facilities.length}):</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {supplierDetails.facilities.slice(0, 8).map((facility: string, idx: number) => (
+                                    <span key={idx} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
+                                      {facility}
+                                    </span>
+                                  ))}
+                                  {supplierDetails.facilities.length > 8 && (
+                                    <span className="text-xs text-gray-500 px-2 py-0.5">
+                                      +{supplierDetails.facilities.length - 8} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Coordinates */}
+                            {supplierDetails.geolocation && (
+                              <div className="text-xs text-gray-500">
+                                <FaMapMarkerAlt className="w-3 h-3 inline mr-1 text-red-500" />
+                                Lat: {supplierDetails.geolocation.latitude?.toFixed(4)}, 
+                                Lng: {supplierDetails.geolocation.longitude?.toFixed(4)}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <SupplierDataDisplay
-                        supplierId={supplier.supplier}
-                        hotelId={supplier.supplierHotelId}
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -490,6 +645,11 @@ const HotelListPageV2: NextPage = () => {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [facilitiesToShow, setFacilitiesToShow] = useState<Hotel['facilities'] | null>(null);
   const [expandedHotels, setExpandedHotels] = useState<Set<string>>(new Set());
+  const [hotelDetails, setHotelDetails] = useState<Record<string, any>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+  const [selectedHotelIds, setSelectedHotelIds] = useState<Set<string>>(new Set());
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load countries from country-state-city library
   useEffect(() => {
@@ -596,7 +756,7 @@ const HotelListPageV2: NextPage = () => {
     };
 
     fetchHotels();
-  }, []);
+  }, [refreshTrigger]);
 
   // Fetch hotels by name (autocomplete search)
   useEffect(() => {
@@ -652,8 +812,40 @@ const HotelListPageV2: NextPage = () => {
     return () => clearTimeout(debounceTimer);
   }, [hotelNameSearch]);
 
-  // Toggle expansion for a hotel
-  const toggleHotelExpansion = (hotelId: string) => {
+  // Fetch hotel details from API
+  const fetchHotelDetails = async (hotelId: string) => {
+    if (hotelDetails[hotelId]) return; // Already fetched
+    
+    setLoadingDetails(prev => new Set(prev).add(hotelId));
+    try {
+      if (!process.env.NEXT_PUBLIC_BACKEND_URL) {
+        throw new Error('Backend URL not configured');
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}hotel-mapping/v2/hotel/${hotelId}`);
+      const data = await response.json();
+      
+      if (data.success && data.hotel) {
+        setHotelDetails(prev => ({
+          ...prev,
+          [hotelId]: data.hotel
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching hotel details:', error);
+    } finally {
+      setLoadingDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(hotelId);
+        return newSet;
+      });
+    }
+  };
+
+  // Toggle expansion for a hotel (grouped view)
+  const toggleHotelExpansion = async (hotelId: string) => {
+    const isExpanding = !expandedHotels.has(hotelId);
+    
     setExpandedHotels(prev => {
       const newSet = new Set(prev);
       if (newSet.has(hotelId)) {
@@ -663,6 +855,17 @@ const HotelListPageV2: NextPage = () => {
       }
       return newSet;
     });
+
+    // Fetch details when expanding
+    if (isExpanding) {
+      await fetchHotelDetails(hotelId);
+    }
+  };
+
+  // Open hotel details modal (for list view)
+  const openHotelDetailsModal = async (hotel: Hotel) => {
+    setSelectedHotel(hotel);
+    await fetchHotelDetails(hotel._id);
   };
 
   // Client-side filtering
@@ -766,6 +969,97 @@ const HotelListPageV2: NextPage = () => {
     }
   };
 
+  // Toggle hotel selection
+  const toggleHotelSelection = (hotelId: string) => {
+    setSelectedHotelIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(hotelId)) {
+        newSet.delete(hotelId);
+      } else {
+        newSet.add(hotelId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all hotels
+  const selectAllHotels = () => {
+    const allIds = new Set(filteredHotels.map(h => h._id));
+    setSelectedHotelIds(allIds);
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedHotelIds(new Set());
+  };
+
+  // Update hotel status
+  const updateHotelStatus = async (status: 'Correct' | 'Review' | 'Rejected') => {
+    if (selectedHotelIds.size === 0) {
+      toast.error('Please select at least one hotel');
+      return;
+    }
+
+    if (!process.env.NEXT_PUBLIC_BACKEND_URL) {
+      toast.error('Backend URL not configured');
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    const loadingToast = toast.loading(`Updating ${selectedHotelIds.size} hotel(s) to ${status}...`);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}hotel-mapping/status/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotelIds: Array.from(selectedHotelIds),
+          status: status
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update status');
+      }
+
+      toast.success(`Successfully updated ${selectedHotelIds.size} hotel(s) to ${status}`, {
+        id: loadingToast,
+      });
+      clearSelection();
+      // Refresh the hotel list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      toast.error(error.message || 'Failed to update hotel status', {
+        id: loadingToast,
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Get status badge styling
+  const getStatusBadge = (status?: string) => {
+    if (!status) return null;
+    
+    const statusConfig = {
+      'Correct': { bg: 'bg-green-100', text: 'text-green-800', label: 'Correct' },
+      'Review': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Review' },
+      'Rejected': { bg: 'bg-red-100', text: 'text-red-800', label: 'Rejected' },
+    };
+
+    const config = statusConfig[status as keyof typeof statusConfig];
+    if (!config) return null;
+
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.text}`}>
+        {config.label}
+      </span>
+    );
+  };
+
   const getHighResImageUrl = (url: string) => {
     try {
       if (!url) {
@@ -833,6 +1127,7 @@ const HotelListPageV2: NextPage = () => {
 
   return (
     <>
+      <Toaster position="top-right" />
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 p-4 sm:p-6 lg:p-8">
         <main className="max-w-7xl mx-auto">
           {/* Header */}
@@ -866,7 +1161,7 @@ const HotelListPageV2: NextPage = () => {
                     <span>Grouped</span>
                   </div>
                 </button>
-                <button
+                {/* <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded-md transition-all ${
                     viewMode === 'grid'
@@ -876,7 +1171,7 @@ const HotelListPageV2: NextPage = () => {
                   aria-label="Grid view"
                 >
                   <IoGridOutline className="w-5 h-5" />
-                </button>
+                </button> */}
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded-md transition-all ${
@@ -1165,11 +1460,77 @@ const HotelListPageV2: NextPage = () => {
             </div>
           ) : (
             <>
+              {/* Bulk Actions Toolbar */}
+              {selectedHotelIds.size > 0 && (
+                <div className="mb-4 bg-blue-50 border-2 border-blue-200 rounded-lg px-4 py-3 shadow-sm">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {selectedHotelIds.size} hotel{selectedHotelIds.size > 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        onClick={clearSelection}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium underline"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-600 mr-1">Update Status:</span>
+                      <button
+                        onClick={() => updateHotelStatus('Correct')}
+                        disabled={isUpdatingStatus}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          isUpdatingStatus
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <Check className="w-4 h-4 inline mr-1" />
+                        Correct
+                      </button>
+                      <button
+                        onClick={() => updateHotelStatus('Review')}
+                        disabled={isUpdatingStatus}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          isUpdatingStatus
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-yellow-600 text-white hover:bg-yellow-700 shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                        Review
+                      </button>
+                      <button
+                        onClick={() => updateHotelStatus('Rejected')}
+                        disabled={isUpdatingStatus}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          isUpdatingStatus
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700 shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <IoClose className="w-4 h-4 inline mr-1" />
+                        Rejected
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="mb-6 flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm border border-gray-100">
                 <div className="text-sm text-gray-600">
                   Showing <span className="font-bold text-gray-900">{filteredHotels.length}</span> of{' '}
                   <span className="font-semibold">{allHotels.length}</span> hotels
                 </div>
+                {filteredHotels.length > 0 && (
+                  <button
+                    onClick={selectedHotelIds.size === filteredHotels.length ? clearSelection : selectAllHotels}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {selectedHotelIds.size === filteredHotels.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
               </div>
 
               {filteredHotels.length === 0 ? (
@@ -1191,6 +1552,14 @@ const HotelListPageV2: NextPage = () => {
                         <div className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-6 py-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4 flex-1">
+                              {/* Checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={selectedHotelIds.has(hotel._id)}
+                                onChange={() => toggleHotelSelection(hotel._id)}
+                                className="w-5 h-5 text-blue-600 bg-white border-2 border-white rounded focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                              />
                               <div className="relative w-20 h-20 rounded-lg overflow-hidden shadow-lg flex-shrink-0">
                                 <Image
                                   src={getHighResImageUrl(hotel.mainImageUrl)}
@@ -1225,7 +1594,18 @@ const HotelListPageV2: NextPage = () => {
                             {/* Status and Actions */}
                             <div className="flex items-center gap-3">
                               <div className="flex flex-col items-end gap-2">
-                                <span className="px-4 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-semibold flex items-center gap-1.5">
+                                {hotel.mappingMetadata?.status && (
+                                  <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
+                                    hotel.mappingMetadata.status === 'Correct' 
+                                      ? 'bg-green-500 text-white' 
+                                      : hotel.mappingMetadata.status === 'Review'
+                                      ? 'bg-yellow-500 text-white'
+                                      : 'bg-red-500 text-white'
+                                  }`}>
+                                    {hotel.mappingMetadata.status}
+                                  </span>
+                                )}
+                                <span className="px-4 py-1.5 bg-white/20 text-white rounded-full text-sm font-semibold flex items-center gap-1.5">
                                   <Check className="w-4 h-4" />
                                   {hotel.mappedSuppliers?.length || 0} {(hotel.mappedSuppliers?.length || 0) === 1 ? 'Supplier' : 'Suppliers'}
                                 </span>
@@ -1252,6 +1632,59 @@ const HotelListPageV2: NextPage = () => {
                         {/* Expanded Content */}
                         {isExpanded && (
                           <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
+                            {loadingDetails.has(hotel._id) ? (
+                              <div className="animate-pulse">
+                                {/* Hotel Details Skeleton */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                  <div className="space-y-3">
+                                    <div className="h-6 bg-gray-300 rounded w-48 mb-3"></div>
+                                    <div className="space-y-2">
+                                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                                      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                                      <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div className="h-6 bg-gray-300 rounded w-56 mb-3"></div>
+                                    <div className="space-y-2">
+                                      <div className="flex gap-2">
+                                        {[...Array(3)].map((_, i) => (
+                                          <div key={i} className="h-7 bg-gray-200 rounded w-20"></div>
+                                        ))}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {[...Array(6)].map((_, i) => (
+                                          <div key={i} className="h-7 bg-gray-200 rounded w-24"></div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Suppliers Skeleton */}
+                                <div>
+                                  <div className="h-6 bg-gray-300 rounded w-48 mb-4"></div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[...Array(2)].map((_, i) => (
+                                      <div key={i} className="bg-gray-100 border-2 border-gray-200 rounded-xl p-4">
+                                        <div className="h-5 bg-gray-300 rounded w-28 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-40 mb-3"></div>
+                                        <div className="pt-3 border-t border-gray-300 space-y-2">
+                                          <div className="h-3 bg-gray-200 rounded w-32"></div>
+                                          <div className="flex gap-1">
+                                            {[...Array(4)].map((_, j) => (
+                                              <div key={j} className="h-6 bg-gray-200 rounded w-16"></div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
                             {/* Hotel Details */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                               <div className="space-y-3">
@@ -1328,44 +1761,112 @@ const HotelListPageV2: NextPage = () => {
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 0 ? (
-                                  hotel.mappedSuppliers.map((supplier) => (
-                                  <div
-                                    key={supplier._id}
-                                    className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all"
-                                  >
-                                    <div className="flex justify-between items-start mb-3">
-                                      <div className="flex-1">
-                                        <p className="text-base font-bold text-blue-700 capitalize mb-1">
-                                          {supplier.source}
-                                        </p>
-                                        <p className="text-sm text-gray-600">
-                                          Supplier Hotel ID:{' '}
-                                          <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                            {supplier.supplierHotelId}
-                                          </code>
-                                        </p>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                          Supplier ID:{' '}
-                                          <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                            {supplier.supplier}
-                                          </code>
-                                        </p>
-                                      </div>
-                                      <button
-                                        onClick={() => handleRemoveSupplier(hotel._id, supplier._id)}
-                                        className="bg-gradient-to-r from-red-600 to-red-700 text-white p-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
-                                        aria-label="Remove supplier"
-                                        title="Remove this supplier mapping"
+                                  hotel.mappedSuppliers.map((supplier) => {
+                                    // Get supplier data from API response if available
+                                    const hotelApiData = hotelDetails[hotel._id];
+                                    const supplierDetails = hotelApiData?.supplierData?.[supplier.source]?.[0]?.data;
+                                    
+                                    return (
+                                      <div
+                                        key={supplier._id}
+                                        className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all"
                                       >
-                                        <FaTrash className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                    <SupplierDataDisplay
-                                      supplierId={supplier.supplier}
-                                      hotelId={supplier.supplierHotelId}
-                                    />
-                                  </div>
-                                  ))
+                                        <div className="flex justify-between items-start mb-3">
+                                          <div className="flex-1">
+                                            <p className="text-base font-bold text-blue-700 capitalize mb-1">
+                                              {supplier.source}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                              Supplier Hotel ID:{' '}
+                                              <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                                {supplier.supplierHotelId}
+                                              </code>
+                                            </p>
+                                            <p className="text-sm text-gray-600 mt-1">
+                                              Supplier ID:{' '}
+                                              <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
+                                                {supplier.supplier}
+                                              </code>
+                                            </p>
+                                          </div>
+                                          <button
+                                            onClick={() => handleRemoveSupplier(hotel._id, supplier._id)}
+                                            className="bg-gradient-to-r from-red-600 to-red-700 text-white p-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                                            aria-label="Remove supplier"
+                                            title="Remove this supplier mapping"
+                                          >
+                                            <FaTrash className="w-4 h-4" />
+                                          </button>
+                                        </div>
+
+                                        {/* Display supplier details from API */}
+                                        {supplierDetails ? (
+                                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                            {/* Basic Info */}
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              {supplierDetails.telephone && (
+                                                <div>
+                                                  <span className="font-semibold text-gray-700">Phone:</span>
+                                                  <p className="text-gray-600">{supplierDetails.telephone}</p>
+                                                </div>
+                                              )}
+                                              {supplierDetails.stars && (
+                                                <div>
+                                                  <span className="font-semibold text-gray-700">Stars:</span>
+                                                  <p className="text-gray-600 flex items-center gap-1">
+                                                    {supplierDetails.stars}
+                                                    {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
+                                                      <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
+                                                    ))}
+                                                  </p>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* Board Basis */}
+                                            {supplierDetails.boardBasis && supplierDetails.boardBasis.length > 0 && (
+                                              <div>
+                                                <span className="font-semibold text-gray-700 text-xs">Board:</span>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                  {supplierDetails.boardBasis.map((basis: string, idx: number) => (
+                                                    <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">
+                                                      {basis}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Facilities */}
+                                            {supplierDetails.facilities && supplierDetails.facilities.length > 0 && (
+                                              <div>
+                                                <span className="font-semibold text-gray-700 text-xs">
+                                                  Facilities ({supplierDetails.facilities.length}):
+                                                </span>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                  {supplierDetails.facilities.slice(0, 6).map((facility: string, idx: number) => (
+                                                    <span key={idx} className="text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">
+                                                      {facility}
+                                                    </span>
+                                                  ))}
+                                                  {supplierDetails.facilities.length > 6 && (
+                                                    <span className="text-xs text-gray-500 px-1.5 py-0.5">
+                                                      +{supplierDetails.facilities.length - 6} more
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <SupplierDataDisplay
+                                            supplierId={supplier.supplier}
+                                            hotelId={supplier.supplierHotelId}
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })
                                 ) : (
                                   <div className="col-span-full text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
                                     <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -1375,7 +1876,7 @@ const HotelListPageV2: NextPage = () => {
                               </div>
                             </div>
 
-                            {/* Actions */}
+                            {/* Actions
                             <div className="mt-6 flex items-center justify-end gap-3">
                               <button
                                 onClick={() => setSelectedHotel(hotel)}
@@ -1384,7 +1885,9 @@ const HotelListPageV2: NextPage = () => {
                                 <Eye className="w-4 h-4" />
                                 View Full Details
                               </button>
-                            </div>
+                            </div> */}
+                            </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1403,9 +1906,10 @@ const HotelListPageV2: NextPage = () => {
                   {filteredHotels.map((hotel, index) => (
                     <div
                       key={hotel._id}
-                      className={`bg-white rounded-xl shadow-md border border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                        viewMode === 'list' ? 'flex gap-4 p-4' : 'flex flex-col h-full'
+                      className={`bg-white rounded-xl shadow-md border border-gray-200 transition-all duration-300 hover:shadow-xl ${
+                        viewMode === 'list' ? 'flex gap-4 p-4' : 'flex flex-col h-full cursor-pointer hover:-translate-y-1'
                       }`}
+                      onClick={viewMode === 'grid' ? () => openHotelDetailsModal(hotel) : undefined}
                     >
                       <div
                         className={`relative overflow-hidden ${
@@ -1423,6 +1927,19 @@ const HotelListPageV2: NextPage = () => {
                           priority={index < 6}
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                         />
+                        {/* Checkbox Overlay */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedHotelIds.has(hotel._id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleHotelSelection(hotel._id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-md"
+                          />
+                        </div>
                         {hotel.stars && hotel.stars > 0 && (
                           <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-sm font-bold text-gray-900 shadow-md flex items-center gap-1">
                             <IoStarSharp className="w-4 h-4 text-yellow-500" />
@@ -1430,62 +1947,163 @@ const HotelListPageV2: NextPage = () => {
                           </div>
                         )}
                         {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 1 && (
-                          <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-md">
+                          <div className="absolute bottom-2 left-2 bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-md">
                             {hotel.mappedSuppliers.length} Suppliers
                           </div>
                         )}
                       </div>
 
-                      <div className={`flex-1 flex flex-col ${viewMode === 'grid' ? 'p-5' : ''}`}>
-                        <div className="flex-1">
-                          <h2 className="text-lg font-bold text-gray-900 line-clamp-1">{hotel.name || 'Unknown Hotel'}</h2>
-                          <p className="text-xs text-gray-500 mt-1 font-mono">
-                            <code className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                              {hotel._id || 'N/A'}
-                            </code>
-                          </p>
-                          <div className="flex items-start gap-1.5 mt-2 text-sm text-gray-600">
-                            <IoLocationSharp className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                            <span className="line-clamp-1">
-                              {hotel.city?.name || 'Unknown'}, {hotel.country?.name || 'Unknown'}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-1.5 items-center">
-                            {hotel.facilities && hotel.facilities.length > 0 ? (
-                              <>
-                                {hotel.facilities.slice(0, viewMode === 'list' ? 5 : 3).map((facility) => (
-                                  <span
-                                    key={facility._id}
-                                    className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-md"
-                                  >
-                                    {facility.name}
-                                  </span>
-                                ))}
-                                {hotel.facilities.length > (viewMode === 'list' ? 5 : 3) && (
-                                  <button
-                                    onClick={() => setFacilitiesToShow(hotel.facilities)}
-                                    className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
-                                  >
-                                    +
-                                    {hotel.facilities.length - (viewMode === 'list' ? 5 : 3)} more
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-xs text-gray-500">No facilities</span>
+                      <div className={`flex-1 flex ${viewMode === 'list' ? 'flex-row items-start justify-between gap-6' : 'flex-col p-5'}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-bold text-gray-900 line-clamp-1">{hotel.name || 'Unknown Hotel'}</h2>
+                            {hotel.mappingMetadata?.status && (
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                hotel.mappingMetadata.status === 'Correct' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : hotel.mappingMetadata.status === 'Review'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {hotel.mappingMetadata.status}
+                              </span>
                             )}
                           </div>
+                          
+                          {viewMode === 'list' ? (
+                            <>
+                              <p className="text-xs text-gray-500 mt-1 font-mono">
+                                <code className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                  ID: {hotel._id || 'N/A'}
+                                </code>
+                              </p>
+                              
+                              <div className="mt-2 space-y-1.5">
+                                <div className="flex items-start gap-1.5 text-sm text-gray-700">
+                                  <IoLocationSharp className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                  <span className="line-clamp-1">
+                                    {hotel.address}, {hotel.city?.name || 'Unknown'}, {hotel.country?.name || 'Unknown'}
+                                  </span>
+                                </div>
+                                
+                                {hotel.telephone && (
+                                  <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                    <FaPhone className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                    <span>{hotel.telephone}</span>
+                                  </div>
+                                )}
+                                
+                                {hotel.coordinates?.coordinates && (
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                    <FaMapMarkerAlt className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                    <span>
+                                      Lat: {hotel.coordinates.coordinates[1]?.toFixed(4)}, 
+                                      Lng: {hotel.coordinates.coordinates[0]?.toFixed(4)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                                {hotel.boardBasis && hotel.boardBasis.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 items-center">
+                                    <span className="text-xs font-medium text-gray-600">Board:</span>
+                                    {hotel.boardBasis.slice(0, 2).map((basis, idx) => (
+                                      <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
+                                        {basis}
+                                      </span>
+                                    ))}
+                                    {hotel.boardBasis.length > 2 && (
+                                      <span className="text-xs text-gray-500">+{hotel.boardBasis.length - 2}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                                {hotel.facilities && hotel.facilities.length > 0 ? (
+                                  <>
+                                    {hotel.facilities.slice(0, 4).map((facility) => (
+                                      <span
+                                        key={facility._id}
+                                        className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md"
+                                      >
+                                        {facility.name}
+                                      </span>
+                                    ))}
+                                    {hotel.facilities.length > 4 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFacilitiesToShow(hotel.facilities);
+                                        }}
+                                        className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
+                                      >
+                                        +{hotel.facilities.length - 4} more
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-500">No facilities</span>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-gray-500 mt-1 font-mono">
+                                <code className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                  {hotel._id || 'N/A'}
+                                </code>
+                              </p>
+                              <div className="flex items-start gap-1.5 mt-2 text-sm text-gray-600">
+                                <IoLocationSharp className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                <span className="line-clamp-1">
+                                  {hotel.city?.name || 'Unknown'}, {hotel.country?.name || 'Unknown'}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-1.5 items-center">
+                                {hotel.facilities && hotel.facilities.length > 0 ? (
+                                  <>
+                                    {hotel.facilities.slice(0, 3).map((facility) => (
+                                      <span
+                                        key={facility._id}
+                                        className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-md"
+                                      >
+                                        {facility.name}
+                                      </span>
+                                    ))}
+                                    {hotel.facilities.length > 3 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFacilitiesToShow(hotel.facilities);
+                                        }}
+                                        className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
+                                      >
+                                        +{hotel.facilities.length - 3} more
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-500">No facilities</span>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
 
-                        <button
-                          onClick={() => setSelectedHotel(hotel)}
-                          className={`bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md ${
-                            viewMode === 'list' ? 'px-6 py-2 mt-3' : 'w-full py-2.5 mt-4'
-                          }`}
-                        >
-                          View Details
-                        </button>
+                        {viewMode === 'list' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openHotelDetailsModal(hotel);
+                            }}
+                            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md px-6 py-2.5 whitespace-nowrap self-start"
+                          >
+                            View Details
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1499,6 +2117,8 @@ const HotelListPageV2: NextPage = () => {
       {/* Modals */}
       <HotelDetailModal
         hotel={selectedHotel}
+        hotelDetails={selectedHotel ? hotelDetails[selectedHotel._id] : null}
+        isLoading={selectedHotel ? loadingDetails.has(selectedHotel._id) : false}
         onClose={() => setSelectedHotel(null)}
         onRemoveSupplier={handleRemoveSupplier}
       />

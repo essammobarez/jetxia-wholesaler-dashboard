@@ -26,7 +26,7 @@ const MappedHotelsWrapper: NextPage = () => {
                 {activeVersion === 'v1' && (
                   <div className="absolute inset-0 bg-blue-600 rounded-lg blur opacity-20"></div>
                 )}
-                <span className="relative">Classic V1</span>
+                <span className="relative">  V1</span>
               </button>
               <button
                 onClick={() => setActiveVersion('v2')}
@@ -40,7 +40,7 @@ const MappedHotelsWrapper: NextPage = () => {
                   <div className="absolute inset-0 bg-purple-600 rounded-lg blur opacity-20"></div>
                 )}
                 <span className="relative flex items-center gap-2">
-                  Advanced Mapping
+                   V2
                 </span>
               </button>
             </div>
