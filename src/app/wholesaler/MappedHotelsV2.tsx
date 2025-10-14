@@ -211,26 +211,7 @@ const SupplierDataDisplay = ({ supplierId, hotelId }: { supplierId: string; hote
         </p>
       </div>
 
-      {details.facilites && details.facilites.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="font-semibold text-gray-800 mb-2">Facilities:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {details.facilites.slice(0, 5).map((facility, index) => (
-              <span
-                key={index}
-                className="text-xs font-medium bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full"
-              >
-                {facility}
-              </span>
-            ))}
-            {details.facilites.length > 5 && (
-              <span className="text-xs font-medium bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full">
-                +{details.facilites.length - 5} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Facilities and Board Basis removed as per user request */}
     </div>
   );
 };
@@ -242,12 +223,18 @@ const HotelDetailModal = ({
   isLoading,
   onClose,
   onRemoveSupplier,
+  onUpdateStatus,
+  statusDropdownOpen,
+  setStatusDropdownOpen,
 }: {
   hotel: Hotel | null;
   hotelDetails: any;
   isLoading: boolean;
   onClose: () => void;
   onRemoveSupplier: (hotelId: string, supplierMappingId: string) => void;
+  onUpdateStatus: (hotelId: string, status: 'Correct' | 'Review' | 'Rejected') => void;
+  statusDropdownOpen: string | null;
+  setStatusDropdownOpen: (id: string | null) => void;
 }) => {
   if (!hotel) return null;
 
@@ -290,35 +277,20 @@ const HotelDetailModal = ({
               <div className="h-5 bg-gray-300 rounded w-3/4 mb-4"></div>
               <div className="h-4 bg-gray-300 rounded w-1/2 mb-6"></div>
               
-              {/* Facilities Skeleton */}
-              <div className="mb-6">
-                <div className="h-6 bg-gray-300 rounded w-24 mb-3"></div>
-                <div className="flex flex-wrap gap-2">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-8 bg-gray-200 rounded-lg w-24"></div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Board Basis Skeleton */}
-              <div className="mb-6">
-                <div className="h-6 bg-gray-300 rounded w-24 mb-3"></div>
-                <div className="flex gap-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="h-8 bg-gray-200 rounded-lg w-20"></div>
-                  ))}
-                </div>
-              </div>
-              
               {/* Suppliers Skeleton */}
               <div>
                 <div className="h-6 bg-gray-300 rounded w-40 mb-4"></div>
                 <div className="space-y-4">
                   {[...Array(2)].map((_, i) => (
                     <div key={i} className="bg-gray-100 p-4 rounded-xl">
-                      <div className="h-5 bg-gray-300 rounded w-32 mb-2"></div>
+                      <div className="h-5 bg-gray-300 rounded w-32 mb-3"></div>
                       <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
-                      <div className="h-4 bg-gray-200 rounded w-56"></div>
+                      <div className="h-4 bg-gray-200 rounded w-56 mb-4"></div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {[...Array(6)].map((_, j) => (
+                          <div key={j} className="h-6 bg-gray-200 rounded w-20"></div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -364,9 +336,25 @@ const HotelDetailModal = ({
         {!isLoading && (
           <div>
             <div className="sticky top-0 z-10 bg-white px-6 pt-5 pb-4 border-b border-gray-200">
-              <p className="text-xs text-gray-500 font-mono mb-2">
-                ID: <code className="bg-gray-100 px-2 py-1 rounded text-gray-700">{displayData._id}</code>
-              </p>
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <p className="text-xs text-gray-500 font-mono">
+                  ID: <code className="bg-gray-100 px-2 py-1 rounded text-gray-700">{displayData._id}</code>
+                </p>
+                
+                {/* Static Status Badge */}
+                {displayData.mappingMetadata?.status && (
+                  <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                    displayData.mappingMetadata.status === 'Correct'
+                      ? 'bg-green-100 text-green-700'
+                      : displayData.mappingMetadata.status === 'Review'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {displayData.mappingMetadata.status}
+                  </span>
+                )}
+              </div>
+              
               <div className="flex items-start gap-2 text-gray-700">
                 <IoLocationSharp className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <p className="text-sm">
@@ -380,45 +368,55 @@ const HotelDetailModal = ({
             </div>
 
           <div className="px-6 pb-6">
-            <div className="mt-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-1 h-6 bg-blue-600 rounded-full"></span>
-                Facilities
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {displayData.facilities && displayData.facilities.length > 0 ? (
-                  displayData.facilities.map((facility: any, idx: number) => (
-                    <span
-                      key={facility._id || idx}
-                      className="text-sm font-medium bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-lg shadow-sm"
-                    >
-                      {facility.name}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-gray-500">No facilities available</span>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-1 h-6 bg-purple-600 rounded-full"></span>
-                Board Basis
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {displayData.boardBasis && displayData.boardBasis.length > 0 ? (
-                  displayData.boardBasis.map((basis: string, index: number) => (
-                    <span
-                      key={index}
-                      className="text-sm font-medium bg-purple-100 text-purple-800 px-3 py-1.5 rounded-lg shadow-sm"
-                    >
-                      {basis}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-gray-500">No board basis available</span>
-                )}
+            {/* Status Update Section */}
+            <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-1">Update Status</h4>
+                  <p className="text-xs text-gray-600">Change the mapping status for this hotel</p>
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setStatusDropdownOpen(statusDropdownOpen === `modal-${hotel._id}` ? null : `modal-${hotel._id}`)}
+                    onBlur={() => setTimeout(() => setStatusDropdownOpen(null), 200)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+                      displayData.mappingMetadata?.status === 'Correct'
+                        ? 'bg-green-500 text-white hover:bg-green-600'
+                        : displayData.mappingMetadata?.status === 'Review'
+                        ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                        : displayData.mappingMetadata?.status === 'Rejected'
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-gray-500 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    <span>{displayData.mappingMetadata?.status || 'Set Status'}</span>
+                    {statusDropdownOpen === `modal-${hotel._id}` ? (
+                      <IoChevronUp className="w-4 h-4" />
+                    ) : (
+                      <IoChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  
+                  {statusDropdownOpen === `modal-${hotel._id}` && (
+                    <div className="absolute top-full right-0 mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                      {['Correct', 'Review', 'Rejected'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            onUpdateStatus(hotel._id, status as 'Correct' | 'Review' | 'Rejected');
+                            setStatusDropdownOpen(null);
+                          }}
+                          className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between text-sm ${
+                            displayData.mappingMetadata?.status === status ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>{status}</span>
+                          {displayData.mappingMetadata?.status === status && <Check className="w-4 h-4 text-blue-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -472,16 +470,56 @@ const HotelDetailModal = ({
                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                             {/* Supplier Details */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              {supplierDetails.name && (
+                              {supplierDetails._id && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Name:</span>
+                                  <span className="font-semibold text-gray-700">Supplier Hotel ID:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails._id}</p>
+                                </div>
+                              )}
+                              {supplierDetails.supplierHotelId && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Supplier Hotel Code:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails.supplierHotelId}</p>
+                                </div>
+                              )}
+                              {supplierDetails.name && (
+                                <div className="md:col-span-2">
+                                  <span className="font-semibold text-gray-700">Hotel Name:</span>
                                   <p className="text-gray-600 mt-0.5">{supplierDetails.name}</p>
                                 </div>
                               )}
                               {supplierDetails.address && (
-                                <div>
+                                <div className="md:col-span-2">
                                   <span className="font-semibold text-gray-700">Address:</span>
                                   <p className="text-gray-600 mt-0.5">{supplierDetails.address}</p>
+                                </div>
+                              )}
+                              {supplierDetails.city && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">City:</span>
+                                  <p className="text-gray-600 mt-0.5">
+                                    {supplierDetails.city.name || supplierDetails.city}
+                                    {supplierDetails.city.id && (
+                                      <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                              {supplierDetails.country && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Country:</span>
+                                  <p className="text-gray-600 mt-0.5">
+                                    {supplierDetails.country.name || supplierDetails.country}
+                                    {supplierDetails.country.iso && (
+                                      <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                              {supplierDetails.zipCode && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Zip Code:</span>
+                                  <p className="text-gray-600 mt-0.5">{supplierDetails.zipCode}</p>
                                 </div>
                               )}
                               {supplierDetails.telephone && (
@@ -501,49 +539,50 @@ const HotelDetailModal = ({
                                   </p>
                                 </div>
                               )}
+                              {typeof supplierDetails.specialDeals !== 'undefined' && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Special Deals:</span>
+                                  <p className="text-gray-600 mt-0.5">
+                                    {supplierDetails.specialDeals ? (
+                                      <span className="text-green-600 font-medium">✓ Available</span>
+                                    ) : (
+                                      <span className="text-gray-500">Not available</span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                              {supplierDetails.supplier && (
+                                <div className="md:col-span-2">
+                                  <span className="font-semibold text-gray-700">Supplier Reference ID:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails.supplier}</p>
+                                </div>
+                              )}
                             </div>
-
-                            {/* Board Basis */}
-                            {supplierDetails.boardBasis && supplierDetails.boardBasis.length > 0 && (
-                              <div>
-                                <span className="font-semibold text-gray-700 text-sm">Board Basis:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {supplierDetails.boardBasis.map((basis: string, idx: number) => (
-                                    <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
-                                      {basis}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Facilities */}
-                            {supplierDetails.facilities && supplierDetails.facilities.length > 0 && (
-                              <div>
-                                <span className="font-semibold text-gray-700 text-sm">Facilities ({supplierDetails.facilities.length}):</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {supplierDetails.facilities.slice(0, 8).map((facility: string, idx: number) => (
-                                    <span key={idx} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
-                                      {facility}
-                                    </span>
-                                  ))}
-                                  {supplierDetails.facilities.length > 8 && (
-                                    <span className="text-xs text-gray-500 px-2 py-0.5">
-                                      +{supplierDetails.facilities.length - 8} more
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
 
                             {/* Coordinates */}
                             {supplierDetails.geolocation && (
-                              <div className="text-xs text-gray-500">
-                                <FaMapMarkerAlt className="w-3 h-3 inline mr-1 text-red-500" />
-                                Lat: {supplierDetails.geolocation.latitude?.toFixed(4)}, 
-                                Lng: {supplierDetails.geolocation.longitude?.toFixed(4)}
+                              <div className="pt-2 border-t border-gray-100">
+                                <span className="font-semibold text-gray-700 text-sm">Geolocation:</span>
+                                <p className="text-xs text-gray-600 mt-1 flex items-center gap-2">
+                                  <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
+                                  <span>Latitude: {supplierDetails.geolocation.latitude?.toFixed(6)}</span>
+                                  <span>|</span>
+                                  <span>Longitude: {supplierDetails.geolocation.longitude?.toFixed(6)}</span>
+                                </p>
                               </div>
                             )}
+
+                            {/* Main Image URL */}
+                            {/* {supplierDetails.mainImageUrl && (
+                              <div className="pt-2 border-t border-gray-100">
+                                <span className="font-semibold text-gray-700 text-sm">Main Image URL:</span>
+                                <p className="text-xs text-blue-600 mt-1 break-all hover:underline">
+                                  <a href={supplierDetails.mainImageUrl} target="_blank" rel="noopener noreferrer">
+                                    {supplierDetails.mainImageUrl}
+                                  </a>
+                                </p>
+                              </div>
+                            )} */}
                           </div>
                         )}
                       </div>
@@ -641,6 +680,9 @@ const HotelListPageV2: NextPage = () => {
   const [selectedHotelName, setSelectedHotelName] = useState<HotelResult | null>(null);
   
   const [starFilter, setStarFilter] = useState<number | null>(null);
+  const [showStarDropdown, setShowStarDropdown] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [viewMode, setViewMode] = useState<'grouped' | 'grid' | 'list'>('grouped');
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [facilitiesToShow, setFacilitiesToShow] = useState<Hotel['facilities'] | null>(null);
@@ -648,8 +690,10 @@ const HotelListPageV2: NextPage = () => {
   const [hotelDetails, setHotelDetails] = useState<Record<string, any>>({});
   const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   const [selectedHotelIds, setSelectedHotelIds] = useState<Set<string>>(new Set());
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState<string | null>(null);
 
   // Load countries from country-state-city library
   useEffect(() => {
@@ -883,9 +927,12 @@ const HotelListPageV2: NextPage = () => {
       // Filter by star rating
       const matchesStar = starFilter === null || Math.round(hotel.stars) === starFilter;
 
-      return matchesCountry && matchesCity && matchesHotelName && matchesStar;
+      // Filter by status
+      const matchesStatus = statusFilter === 'All' || hotel.mappingMetadata?.status === statusFilter;
+
+      return matchesCountry && matchesCity && matchesHotelName && matchesStar && matchesStatus;
     });
-  }, [allHotels, selectedCountryForView, selectedCityForView, selectedHotelName, starFilter]);
+  }, [allHotels, selectedCountryForView, selectedCityForView, selectedHotelName, starFilter, statusFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -993,7 +1040,45 @@ const HotelListPageV2: NextPage = () => {
     setSelectedHotelIds(new Set());
   };
 
-  // Update hotel status
+  // Update single hotel status
+  const updateSingleHotelStatus = async (hotelId: string, status: 'Correct' | 'Review' | 'Rejected') => {
+    if (!process.env.NEXT_PUBLIC_BACKEND_URL) {
+      toast.error('Backend URL not configured');
+      return;
+    }
+
+    const loadingToast = toast.loading(`Updating status to ${status}...`);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}hotel-mapping/status/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotelIds: [hotelId],
+          status: status
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update status');
+      }
+
+      toast.success(`Successfully updated status to ${status}`, {
+        id: loadingToast,
+      });
+      // Refresh the hotel list
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      toast.error(error.message || 'Failed to update hotel status', {
+        id: loadingToast,
+      });
+    }
+  };
+
+  // Update hotel status (bulk)
   const updateHotelStatus = async (status: 'Correct' | 'Review' | 'Rejected') => {
     if (selectedHotelIds.size === 0) {
       toast.error('Please select at least one hotel');
@@ -1123,6 +1208,7 @@ const HotelListPageV2: NextPage = () => {
     setSelectedHotelName(null);
     setHotelNameSearch('');
     setStarFilter(null);
+    setStatusFilter('All');
   };
 
   return (
@@ -1145,44 +1231,138 @@ const HotelListPageV2: NextPage = () => {
                 </p>
               </div>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
-                <button
-                  onClick={() => setViewMode('grouped')}
-                  className={`px-3 py-2 rounded-md transition-all text-sm font-medium ${
-                    viewMode === 'grouped'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                  aria-label="Grouped view"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <FaBuilding className="w-4 h-4" />
-                    <span>Grouped</span>
-                  </div>
-                </button>
-                {/* <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-md transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                  aria-label="Grid view"
-                >
-                  <IoGridOutline className="w-5 h-5" />
-                </button> */}
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-md transition-all ${
-                    viewMode === 'list'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                  aria-label="List view"
-                >
-                  <IoListOutline className="w-5 h-5" />
-                </button>
+              <div className="flex items-center gap-3">
+                {/* Star Rating Filter Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowStarDropdown(!showStarDropdown)}
+                    onBlur={() => setTimeout(() => setShowStarDropdown(false), 200)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 hover:border-blue-400 transition-all text-sm font-medium text-gray-700"
+                  >
+                    <IoStarSharp className="w-4 h-4 text-yellow-500" />
+                    <span>Stars: {starFilter === null ? 'All' : starFilter}</span>
+                    {showStarDropdown ? (
+                      <IoChevronUp className="w-4 h-4" />
+                    ) : (
+                      <IoChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  
+                  {showStarDropdown && (
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setStarFilter(null);
+                          setShowStarDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                          starFilter === null ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                        }`}
+                      >
+                        <span>All Stars</span>
+                        {starFilter === null && <Check className="w-4 h-4 text-blue-600" />}
+                      </button>
+                      {[5, 4, 3, 2, 1].map((stars) => (
+                        <button
+                          key={stars}
+                          onClick={() => {
+                            setStarFilter(stars);
+                            setShowStarDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                            starFilter === stars ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="flex text-yellow-500">
+                              {Array.from({ length: stars }).map((_, i) => (
+                                <IoStarSharp key={i} className="w-3.5 h-3.5" />
+                              ))}
+                            </span>
+                          </div>
+                          {starFilter === stars && <Check className="w-4 h-4 text-blue-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Filter Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                    onBlur={() => setTimeout(() => setShowStatusDropdown(false), 200)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 hover:border-blue-400 transition-all text-sm font-medium text-gray-700"
+                  >
+                    <IoFilterSharp className="w-4 h-4" />
+                    <span>Status: {statusFilter}</span>
+                    {showStatusDropdown ? (
+                      <IoChevronUp className="w-4 h-4" />
+                    ) : (
+                      <IoChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                  
+                  {showStatusDropdown && (
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                      {['All', 'Correct', 'Review', 'Rejected'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            setStatusFilter(status);
+                            setShowStatusDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                            statusFilter === status ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>{status}</span>
+                          {statusFilter === status && <Check className="w-4 h-4 text-blue-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                  <button
+                    onClick={() => setViewMode('grouped')}
+                    className={`px-3 py-2 rounded-md transition-all text-sm font-medium ${
+                      viewMode === 'grouped'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    aria-label="Grouped view"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <FaBuilding className="w-4 h-4" />
+                      <span>Grouped</span>
+                    </div>
+                  </button>
+                  {/* <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2 rounded-md transition-all ${
+                      viewMode === 'grid'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    aria-label="Grid view"
+                  >
+                    <IoGridOutline className="w-5 h-5" />
+                  </button> */}
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded-md transition-all ${
+                      viewMode === 'list'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    aria-label="List view"
+                  >
+                    <IoListOutline className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1369,7 +1549,7 @@ const HotelListPageV2: NextPage = () => {
               </div>
 
               {/* Active Filters */}
-              {(selectedCountryForView || selectedCityForView || selectedHotelName || starFilter !== null) && (
+              {(selectedCountryForView || selectedCityForView || selectedHotelName || starFilter !== null || statusFilter !== 'All') && (
                 <div className="mt-3 pt-3 border-t border-gray-200 flex items-center flex-wrap gap-2">
                   <span className="text-xs font-medium text-gray-600">Filters:</span>
                   {selectedCountryForView && (
@@ -1392,6 +1572,16 @@ const HotelListPageV2: NextPage = () => {
                   {starFilter !== null && (
                     <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-md text-xs font-medium">
                       {'★'.repeat(starFilter)}
+                    </span>
+                  )}
+                  {statusFilter !== 'All' && (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${
+                      statusFilter === 'Correct' ? 'bg-green-50 text-green-700' :
+                      statusFilter === 'Review' ? 'bg-yellow-50 text-yellow-700' :
+                      'bg-red-50 text-red-700'
+                    }`}>
+                      <IoFilterSharp className="w-3 h-3" />
+                      {statusFilter}
                     </span>
                   )}
                   <button
@@ -1524,12 +1714,34 @@ const HotelListPageV2: NextPage = () => {
                   <span className="font-semibold">{allHotels.length}</span> hotels
                 </div>
                 {filteredHotels.length > 0 && (
-                  <button
-                    onClick={selectedHotelIds.size === filteredHotels.length ? clearSelection : selectAllHotels}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {selectedHotelIds.size === filteredHotels.length ? 'Deselect All' : 'Select All'}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {!multiSelectMode ? (
+                      <button
+                        onClick={() => setMultiSelectMode(true)}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Select Multiple
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={selectedHotelIds.size === filteredHotels.length ? clearSelection : selectAllHotels}
+                          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          {selectedHotelIds.size === filteredHotels.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMultiSelectMode(false);
+                            clearSelection();
+                          }}
+                          className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1553,13 +1765,15 @@ const HotelListPageV2: NextPage = () => {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4 flex-1">
                               {/* Checkbox */}
-                              <input
-                                type="checkbox"
-                                checked={selectedHotelIds.has(hotel._id)}
-                                onChange={() => toggleHotelSelection(hotel._id)}
-                                className="w-5 h-5 text-blue-600 bg-white border-2 border-white rounded focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer"
-                                onClick={(e) => e.stopPropagation()}
-                              />
+                              {multiSelectMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedHotelIds.has(hotel._id)}
+                                  onChange={() => toggleHotelSelection(hotel._id)}
+                                  className="w-5 h-5 text-blue-600 bg-white border-2 border-white rounded focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              )}
                               <div className="relative w-20 h-20 rounded-lg overflow-hidden shadow-lg flex-shrink-0">
                                 <Image
                                   src={getHighResImageUrl(hotel.mainImageUrl)}
@@ -1594,6 +1808,7 @@ const HotelListPageV2: NextPage = () => {
                             {/* Status and Actions */}
                             <div className="flex items-center gap-3">
                               <div className="flex flex-col items-end gap-2">
+                                {/* Static Status Badge */}
                                 {hotel.mappingMetadata?.status && (
                                   <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
                                     hotel.mappingMetadata.status === 'Correct' 
@@ -1605,6 +1820,7 @@ const HotelListPageV2: NextPage = () => {
                                     {hotel.mappingMetadata.status}
                                   </span>
                                 )}
+                                
                                 <span className="px-4 py-1.5 bg-white/20 text-white rounded-full text-sm font-semibold flex items-center gap-1.5">
                                   <Check className="w-4 h-4" />
                                   {hotel.mappedSuppliers?.length || 0} {(hotel.mappedSuppliers?.length || 0) === 1 ? 'Supplier' : 'Suppliers'}
@@ -1685,8 +1901,64 @@ const HotelListPageV2: NextPage = () => {
                               </div>
                             ) : (
                               <>
+                            {/* Status Update Section */}
+                            <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border border-blue-200">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 mb-1">Update Status</h4>
+                                  <p className="text-xs text-gray-600">Change the mapping status for this hotel</p>
+                                </div>
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setStatusDropdownOpen(statusDropdownOpen === `expand-${hotel._id}` ? null : `expand-${hotel._id}`);
+                                    }}
+                                    onBlur={() => setTimeout(() => setStatusDropdownOpen(null), 200)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+                                      hotel.mappingMetadata?.status === 'Correct'
+                                        ? 'bg-green-500 text-white hover:bg-green-600'
+                                        : hotel.mappingMetadata?.status === 'Review'
+                                        ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                        : hotel.mappingMetadata?.status === 'Rejected'
+                                        ? 'bg-red-500 text-white hover:bg-red-600'
+                                        : 'bg-gray-500 text-white hover:bg-gray-600'
+                                    }`}
+                                  >
+                                    <span>{hotel.mappingMetadata?.status || 'Set Status'}</span>
+                                    {statusDropdownOpen === `expand-${hotel._id}` ? (
+                                      <IoChevronUp className="w-4 h-4" />
+                                    ) : (
+                                      <IoChevronDown className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  
+                                  {statusDropdownOpen === `expand-${hotel._id}` && (
+                                    <div className="absolute top-full right-0 mt-1 w-40 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                                      {['Correct', 'Review', 'Rejected'].map((status) => (
+                                        <button
+                                          key={status}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateSingleHotelStatus(hotel._id, status as 'Correct' | 'Review' | 'Rejected');
+                                            setStatusDropdownOpen(null);
+                                          }}
+                                          className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between text-sm ${
+                                            hotel.mappingMetadata?.status === status ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                                          }`}
+                                        >
+                                          <span>{status}</span>
+                                          {hotel.mappingMetadata?.status === status && <Check className="w-4 h-4 text-blue-600" />}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Hotel Details */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <div className="grid grid-cols-1 gap-6 mb-6">
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
                                   <Building2 className="w-5 h-5 text-blue-600" />
@@ -1707,26 +1979,15 @@ const HotelListPageV2: NextPage = () => {
                                   </p>
                                 </div>
                               </div>
+                            </div>
 
+                            {/* Skip facilities and board basis section entirely */}
+                            <div className="hidden">
                               <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900 text-lg">Board Basis & Facilities</h4>
+                                <h4 className="font-semibold text-gray-900 text-lg">Hidden Section</h4>
                                 <div className="space-y-2">
                                   <div>
-                                    <p className="text-sm font-medium text-gray-700 mb-2">Board Basis:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {hotel.boardBasis && hotel.boardBasis.length > 0 ? (
-                                        hotel.boardBasis.map((basis, idx) => (
-                                          <span key={idx} className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
-                                            {basis}
-                                          </span>
-                                        ))
-                                      ) : (
-                                        <span className="text-xs text-gray-500">No board basis information</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700 mb-2">Top Facilities:</p>
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Hidden:</p>
                                     <div className="flex flex-wrap gap-1.5">
                                       {hotel.facilities && hotel.facilities.length > 0 ? (
                                         <>
@@ -1802,61 +2063,123 @@ const HotelListPageV2: NextPage = () => {
                                         {/* Display supplier details from API */}
                                         {supplierDetails ? (
                                           <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                                            {/* Basic Info */}
-                                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                              {supplierDetails.telephone && (
+                                            {/* All Supplier Details */}
+                                            <div className="grid grid-cols-1 gap-2 text-xs">
+                                              {supplierDetails._id && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Phone:</span>
-                                                  <p className="text-gray-600">{supplierDetails.telephone}</p>
+                                                  <span className="font-semibold text-gray-700">Supplier Hotel ID:</span>
+                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails._id}</p>
                                                 </div>
                                               )}
-                                              {supplierDetails.stars && (
+                                              {supplierDetails.supplierHotelId && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Stars:</span>
-                                                  <p className="text-gray-600 flex items-center gap-1">
-                                                    {supplierDetails.stars}
-                                                    {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
-                                                      <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
-                                                    ))}
-                                                  </p>
+                                                  <span className="font-semibold text-gray-700">Supplier Hotel Code:</span>
+                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails.supplierHotelId}</p>
+                                                </div>
+                                              )}
+                                              {supplierDetails.name && (
+                                                <div>
+                                                  <span className="font-semibold text-gray-700">Hotel Name:</span>
+                                                  <p className="text-gray-600">{supplierDetails.name}</p>
+                                                </div>
+                                              )}
+                                              {supplierDetails.address && (
+                                                <div>
+                                                  <span className="font-semibold text-gray-700">Address:</span>
+                                                  <p className="text-gray-600">{supplierDetails.address}</p>
+                                                </div>
+                                              )}
+                                              <div className="grid grid-cols-2 gap-2">
+                                                {supplierDetails.city && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">City:</span>
+                                                    <p className="text-gray-600">
+                                                      {supplierDetails.city.name || supplierDetails.city}
+                                                      {supplierDetails.city.id && (
+                                                        <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                                      )}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                                {supplierDetails.country && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">Country:</span>
+                                                    <p className="text-gray-600">
+                                                      {supplierDetails.country.name || supplierDetails.country}
+                                                      {supplierDetails.country.iso && (
+                                                        <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                                      )}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                                {supplierDetails.zipCode && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">Zip Code:</span>
+                                                    <p className="text-gray-600">{supplierDetails.zipCode}</p>
+                                                  </div>
+                                                )}
+                                                {supplierDetails.telephone && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">Phone:</span>
+                                                    <p className="text-gray-600">{supplierDetails.telephone}</p>
+                                                  </div>
+                                                )}
+                                                {supplierDetails.stars && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">Stars:</span>
+                                                    <p className="text-gray-600 flex items-center gap-1">
+                                                      {supplierDetails.stars}
+                                                      {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
+                                                        <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
+                                                      ))}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                                {typeof supplierDetails.specialDeals !== 'undefined' && (
+                                                  <div>
+                                                    <span className="font-semibold text-gray-700">Special Deals:</span>
+                                                    <p className="text-gray-600">
+                                                      {supplierDetails.specialDeals ? (
+                                                        <span className="text-green-600 font-medium">✓ Available</span>
+                                                      ) : (
+                                                        <span className="text-gray-500">Not available</span>
+                                                      )}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {supplierDetails.supplier && (
+                                                <div>
+                                                  <span className="font-semibold text-gray-700">Supplier Reference ID:</span>
+                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails.supplier}</p>
                                                 </div>
                                               )}
                                             </div>
 
-                                            {/* Board Basis */}
-                                            {supplierDetails.boardBasis && supplierDetails.boardBasis.length > 0 && (
-                                              <div>
-                                                <span className="font-semibold text-gray-700 text-xs">Board:</span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {supplierDetails.boardBasis.map((basis: string, idx: number) => (
-                                                    <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">
-                                                      {basis}
-                                                    </span>
-                                                  ))}
-                                                </div>
+                                            {/* Coordinates */}
+                                            {supplierDetails.geolocation && (
+                                              <div className="pt-2 border-t border-gray-100">
+                                                <span className="font-semibold text-gray-700 text-xs">Geolocation:</span>
+                                                <p className="text-xs text-gray-600 mt-1 flex items-center gap-2">
+                                                  <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
+                                                  <span>Latitude: {supplierDetails.geolocation.latitude?.toFixed(6)}</span>
+                                                  <span>|</span>
+                                                  <span>Longitude: {supplierDetails.geolocation.longitude?.toFixed(6)}</span>
+                                                </p>
                                               </div>
                                             )}
 
-                                            {/* Facilities */}
-                                            {supplierDetails.facilities && supplierDetails.facilities.length > 0 && (
-                                              <div>
-                                                <span className="font-semibold text-gray-700 text-xs">
-                                                  Facilities ({supplierDetails.facilities.length}):
-                                                </span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {supplierDetails.facilities.slice(0, 6).map((facility: string, idx: number) => (
-                                                    <span key={idx} className="text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">
-                                                      {facility}
-                                                    </span>
-                                                  ))}
-                                                  {supplierDetails.facilities.length > 6 && (
-                                                    <span className="text-xs text-gray-500 px-1.5 py-0.5">
-                                                      +{supplierDetails.facilities.length - 6} more
-                                                    </span>
-                                                  )}
-                                                </div>
+                                            {/* Main Image URL */}
+                                            {/* {supplierDetails.mainImageUrl && (
+                                              <div className="pt-2 border-t border-gray-100">
+                                                <span className="font-semibold text-gray-700 text-xs">Main Image URL:</span>
+                                                <p className="text-xs text-blue-600 mt-1 break-all hover:underline">
+                                                  <a href={supplierDetails.mainImageUrl} target="_blank" rel="noopener noreferrer">
+                                                    {supplierDetails.mainImageUrl}
+                                                  </a>
+                                                </p>
                                               </div>
-                                            )}
+                                            )} */}
                                           </div>
                                         ) : (
                                           <SupplierDataDisplay
@@ -2121,6 +2444,9 @@ const HotelListPageV2: NextPage = () => {
         isLoading={selectedHotel ? loadingDetails.has(selectedHotel._id) : false}
         onClose={() => setSelectedHotel(null)}
         onRemoveSupplier={handleRemoveSupplier}
+        onUpdateStatus={updateSingleHotelStatus}
+        statusDropdownOpen={statusDropdownOpen}
+        setStatusDropdownOpen={setStatusDropdownOpen}
       />
       <FacilitiesModal facilities={facilitiesToShow} onClose={() => setFacilitiesToShow(null)} />
     </>
