@@ -260,7 +260,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                             <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
                             Confirm Deletion
                         </h3>
-                         <button type="button" onClick={onClose} className="p-1 text-gray-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                       <button type="button" onClick={onClose} className="p-1 text-gray-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
@@ -296,7 +296,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                     </div>
 
                     <div className="flex justify-end items-center px-6 py-4 space-x-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
-                         <button onClick={onClose} disabled={isDeleting} className="px-4 py-2 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50">
+                       <button onClick={onClose} disabled={isDeleting} className="px-4 py-2 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50">
                             Cancel
                         </button>
                         <button
@@ -453,8 +453,8 @@ export default function PlanListAdvanced() {
         }
 
         const planId = selectedPlan._id;
-        // Assuming a bulk delete endpoint exists
-        const url = `${baseUrl.replace(/\/+$/, '')}/markup/${planId}/markups/bulk-delete`;
+        // **UPDATED ENDPOINT HERE**
+        const url = `${baseUrl.replace(/\/+$/, '')}/markup/${planId}/markups/bulk-remove`;
 
         const response = await fetch(url, {
             method: 'DELETE',
