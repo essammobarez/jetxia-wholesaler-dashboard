@@ -27,7 +27,7 @@ const EditPlanModal: React.FC<EditPlanModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
+   
     if (type === 'checkbox') {
       const { checked } = e.target as HTMLInputElement;
       setFormData(prev => ({ ...prev, [name]: checked }));
@@ -85,7 +85,7 @@ const EditPlanModal: React.FC<EditPlanModalProps> = ({ isOpen, onClose, onSave, 
                 required
               />
             </div>
-            
+           
             {/* Status */}
             <div className="flex items-center">
                 <input

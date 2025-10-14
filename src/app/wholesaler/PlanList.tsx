@@ -1,7 +1,7 @@
 'use client';
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Disclosure } from '@headlessui/react';
-import { ChevronDown, ChevronUp, RefreshCw, Search as SearchIcon, Edit, Trash2, Loader2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback, Fragment } from 'react';
+import { Disclosure, Transition } from '@headlessui/react';
+import { ChevronDown, ChevronUp, RefreshCw, Search as SearchIcon, Edit, Trash2, Loader2, X, Wrench, AlertTriangle } from 'lucide-react';
 
 // --- INTERFACES AND TYPES ---
 interface Markup {
@@ -36,51 +36,58 @@ interface EditMarkupsModalProps {
 }
 
 const EditMarkupsModal: React.FC<EditMarkupsModalProps> = ({ isOpen, onClose, onUpdateSuccess, plan }) => {
-  const [editingMarkup, setEditingMarkup] = useState<Markup | null>(null);
-  const [markupValue, setMarkupValue] = useState('');
+  const [markupValues, setMarkupValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      setEditingMarkup(null);
-      setMarkupValue('');
-      setIsSubmitting(false);
-      setError(null);
+    if (isOpen && plan?.markups) {
+      const initialValues = plan.markups.reduce((acc, markup) => {
+        acc[markup._id] = String(markup.value);
+        return acc;
+      }, {} as Record<string, string>);
+      setMarkupValues(initialValues);
+    } else if (!isOpen) {
+      setTimeout(() => {
+          setMarkupValues({});
+          setIsSubmitting(false);
+          setError(null);
+      }, 300);
     }
-  }, [isOpen]);
+  }, [isOpen, plan]);
 
-  const handleEditClick = (markup: Markup) => {
-    setEditingMarkup(markup);
-    setMarkupValue(String(markup.value));
-    setError(null);
+  const handleValueChange = (markupId: string, value: string) => {
+    setMarkupValues(prev => ({ ...prev, [markupId]: value }));
   };
 
-  const handleCancelClick = () => {
-    setEditingMarkup(null);
-    setMarkupValue('');
-  };
-
-  const handleSaveSubmit = async (e: React.FormEvent) => {
+  const handleBulkUpdateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plan || !editingMarkup) return;
+    if (!plan) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      const payload = {
+        markups: Object.entries(markupValues).map(([markupId, value]) => {
+          const numValue = Number(value);
+          if (isNaN(numValue) || value.trim() === '') {
+            throw new Error(`Invalid value for one of the markups. Please enter valid numbers.`);
+          }
+          return { markupId, value: numValue };
+        }),
+      };
+
       const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       if (!baseUrl) {
         throw new Error('Missing NEXT_PUBLIC_BACKEND_URL environment variable');
       }
-      const url = `${baseUrl.replace(/\/+$/, '')}/markup/${plan._id}/markup/${editingMarkup._id}`;
+      const url = `${baseUrl.replace(/\/+$/, '')}/markup/${plan._id}/markups/bulk-update`;
 
       const response = await fetch(url, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ value: Number(markupValue) }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -90,92 +97,125 @@ const EditMarkupsModal: React.FC<EditMarkupsModalProps> = ({ isOpen, onClose, on
 
       onUpdateSuccess();
     } catch (err: any) {
-      console.error('Failed to update markup:', err);
+      console.error('Failed to bulk update markups:', err);
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-
-  if (!isOpen || !plan) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-lg">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
-          Edit Markups for: {plan.name}
-        </h2>
-        {error && <p className="text-red-500 bg-red-100 dark:bg-red-900 p-3 rounded-md mb-4">{error}</p>}
-        <div className="space-y-3">
-          {plan.markups.length > 0 ? (
-            plan.markups.map((markup) => (
-              <div key={markup._id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
-                {editingMarkup?._id === markup._id ? (
-                  <form onSubmit={handleSaveSubmit} className="flex items-center justify-between space-x-2">
-                    <div className="flex-grow">
-                      <label className="sr-only" htmlFor={`markup-${markup._id}`}>
-                        {markup.provider?.name || 'N/A'} Value
-                      </label>
-                      <div className="relative">
-                        <input
-                          id={`markup-${markup._id}`}
-                          type="number"
-                          value={markupValue}
-                          onChange={(e) => setMarkupValue(e.target.value)}
-                          className="w-full pl-3 pr-12 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          placeholder="e.g., 15"
-                          required
-                        />
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">%</span>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button type="submit" disabled={isSubmitting} className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400">
-                        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save'}
-                      </button>
-                      <button type="button" onClick={handleCancelClick} className="px-3 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{markup.provider?.name || 'N/A'}</span>:
-                      <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-gray-50">{markup.value}%</span>
-                    </div>
-                    <button onClick={() => handleEditClick(markup)} className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800">
-                      <Edit className="w-4 h-4 mr-1.5" /> Edit
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400">No markups found for this plan.</p>
-          )}
-        </div>
-        <div className="flex justify-end mt-8">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+    <Transition appear show={isOpen} as={Fragment}>
+      <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div className="min-h-screen px-4 text-center">
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
           >
-            Close
-          </button>
+            <div className="fixed inset-0 bg-black bg-opacity-60" />
+          </Transition.Child>
+
+          <span className="inline-block h-screen align-middle" aria-hidden="true"></span>
+
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0 scale-95"
+            enterTo="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100 scale-100"
+            leaveTo="opacity-0 scale-95"
+          >
+            <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-lg">
+              <form onSubmit={handleBulkUpdateSubmit}>
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                    <Wrench className="w-4 h-4 mr-2 text-blue-500" />
+                    Edit Markups
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-1 text-gray-400 rounded-full hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="px-4 py-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      Plan: <strong className="text-gray-700 dark:text-gray-200">{plan?.name}</strong>
+                    </p>
+                  {error && <p className="text-red-600 bg-red-100 dark:bg-red-900/50 p-2 rounded-md mb-3 text-xs">{error}</p>}
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-2 -mr-2">
+                    {plan?.markups && plan.markups.length > 0 ? (
+                      plan.markups.map((markup) => (
+                        <div key={markup._id} className="p-2 rounded-md flex items-center justify-between bg-gray-50 dark:bg-gray-900/50">
+                          <label htmlFor={`markup-${markup._id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5 truncate">
+                            {markup.provider?.name || 'N/A'}
+                          </label>
+                          <div className="relative flex-grow ml-3">
+                            <input
+                              id={`markup-${markup._id}`}
+                              type="number"
+                              step="0.01"
+                              value={markupValues[markup._id] || ''}
+                              onChange={(e) => handleValueChange(markup._id, e.target.value)}
+                              className="w-full pl-2 pr-6 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                              placeholder="e.g., 10"
+                              required
+                            />
+                            <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500 text-sm pointer-events-none">%</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-6">No markups found.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex justify-end items-center px-4 py-3 space-x-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  {plan?.markups && plan.markups.length > 0 && (
+                      <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="inline-flex items-center justify-center w-32 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 disabled:bg-blue-400"
+                    >
+                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Changes'}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </Transition.Child>
         </div>
       </div>
-    </div>
+    </Transition>
   );
 };
-
 
 // --- MODAL COMPONENT: DeleteConfirmationModal ---
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (markupIdsToDelete: string[]) => void;
   plan: PlanAPI | null;
   isDeleting: boolean;
 }
@@ -187,35 +227,91 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   plan,
   isDeleting,
 }) => {
+  const [selectedMarkups, setSelectedMarkups] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedMarkups([]);
+    }
+  }, [isOpen]);
+
+  const handleCheckboxChange = (markupId: string) => {
+    setSelectedMarkups(prev =>
+      prev.includes(markupId)
+        ? prev.filter(id => id !== markupId)
+        : [...prev, markupId]
+    );
+  };
+
   if (!isOpen || !plan) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Confirm Deletion
-        </h2>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">
-          Are you sure you want to delete the plan "<strong>{plan.name}</strong>"? This action cannot be undone.
-        </p>
-        <div className="flex justify-end space-x-4">
-          <button
-            onClick={onClose}
-            disabled={isDeleting}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className="flex items-center justify-center px-4 py-2 w-28 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
-          >
-            {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Delete'}
-          </button>
+    <Transition appear show={isOpen} as={Fragment}>
+      <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div className="min-h-screen px-4 text-center">
+            <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+                <div className="fixed inset-0 bg-black bg-opacity-60" />
+            </Transition.Child>
+            <span className="inline-block h-screen align-middle" aria-hidden="true"></span>
+            <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
+                <div className="inline-block w-full max-w-lg my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-lg">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                            <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
+                            Confirm Deletion
+                        </h3>
+                         <button type="button" onClick={onClose} className="p-1 text-gray-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="p-6">
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                          You are about to delete markups from the plan "<strong>{plan.name}</strong>". Select the suppliers you wish to remove. This action cannot be undone.
+                        </p>
+
+                        <div className="border border-gray-200 dark:border-gray-600 rounded-md max-h-60 overflow-y-auto">
+                           <div className="space-y-1 p-3">
+                            {plan.markups.length > 0 ? (
+                                plan.markups.map(markup => (
+                                    <label key={markup._id} htmlFor={`delete-markup-${markup._id}`} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                                        <div className="flex items-center">
+                                             <input
+                                                id={`delete-markup-${markup._id}`}
+                                                type="checkbox"
+                                                checked={selectedMarkups.includes(markup._id)}
+                                                onChange={() => handleCheckboxChange(markup._id)}
+                                                className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                            />
+                                            <span className="ml-3 text-sm font-medium text-gray-800 dark:text-gray-200">{markup.provider?.name || 'N/A'}</span>
+                                        </div>
+                                        <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">{markup.value}%</span>
+                                    </label>
+                                ))
+                            ) : (
+                                <p className="text-center text-sm text-gray-500 py-4">No markups found in this plan.</p>
+                            )}
+                           </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end items-center px-6 py-4 space-x-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+                         <button onClick={onClose} disabled={isDeleting} className="px-4 py-2 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => onConfirm(selectedMarkups)}
+                            disabled={isDeleting || selectedMarkups.length === 0}
+                            className="inline-flex items-center justify-center w-36 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
+                        >
+                            {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : `Delete (${selectedMarkups.length})`}
+                        </button>
+                    </div>
+                </div>
+            </Transition.Child>
         </div>
       </div>
-    </div>
+    </Transition>
   );
 };
 
@@ -297,10 +393,8 @@ export default function PlanListAdvanced() {
   }, [wholesalerLoading, wholesalerId, fetchPlans]);
 
   const filteredSortedPlans = useMemo(() => {
-    // Filter out plans that have no markups first
     let filtered = plans.filter(plan => plan.markups && plan.markups.length > 0);
 
-    // Then apply other existing filters
     if (searchTerm.trim()) {
       const lower = searchTerm.trim().toLowerCase();
       filtered = filtered.filter(
@@ -331,7 +425,7 @@ export default function PlanListAdvanced() {
     setSelectedPlan(plan);
     setIsEditModalOpen(true);
   };
-  
+ 
   const handleOpenDeleteModal = (plan: PlanAPI) => {
     setSelectedPlan(plan);
     setIsDeleteModalOpen(true);
@@ -347,17 +441,9 @@ export default function PlanListAdvanced() {
     handleCloseModals();
     fetchPlans();
   };
-  
-  const handleConfirmDelete = async () => {
-    if (!selectedPlan) return;
-
-    const markupId = selectedPlan.markups[0]?._id; 
-    if (!markupId) {
-        console.error("Cannot delete plan: No associated markup ID found.");
-        alert("Error: This plan does not have a deletable markup rule.");
-        handleCloseModals();
-        return;
-    }
+ 
+  const handleConfirmDelete = async (markupIdsToDelete: string[]) => {
+    if (!selectedPlan || markupIdsToDelete.length === 0) return;
 
     setIsDeleting(true);
     try {
@@ -367,23 +453,25 @@ export default function PlanListAdvanced() {
         }
 
         const planId = selectedPlan._id;
-        const url = `${baseUrl.replace(/\/+$/, '')}/markup/${planId}/markup/${markupId}`;
+        // Assuming a bulk delete endpoint exists
+        const url = `${baseUrl.replace(/\/+$/, '')}/markup/${planId}/markups/bulk-delete`;
 
         const response = await fetch(url, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ markupIds: markupIdsToDelete }),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || `Failed to delete plan (HTTP ${response.status})`);
+            throw new Error(errorData.message || `Failed to delete markups (HTTP ${response.status})`);
         }
         
-        fetchPlans();
+        fetchPlans(); // Refresh the data
         handleCloseModals();
 
     } catch (error: any) {
-        console.error('Error deleting plan:', error);
+        console.error('Error deleting markups:', error);
         alert(`Error: ${error.message}`);
     } finally {
         setIsDeleting(false);
@@ -491,7 +579,7 @@ export default function PlanListAdvanced() {
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleOpenDeleteModal(plan); }} 
                           className="p-2 rounded-md text-red-600 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-800"
-                          title="Delete Plan"
+                          title="Delete Markups"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

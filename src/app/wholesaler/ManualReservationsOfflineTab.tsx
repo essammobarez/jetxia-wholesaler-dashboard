@@ -50,7 +50,7 @@ type Traveller = {
   title: string;
   firstName: string;
   lastName: string;
-  birthday: string | null;
+  birthdate: string | null; // <-- UPDATED from birthday to birthdate
   nationality: string; // ISO country code
 };
 
@@ -83,6 +83,42 @@ type BookingSuccessData = {
         };
         fullDetails?: any;
     };
+};
+
+// --- NEW: TYPE DEFINITIONS FOR ROOMS API ---
+type RoomOption = {
+    board: string;
+    price: { value: number; currency: string };
+};
+
+type RoomType = {
+    name: string;
+    options: RoomOption[];
+};
+
+type ApiRoomsResponse = {
+  success: boolean;
+  data: {
+      suppliers: {
+          data: {
+              simplified: {
+                  roomTypes: RoomType[];
+              };
+          };
+      }[];
+  }
+};
+
+type HotelFromCitySearch = {
+    _id: string;
+    name: string;
+    stars: number;
+    location?: { city: string, countryCode: string };
+    mappedSuppliers: {
+        supplier: string;
+        supplierHotelId: number;
+        _id: string;
+    }[];
 };
 
 
@@ -142,7 +178,7 @@ type MuiSelectWithFlagProps = {
   placeholder: string;
   options: Array<{ code: string; name: string }>;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange: (e: React.ChangeEvent<any>) => void;
   className?: string;
 };
 
@@ -208,7 +244,7 @@ type MuiSelectSimpleProps = {
   placeholder: string;
   options: Array<{ code: string; name: string }>;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange: (e: React.ChangeEvent<any>) => void;
   className?: string;
 };
 
@@ -269,7 +305,7 @@ const ManualReservation: NextPage = () => {
                       title: '',
                       firstName: '',
                       lastName: '',
-                      birthday: null,
+                      birthdate: null,
                       nationality: '',
                   },
               ],
@@ -286,7 +322,7 @@ const ManualReservation: NextPage = () => {
   const [agencyData, setAgencyData] = useState<{ walletBalance: number; markup: number }>({ walletBalance: 0, markup: 0 });
   const [destination, setDestination] = useState('');
   const [selectedHotelId, setSelectedHotelId] = useState('');
-  const [selectedHotelDetails, setSelectedHotelDetails] = useState<any | null>(null);
+  const [selectedHotelDetails, setSelectedHotelDetails] = useState<HotelFromCitySearch | null>(null);
   const [checkIn, setCheckIn] = useState<Dayjs | null>(null);
   const [checkOut, setCheckOut] = useState<Dayjs | null>(null);
   const [externalId, setExternalId] = useState('');
@@ -319,11 +355,20 @@ const ManualReservation: NextPage = () => {
 
   // Modal State
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-
+  
   // --- NEW: BOOKING & DOWNLOAD STATES ---
   const [bookingSuccessData, setBookingSuccessData] = useState<BookingSuccessData | null>(null);
   const [isDownloadingVoucher, setIsDownloadingVoucher] = useState(false);
   const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
+
+  // --- NEW: ROOM API STATE ---
+  const [apiRoomTypes, setApiRoomTypes] = useState<RoomType[]>([]);
+  const [isRoomDataLoading, setIsRoomDataLoading] = useState(false);
+
+  // --- NEW: CURRENCY CONVERSION STATE ---
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number> | null>(null);
+  const [convertedCredit, setConvertedCredit] = useState<number>(0);
+  const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
 
   // --- DYNAMIC WHOLESALER ID ---
   const getWholesalerId = useCallback(() => {
@@ -461,6 +506,7 @@ const ManualReservation: NextPage = () => {
     setSubmitError(null);
     setIsPreviewModalOpen(false);
     setBookingSuccessData(null);
+    setApiRoomTypes([]); // <-- NEW: Reset room data
   };
 
   // --- HANDLERS ---
@@ -474,7 +520,7 @@ const ManualReservation: NextPage = () => {
             title: '',
             firstName: '',
             lastName: '',
-            birthday: null,
+            birthdate: null,
             nationality: '',
           };
           return {
@@ -532,7 +578,7 @@ const ManualReservation: NextPage = () => {
           title: '',
           firstName: '',
           lastName: '',
-          birthday: null,
+          birthdate: null,
           nationality: '',
         },
       ],
@@ -608,6 +654,96 @@ const ManualReservation: NextPage = () => {
     }
   }, [cancellationPolicies]);
 
+    // --- NEW: EFFECT TO FETCH EXCHANGE RATES ---
+    useEffect(() => {
+      const fetchRates = async () => {
+        if (!currency || currency === 'USD') {
+          setExchangeRates(null); // No need to fetch if it's USD or not selected
+          return;
+        }
+        setIsConvertingCurrency(true);
+        try {
+          // Using a free, no-key-required API for exchange rates based on USD
+          const response = await axios.get('https://open.er-api.com/v6/latest/USD');
+          setExchangeRates(response.data.rates);
+        } catch (error) {
+          console.error("Failed to fetch exchange rates:", error);
+          setExchangeRates(null); // Reset on error to avoid stale data
+        } finally {
+          setIsConvertingCurrency(false);
+        }
+      };
+  
+      fetchRates();
+    }, [currency]);
+  
+    // --- NEW: EFFECT TO CALCULATE CONVERTED CREDIT ---
+    useEffect(() => {
+      // The base balance is always in USD from agencyData.walletBalance
+      const baseCreditUSD = agencyData.walletBalance;
+  
+      if (currency && currency !== 'USD' && exchangeRates && exchangeRates[currency]) {
+        const rate = exchangeRates[currency];
+        const convertedValue = baseCreditUSD * rate;
+        setConvertedCredit(convertedValue);
+      } else {
+        // Default to the original USD balance if currency is USD or rates aren't available
+        setConvertedCredit(baseCreditUSD);
+      }
+    }, [currency, exchangeRates, agencyData.walletBalance]);
+
+  // --- NEW: API CALL TO FETCH ROOMS ---
+  const fetchHotelRooms = useCallback(async () => {
+    if (!selectedHotelDetails || !checkIn || !checkOut || !selectedHotelDetails.mappedSuppliers) {
+      setApiRoomTypes([]);
+      return;
+    }
+
+    setIsRoomDataLoading(true);
+    setApiRoomTypes([]);
+    
+    // Reset existing room selections when fetching new data
+    setRooms(getInitialRooms());
+
+    try {
+      const payload = {
+        supplierId: selectedHotelDetails.mappedSuppliers.map(s => ({
+          supplierId: s.supplier,
+          supplierHotelId: String(s.supplierHotelId)
+        })),
+        agencyId: "685dd2c31c290ecf67e85324",
+        checkIn: checkIn.format('YYYY-MM-DD'),
+        checkOut: checkOut.format('YYYY-MM-DD'),
+        occupancy: {
+          leaderNationality: 526,
+          rooms: [{ adults: 1, children: 0, childrenAges: [] }]
+        },
+        sellingChannel: "B2B"
+      };
+
+      const axiosInstance = axios.create({ baseURL: process.env.NEXT_PUBLIC_BACKEND_URL });
+      const response = await axiosInstance.post<ApiRoomsResponse>('/hotel/rooms', payload);
+      
+      if (response.data.success && response.data.data.suppliers.length > 0) {
+        // Assuming we take data from the first supplier
+        const roomTypes = response.data.data.suppliers[0].data.simplified.roomTypes;
+        setApiRoomTypes(roomTypes);
+      } else {
+        console.error("No suppliers data found in response");
+      }
+
+    } catch (error) {
+      console.error("Error fetching hotel rooms:", error);
+      setApiRoomTypes([]);
+    } finally {
+      setIsRoomDataLoading(false);
+    }
+  }, [selectedHotelDetails, checkIn, checkOut]);
+
+  useEffect(() => {
+    fetchHotelRooms();
+  }, [fetchHotelRooms]);
+
 
   // --- OPEN PREVIEW MODAL ---
   const handleCreateReservation = () => {
@@ -661,7 +797,7 @@ const ManualReservation: NextPage = () => {
     const payload = {
       hotel: {
         name: selectedHotelDetails?.name || 'Grand Palace Hotel Dubai',
-        stars: selectedHotelDetails?.rating || 5,
+        stars: selectedHotelDetails?.stars || 5,
         city: selectedHotelDetails?.location?.city || 'Dubai',
         country: selectedHotelDetails?.location?.countryCode || 'AE',
       },
@@ -768,7 +904,7 @@ const ManualReservation: NextPage = () => {
                             selectedHotelId={selectedHotelId}
                             setSelectedHotelId={setSelectedHotelId}
                             selectedHotelDetails={selectedHotelDetails}
-                            setSelectedHotelDetails={setSelectedHotelDetails}
+                            setSelectedHotelDetails={setSelectedHotelDetails as any}
                             checkIn={checkIn}
                             setCheckIn={setCheckIn}
                             checkOut={checkOut}
@@ -783,10 +919,9 @@ const ManualReservation: NextPage = () => {
                         currency={currency} setCurrency={setCurrency}
                         supplierCode={supplierCode} setSupplierCode={setSupplierCode}
                         backofficeRef={backofficeRef} setBackofficeRef={setBackofficeRef}
-                        language={language} setLanguage={setLanguage}
                         agentRef={agentRef} setAgentRef={setAgentRef}
                         supplierConfirmation={supplierConfirmation} setSupplierConfirmation={setSupplierConfirmation}
-                        currencies={currencies} languages={languages}
+                        currencies={currencies}
                         setSupplierType={setSupplierType}
                     />
 
@@ -795,6 +930,8 @@ const ManualReservation: NextPage = () => {
                         handleRemoveRoom={handleRemoveRoom} handleRoomChange={handleRoomChange}
                         handleAddTraveller={handleAddTraveller} handleRemoveTraveller={handleRemoveTraveller}
                         handleTravellerChange={handleTravellerChange}
+                        apiRoomTypes={apiRoomTypes}
+                        isRoomDataLoading={isRoomDataLoading}
                     />
 
                     <PriceInformation
@@ -805,6 +942,7 @@ const ManualReservation: NextPage = () => {
                     <CancellationPolicy
                         policies={cancellationPolicies} setPolicies={setCancellationPolicies}
                         totalPrice={totalPrice}
+                        currency={currency}
                     />
                     <BackofficeRemarks
                         addedRemarks={addedRemarks} setAddedRemarks={setAddedRemarks}
@@ -833,8 +971,21 @@ const ManualReservation: NextPage = () => {
                                 )}
                             </div>
                             <div className="mt-4">
-                                <FormControlLabel value="CREDIT" control={<Radio />}
-                                    label={ <div className="flex items-center gap-2"> <Wallet className="h-5 w-5" /> <span> Available credit: <strong>{agencyData.walletBalance.toFixed(2)} {currency || 'USD'}</strong> </span> </div> }
+                                <FormControlLabel
+                                    value="CREDIT"
+                                    control={<Radio />}
+                                    // UPDATED: Disable if total price is greater than available credit
+                                    disabled={parseFloat(totalPrice) > convertedCredit || isConvertingCurrency}
+                                    label={
+                                        <div className="flex items-center gap-2">
+                                            <Wallet className="h-5 w-5" />
+                                            <span>
+                                                Available credit: <strong>
+                                                  {isConvertingCurrency ? 'Converting...' : `${convertedCredit.toFixed(2)} ${currency || 'USD'}`}
+                                                </strong>
+                                            </span>
+                                        </div>
+                                    }
                                 />
                             </div>
                         </RadioGroup>
