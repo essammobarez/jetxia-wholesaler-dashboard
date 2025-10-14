@@ -67,7 +67,7 @@ type MuiSelectSimpleProps = {
     placeholder: string;
     options: Array<{ code: string; name: string }>;
     value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onChange: (e: React.ChangeEvent<any>) => void;
     className?: string;
 };
 
@@ -238,7 +238,7 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
         
         const selectedProvider = providers.find(p => p._id === providerId);
         
-        // 3. Set supplierName (just the name, without icon/status) and auto-fill supplierCode with _id
+        // 3. Set supplierName (just the name) and auto-fill supplierCode with _id
         if (selectedProvider) {
             setSupplierName(selectedProvider.name);
             setSupplierCode(selectedProvider._id); // Auto-fill with _id
@@ -250,10 +250,10 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
         }
     };
 
-    // Create options for the dropdown with WiFi icons and status text
+    // Create options for the dropdown with status text (removed unicode icons)
     const providerOptions = providers.map(p => ({
         code: p._id,
-        name: `${p.source === 'online' ? '📶 ' : '📴 '} ${p.name} (${p.source === 'online' ? 'Online' : 'Offline'})`,
+        name: `${p.name} (${p.source === 'online' ? 'Online' : 'Offline'})`,
     }));
 
     return (
@@ -273,7 +273,7 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
                     value={reservationStatus}
                     onChange={e => setReservationStatus(e.target.value)}
                 />
-                {/* Select Supplier dropdown now shows status with WiFi icons */}
+                {/* Select Supplier dropdown now shows status without icons */}
                 <FormSelectSimple
                     label={loadingProviders ? "Loading Suppliers..." : "Select Supplier"}
                     placeholder="Select a supplier"

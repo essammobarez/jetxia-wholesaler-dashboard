@@ -34,12 +34,14 @@ interface CancellationPolicyProps {
   policies: Policy[];
   setPolicies: React.Dispatch<React.SetStateAction<Policy[]>>;
   totalPrice: string; // e.g., "1250.00"
+  currency: string; // <-- NEW: Added currency prop
 }
 
 export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({
   policies,
   setPolicies,
   totalPrice,
+  currency, // <-- NEW: Destructure currency
 }) => {
   const theme = useTheme();
   const [openModal, setOpenModal] = useState(false);
@@ -69,7 +71,8 @@ export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({
 
   const handleSavePolicy = () => {
     const finalPolicyDate = policyType === 'Flexible' ? policyDate : null;
-    const displayPrice = `$${totalPrice}`;
+    // UPDATED: Use the dynamic currency
+    const displayPrice = `${currency || ''} ${totalPrice}`;
 
     if (currentPolicy) {
       setPolicies(prevPolicies =>
@@ -237,7 +240,7 @@ export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({
                   open={isCalendarOpen}
                   onOpen={() => setIsCalendarOpen(true)}
                   onClose={() => setIsCalendarOpen(false)}
-                  minDate={today} // 🔒 Blocks previous dates
+                  minDate={today} // Blocks previous dates
                   slotProps={{
                     textField: {
                       fullWidth: true,
@@ -258,14 +261,14 @@ export const CancellationPolicy: React.FC<CancellationPolicyProps> = ({
                 />
               )}
 
-              {/* ✅ Non-editable Cancellation Price showing totalPrice */}
+              {/* UPDATED: Non-editable Cancellation Price showing dynamic currency */}
               <TextField
                 label="Cancellation Price"
                 value={totalPrice}
                 fullWidth
                 variant="outlined"
                 InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+                  startAdornment: <Typography sx={{ mr: 1 }}>{currency || 'USD'}</Typography>,
                   readOnly: true,
                 }}
                 InputLabelProps={{ shrink: true }}

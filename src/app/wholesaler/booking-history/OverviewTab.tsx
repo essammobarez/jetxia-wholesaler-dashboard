@@ -32,14 +32,6 @@ import RoomCancellationModal from "./RoomCancellationModal";
 import PayOptionsModal from "./payoptionsmodal";
 import { generateVoucherPDF } from "./voucher";
 
-const navItems = [
-  { label: "Hotels & Apartments", Icon: FaBuilding },
-  { label: "Air Ticket", Icon: RiPlaneLine },
-  { label: "Transfer", Icon: BiTransferAlt },
-  { label: "Car Rentals", Icon: FaCarSide },
-  { label: "Train Tickets", Icon: FaTrain },
-];
-
 const statusMap = {
   upcoming: { icon: FaCommentAlt, color: "text-yellow-500", label: "Upcoming" },
   active: { icon: FaCheckCircle, color: "text-green-500", label: "Active" },
@@ -758,61 +750,16 @@ const BookingsPage: NextPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 font-sans">
-      <header className="glass backdrop-blur-xl bg-white/80 dark:bg-gray-800/80 border-b border-white/20 dark:border-gray-700/50">
-        <div className="px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Booking Overview
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                Manage your reservations and bookings
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">
-                {reservations.length} Bookings
-              </div>
-            </div>
-          </div>
-          <nav className="flex flex-wrap gap-3">
-            {navItems.map(({ label, Icon }, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedNav(i)}
-                className={`group flex items-center space-x-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
-                  selectedNav === i
-                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25 transform scale-105"
-                    : "bg-white/60 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-700/80 hover:shadow-md hover:scale-105 border border-white/50 dark:border-gray-600/50"
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-lg transition-all duration-300 ${
-                    selectedNav === i
-                      ? "bg-white/20"
-                      : "bg-blue-50 dark:bg-gray-600 group-hover:bg-blue-100 dark:group-hover:bg-gray-500"
-                  }`}
-                >
-                  <Icon
-                    size={18}
-                    className={
-                      selectedNav === i
-                        ? "text-white"
-                        : "text-blue-600 dark:text-blue-400"
-                    }
-                  />
-                </div>
-                <span className="font-medium">{label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
       <main className="px-6 py-8">
         <div className="mb-8 p-6 bg-white/70 dark:bg-gray-800/70 rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50">
-          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
-            Search & Filter
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+              Search & Filter
+            </h3>
+            <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">
+              {reservations.length} Bookings
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <input
               type="text"
@@ -1302,14 +1249,11 @@ const BookingsPage: NextPage = () => {
         />
       )}
       
-      {/* --- MODIFIED: onSuccess handler now only closes the modal --- */}
       {confirmationModalData && (
         <AddConfirmationModal
           isOpen={!!confirmationModalData}
           onClose={() => setConfirmationModalData(null)}
           onSuccess={() => {
-            // Per the request, we only close the modal on success.
-            // This will show the toast and keep the button visible.
             setConfirmationModalData(null);
           }}
           bookingId={confirmationModalData.reservation.dbId}
