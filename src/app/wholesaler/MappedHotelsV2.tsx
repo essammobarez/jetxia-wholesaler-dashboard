@@ -3,7 +3,7 @@
 import type { NextPage } from 'next';
 import Image from 'next/image';
 import { useState, useEffect, useMemo } from 'react';
-import { IoClose, IoCloseCircle, IoSearch, IoLocationSharp, IoFilterSharp, IoGridOutline, IoListOutline, IoStarSharp, IoChevronDown, IoChevronUp } from 'react-icons/io5';
+import { IoClose, IoCloseCircle, IoSearch, IoLocationSharp, IoFilterSharp, IoGridOutline, IoListOutline, IoStarSharp, IoChevronDown, IoChevronUp, IoCheckmarkCircle } from 'react-icons/io5';
 import { FaTrash, FaMapMarkerAlt, FaPhone, FaEnvelope, FaHotel, FaCity, FaBuilding } from 'react-icons/fa';
 import { Building2, Eye, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { Country, State, City as CityLib } from 'country-state-city';
@@ -363,7 +363,7 @@ const HotelDetailModal = ({
               </div>
               <p className="text-sm text-gray-700 mt-2 flex items-center gap-2">
                 <FaPhone className="w-4 h-4 text-green-600" />
-                {displayData.telephone}
+                {displayData.telephone || 'N/A'}
               </p>
             </div>
 
@@ -430,31 +430,41 @@ const HotelDetailModal = ({
                   </span>
                 </h3>
                 <div className="space-y-4">
-                  {displayData.mappedSuppliers.map((supplier: any) => {
-                    // Get supplier data from API response if available
-                    const supplierDetails = hasSupplierData && displayData.supplierData[supplier.source]?.[0]?.data;
+                  {(() => {
+                    const allSupplierDetails = displayData.mappedSuppliers.map((supplier: any) => ({
+                      supplier,
+                      details: hasSupplierData && displayData.supplierData[supplier.source]?.[0]?.data
+                    }));
                     
-                    return (
+                    // Helper function to normalize values for comparison
+                    const normalizeValue = (value: any): string => {
+                      if (value === null || value === undefined) return '';
+                      if (typeof value === 'object') {
+                        if (value.name) return value.name.toLowerCase().trim();
+                        return JSON.stringify(value).toLowerCase().trim();
+                      }
+                      return String(value).toLowerCase().trim();
+                    };
+                    
+                    // Helper function to check if property values match across all suppliers
+                    const isPropertyMatching = (propertyGetter: (details: any) => any) => {
+                      const values = allSupplierDetails
+                        .map(({ details }: any) => details ? normalizeValue(propertyGetter(details)) : null)
+                        .filter((v: any) => v !== null && v !== '');
+                      
+                      if (values.length <= 1) return null; // Not enough data to compare
+                      return values.every((v: any) => v === values[0]);
+                    };
+                    
+                    return allSupplierDetails.map(({ supplier, details: supplierDetails }: any) => (
                       <div
                         key={supplier._id}
-                        className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                        className="bg-gradient-to-br from-gray-50 to-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <p className="text-base font-bold text-blue-700 capitalize mb-1">
-                              {supplier.source}
-                            </p>
-                            <p className="text-sm text-gray-600 mb-1">
-                              Supplier Hotel ID:{' '}
-                              <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                {supplier.supplierHotelId}
-                              </code>
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Supplier:{' '}
-                              <code className="bg-gray-200 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                {supplier.supplier}
-                              </code>
+                            <p className="text-lg font-bold text-blue-700 capitalize">
+                              Source: {supplier.source}
                             </p>
                           </div>
                           <button
@@ -472,77 +482,154 @@ const HotelDetailModal = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                               {supplierDetails._id && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Supplier Hotel ID:</span>
-                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails._id}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Supplier Hotel ID:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-sm">{supplierDetails._id}</p>
                                 </div>
                               )}
                               {supplierDetails.supplierHotelId && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Supplier Hotel Code:</span>
-                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails.supplierHotelId}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Supplier Hotel Code:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-sm">{supplierDetails.supplierHotelId}</p>
                                 </div>
                               )}
                               {supplierDetails.name && (
                                 <div className="md:col-span-2">
-                                  <span className="font-semibold text-gray-700">Hotel Name:</span>
-                                  <p className="text-gray-600 mt-0.5">{supplierDetails.name}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Hotel Name:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.name}</p>
+                                    {isPropertyMatching((d) => d.name) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.name) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.address && (
                                 <div className="md:col-span-2">
-                                  <span className="font-semibold text-gray-700">Address:</span>
-                                  <p className="text-gray-600 mt-0.5">{supplierDetails.address}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Address:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.address}</p>
+                                    {isPropertyMatching((d) => d.address) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.address) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.city && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">City:</span>
-                                  <p className="text-gray-600 mt-0.5">
-                                    {supplierDetails.city.name || supplierDetails.city}
-                                    {supplierDetails.city.id && (
-                                      <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                  <span className="font-semibold text-gray-700 text-sm">City:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1 truncate">
+                                      {supplierDetails.city.name || supplierDetails.city}
+                                      {supplierDetails.city.id && (
+                                        <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                      )}
+                                    </p>
+                                    {isPropertyMatching((d) => d.city) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.city) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
                                     )}
-                                  </p>
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.country && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Country:</span>
-                                  <p className="text-gray-600 mt-0.5">
-                                    {supplierDetails.country.name || supplierDetails.country}
-                                    {supplierDetails.country.iso && (
-                                      <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                  <span className="font-semibold text-gray-700 text-sm">Country:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1 truncate">
+                                      {supplierDetails.country.name || supplierDetails.country}
+                                      {supplierDetails.country.iso && (
+                                        <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                      )}
+                                    </p>
+                                    {isPropertyMatching((d) => d.country) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.country) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
                                     )}
-                                  </p>
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.zipCode && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Zip Code:</span>
-                                  <p className="text-gray-600 mt-0.5">{supplierDetails.zipCode}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Zip Code:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.zipCode}</p>
+                                    {isPropertyMatching((d) => d.zipCode) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.zipCode) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.telephone && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Phone:</span>
-                                  <p className="text-gray-600 mt-0.5">{supplierDetails.telephone}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Phone:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.telephone}</p>
+                                    {isPropertyMatching((d) => d.telephone) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.telephone) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {supplierDetails.stars && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Stars:</span>
-                                  <p className="text-gray-600 mt-0.5 flex items-center gap-1">
-                                    {supplierDetails.stars} 
-                                    {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
-                                      <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
-                                    ))}
-                                  </p>
+                                  <span className="font-semibold text-gray-700 text-sm">Stars:</span>
+                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                    <p className="text-gray-600 text-sm flex items-center gap-1 flex-1">
+                                      {supplierDetails.stars} 
+                                      {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
+                                        <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
+                                      ))}
+                                    </p>
+                                    {isPropertyMatching((d) => d.stars) !== null && (
+                                      <div className="flex-shrink-0">
+                                        {isPropertyMatching((d) => d.stars) ? (
+                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                        ) : (
+                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {typeof supplierDetails.specialDeals !== 'undefined' && (
                                 <div>
-                                  <span className="font-semibold text-gray-700">Special Deals:</span>
-                                  <p className="text-gray-600 mt-0.5">
+                                  <span className="font-semibold text-gray-700 text-sm">Special Deals:</span>
+                                  <p className="text-gray-600 mt-0.5 text-sm">
                                     {supplierDetails.specialDeals ? (
                                       <span className="text-green-600 font-medium">✓ Available</span>
                                     ) : (
@@ -553,8 +640,8 @@ const HotelDetailModal = ({
                               )}
                               {supplierDetails.supplier && (
                                 <div className="md:col-span-2">
-                                  <span className="font-semibold text-gray-700">Supplier Reference ID:</span>
-                                  <p className="text-gray-600 mt-0.5 font-mono text-xs">{supplierDetails.supplier}</p>
+                                  <span className="font-semibold text-gray-700 text-sm">Supplier Reference ID:</span>
+                                  <p className="text-gray-600 mt-0.5 font-mono text-sm">{supplierDetails.supplier}</p>
                                 </div>
                               )}
                             </div>
@@ -563,12 +650,23 @@ const HotelDetailModal = ({
                             {supplierDetails.geolocation && (
                               <div className="pt-2 border-t border-gray-100">
                                 <span className="font-semibold text-gray-700 text-sm">Geolocation:</span>
-                                <p className="text-xs text-gray-600 mt-1 flex items-center gap-2">
-                                  <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
-                                  <span>Latitude: {supplierDetails.geolocation.latitude?.toFixed(6)}</span>
-                                  <span>|</span>
-                                  <span>Longitude: {supplierDetails.geolocation.longitude?.toFixed(6)}</span>
-                                </p>
+                                <div className="flex items-center justify-between gap-2 mt-1">
+                                  <p className="text-sm text-gray-600 flex items-center gap-2 flex-1">
+                                    <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
+                                    <span>Latitude: {supplierDetails.geolocation.latitude}</span>
+                                    <span>|</span>
+                                    <span>Longitude: {supplierDetails.geolocation.longitude}</span>
+                                  </p>
+                                  {isPropertyMatching((d) => d.geolocation ? `${d.geolocation.latitude?.toFixed(3)},${d.geolocation.longitude?.toFixed(3)}` : null) !== null && (
+                                    <div className="flex-shrink-0">
+                                      {isPropertyMatching((d) => d.geolocation ? `${d.geolocation.latitude?.toFixed(3)},${d.geolocation.longitude?.toFixed(3)}` : null) ? (
+                                        <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                      ) : (
+                                        <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
 
@@ -576,7 +674,7 @@ const HotelDetailModal = ({
                             {/* {supplierDetails.mainImageUrl && (
                               <div className="pt-2 border-t border-gray-100">
                                 <span className="font-semibold text-gray-700 text-sm">Main Image URL:</span>
-                                <p className="text-xs text-blue-600 mt-1 break-all hover:underline">
+                                <p className="text-sm text-blue-600 mt-1 break-all hover:underline">
                                   <a href={supplierDetails.mainImageUrl} target="_blank" rel="noopener noreferrer">
                                     {supplierDetails.mainImageUrl}
                                   </a>
@@ -586,8 +684,8 @@ const HotelDetailModal = ({
                           </div>
                         )}
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
               </div>
             )}
@@ -767,6 +865,18 @@ const HotelListPageV2: NextPage = () => {
         }
 
         const url = new URL(`${process.env.NEXT_PUBLIC_BACKEND_URL}hotel-mapping/v2/search`);
+        
+        // Add filter parameters to URL
+        if (selectedCountryForView) {
+          url.searchParams.append('countryName', selectedCountryForView);
+        }
+        if (selectedCityForView) {
+          url.searchParams.append('cityName', selectedCityForView);
+        }
+        if (selectedHotelName) {
+          url.searchParams.append('searchQuery', selectedHotelName.name);
+        }
+        
         const response = await fetch(url.toString(), {
           method: 'GET',
           headers: {
@@ -800,7 +910,7 @@ const HotelListPageV2: NextPage = () => {
     };
 
     fetchHotels();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, selectedCountryForView, selectedCityForView, selectedHotelName]);
 
   // Fetch hotels by name (autocomplete search)
   useEffect(() => {
@@ -912,27 +1022,18 @@ const HotelListPageV2: NextPage = () => {
     await fetchHotelDetails(hotel._id);
   };
 
-  // Client-side filtering
+  // Client-side filtering (only for star and status, country/city/hotel filters are handled by API)
   const filteredHotels = useMemo(() => {
     return allHotels.filter((hotel) => {
-      // Filter by selected country (by name, like HotelsTab.tsx)
-      const matchesCountry = !selectedCountryForView || hotel.country.name === selectedCountryForView;
-      
-      // Filter by selected city (by name, like HotelsTab.tsx)
-      const matchesCity = !selectedCityForView || hotel.city.name === selectedCityForView;
-      
-      // Filter by hotel name search
-      const matchesHotelName = !selectedHotelName || hotel._id === selectedHotelName._id;
-
       // Filter by star rating
       const matchesStar = starFilter === null || Math.round(hotel.stars) === starFilter;
 
       // Filter by status
       const matchesStatus = statusFilter === 'All' || hotel.mappingMetadata?.status === statusFilter;
 
-      return matchesCountry && matchesCity && matchesHotelName && matchesStar && matchesStatus;
+      return matchesStar && matchesStatus;
     });
-  }, [allHotels, selectedCountryForView, selectedCityForView, selectedHotelName, starFilter, statusFilter]);
+  }, [allHotels, starFilter, statusFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -2022,32 +2123,42 @@ const HotelListPageV2: NextPage = () => {
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {hotel.mappedSuppliers && hotel.mappedSuppliers.length > 0 ? (
-                                  hotel.mappedSuppliers.map((supplier) => {
-                                    // Get supplier data from API response if available
+                                  (() => {
                                     const hotelApiData = hotelDetails[hotel._id];
-                                    const supplierDetails = hotelApiData?.supplierData?.[supplier.source]?.[0]?.data;
+                                    const allSupplierDetails = hotel.mappedSuppliers.map((supplier) => ({
+                                      supplier,
+                                      details: hotelApiData?.supplierData?.[supplier.source]?.[0]?.data
+                                    }));
                                     
-                                    return (
+                                    // Helper function to normalize values for comparison
+                                    const normalizeValue = (value: any): string => {
+                                      if (value === null || value === undefined) return '';
+                                      if (typeof value === 'object') {
+                                        if (value.name) return value.name.toLowerCase().trim();
+                                        return JSON.stringify(value).toLowerCase().trim();
+                                      }
+                                      return String(value).toLowerCase().trim();
+                                    };
+                                    
+                                    // Helper function to check if property values match across all suppliers
+                                    const isPropertyMatching = (propertyGetter: (details: any) => any) => {
+                                      const values = allSupplierDetails
+                                        .map(({ details }) => details ? normalizeValue(propertyGetter(details)) : null)
+                                        .filter(v => v !== null && v !== '');
+                                      
+                                      if (values.length <= 1) return null; // Not enough data to compare
+                                      return values.every(v => v === values[0]);
+                                    };
+                                    
+                                    return allSupplierDetails.map(({ supplier, details: supplierDetails }) => (
                                       <div
                                         key={supplier._id}
-                                        className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all"
+                                        className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all"
                                       >
                                         <div className="flex justify-between items-start mb-3">
                                           <div className="flex-1">
-                                            <p className="text-base font-bold text-blue-700 capitalize mb-1">
-                                              {supplier.source}
-                                            </p>
-                                            <p className="text-sm text-gray-600">
-                                              Supplier Hotel ID:{' '}
-                                              <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                                {supplier.supplierHotelId}
-                                              </code>
-                                            </p>
-                                            <p className="text-sm text-gray-600 mt-1">
-                                              Supplier ID:{' '}
-                                              <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-mono text-xs">
-                                                {supplier.supplier}
-                                              </code>
+                                            <p className="text-lg font-bold text-blue-700 capitalize">
+                                              Source: {supplier.source}
                                             </p>
                                           </div>
                                           <button
@@ -2062,83 +2173,160 @@ const HotelListPageV2: NextPage = () => {
 
                                         {/* Display supplier details from API */}
                                         {supplierDetails ? (
-                                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                                             {/* All Supplier Details */}
-                                            <div className="grid grid-cols-1 gap-2 text-xs">
+                                            <div className="grid grid-cols-1 gap-3 text-sm">
                                               {supplierDetails._id && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Supplier Hotel ID:</span>
-                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails._id}</p>
+                                                  <span className="font-semibold text-gray-700 text-sm">Supplier Hotel ID:</span>
+                                                  <p className="text-gray-600 font-mono text-sm mt-0.5">{supplierDetails._id}</p>
                                                 </div>
                                               )}
                                               {supplierDetails.supplierHotelId && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Supplier Hotel Code:</span>
-                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails.supplierHotelId}</p>
+                                                  <span className="font-semibold text-gray-700 text-sm">Supplier Hotel Code:</span>
+                                                  <p className="text-gray-600 font-mono text-sm mt-0.5">{supplierDetails.supplierHotelId}</p>
                                                 </div>
                                               )}
                                               {supplierDetails.name && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Hotel Name:</span>
-                                                  <p className="text-gray-600">{supplierDetails.name}</p>
+                                                  <span className="font-semibold text-gray-700 text-sm">Hotel Name:</span>
+                                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.name}</p>
+                                                    {isPropertyMatching((d) => d.name) !== null && (
+                                                      <div className="flex-shrink-0">
+                                                        {isPropertyMatching((d) => d.name) ? (
+                                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                        ) : (
+                                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
                                               )}
                                               {supplierDetails.address && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Address:</span>
-                                                  <p className="text-gray-600">{supplierDetails.address}</p>
+                                                  <span className="font-semibold text-gray-700 text-sm">Address:</span>
+                                                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <p className="text-gray-600 text-sm flex-1">{supplierDetails.address}</p>
+                                                    {isPropertyMatching((d) => d.address) !== null && (
+                                                      <div className="flex-shrink-0">
+                                                        {isPropertyMatching((d) => d.address) ? (
+                                                          <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                        ) : (
+                                                          <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
                                               )}
-                                              <div className="grid grid-cols-2 gap-2">
+                                              <div className="grid grid-cols-2 gap-3">
                                                 {supplierDetails.city && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">City:</span>
-                                                    <p className="text-gray-600">
-                                                      {supplierDetails.city.name || supplierDetails.city}
-                                                      {supplierDetails.city.id && (
-                                                        <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                                    <span className="font-semibold text-gray-700 text-sm">City:</span>
+                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                      <p className="text-gray-600 text-sm flex-1 truncate">
+                                                        {supplierDetails.city.name || supplierDetails.city}
+                                                        {supplierDetails.city.id && (
+                                                          <span className="text-xs text-gray-400 ml-1">(ID: {supplierDetails.city.id})</span>
+                                                        )}
+                                                      </p>
+                                                      {isPropertyMatching((d) => d.city) !== null && (
+                                                        <div className="flex-shrink-0">
+                                                          {isPropertyMatching((d) => d.city) ? (
+                                                            <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                          ) : (
+                                                            <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                          )}
+                                                        </div>
                                                       )}
-                                                    </p>
+                                                    </div>
                                                   </div>
                                                 )}
                                                 {supplierDetails.country && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">Country:</span>
-                                                    <p className="text-gray-600">
-                                                      {supplierDetails.country.name || supplierDetails.country}
-                                                      {supplierDetails.country.iso && (
-                                                        <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                                    <span className="font-semibold text-gray-700 text-sm">Country:</span>
+                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                      <p className="text-gray-600 text-sm flex-1 truncate">
+                                                        {supplierDetails.country.name || supplierDetails.country}
+                                                        {supplierDetails.country.iso && (
+                                                          <span className="text-xs text-gray-400 ml-1">({supplierDetails.country.iso})</span>
+                                                        )}
+                                                      </p>
+                                                      {isPropertyMatching((d) => d.country) !== null && (
+                                                        <div className="flex-shrink-0">
+                                                          {isPropertyMatching((d) => d.country) ? (
+                                                            <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                          ) : (
+                                                            <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                          )}
+                                                        </div>
                                                       )}
-                                                    </p>
+                                                    </div>
                                                   </div>
                                                 )}
                                                 {supplierDetails.zipCode && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">Zip Code:</span>
-                                                    <p className="text-gray-600">{supplierDetails.zipCode}</p>
+                                                    <span className="font-semibold text-gray-700 text-sm">Zip Code:</span>
+                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                      <p className="text-gray-600 text-sm flex-1">{supplierDetails.zipCode}</p>
+                                                      {isPropertyMatching((d) => d.zipCode) !== null && (
+                                                        <div className="flex-shrink-0">
+                                                          {isPropertyMatching((d) => d.zipCode) ? (
+                                                            <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                          ) : (
+                                                            <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
                                                   </div>
                                                 )}
                                                 {supplierDetails.telephone && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">Phone:</span>
-                                                    <p className="text-gray-600">{supplierDetails.telephone}</p>
+                                                    <span className="font-semibold text-gray-700 text-sm">Phone:</span>
+                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                      <p className="text-gray-600 text-sm flex-1">{supplierDetails.telephone}</p>
+                                                      {isPropertyMatching((d) => d.telephone) !== null && (
+                                                        <div className="flex-shrink-0">
+                                                          {isPropertyMatching((d) => d.telephone) ? (
+                                                            <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                          ) : (
+                                                            <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
                                                   </div>
                                                 )}
                                                 {supplierDetails.stars && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">Stars:</span>
-                                                    <p className="text-gray-600 flex items-center gap-1">
-                                                      {supplierDetails.stars}
-                                                      {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
-                                                        <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
-                                                      ))}
-                                                    </p>
+                                                    <span className="font-semibold text-gray-700 text-sm">Stars:</span>
+                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                      <p className="text-gray-600 text-sm flex items-center gap-1 flex-1">
+                                                        {supplierDetails.stars}
+                                                        {[...Array(Math.min(supplierDetails.stars, 5))].map((_, i) => (
+                                                          <IoStarSharp key={i} className="w-3 h-3 text-yellow-500" />
+                                                        ))}
+                                                      </p>
+                                                      {isPropertyMatching((d) => d.stars) !== null && (
+                                                        <div className="flex-shrink-0">
+                                                          {isPropertyMatching((d) => d.stars) ? (
+                                                            <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                          ) : (
+                                                            <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
                                                   </div>
                                                 )}
                                                 {typeof supplierDetails.specialDeals !== 'undefined' && (
                                                   <div>
-                                                    <span className="font-semibold text-gray-700">Special Deals:</span>
-                                                    <p className="text-gray-600">
+                                                    <span className="font-semibold text-gray-700 text-sm">Special Deals:</span>
+                                                    <p className="text-gray-600 text-sm mt-0.5">
                                                       {supplierDetails.specialDeals ? (
                                                         <span className="text-green-600 font-medium">✓ Available</span>
                                                       ) : (
@@ -2150,8 +2338,8 @@ const HotelListPageV2: NextPage = () => {
                                               </div>
                                               {supplierDetails.supplier && (
                                                 <div>
-                                                  <span className="font-semibold text-gray-700">Supplier Reference ID:</span>
-                                                  <p className="text-gray-600 font-mono text-xs">{supplierDetails.supplier}</p>
+                                                  <span className="font-semibold text-gray-700 text-sm">Supplier Reference ID:</span>
+                                                  <p className="text-gray-600 font-mono text-sm mt-0.5">{supplierDetails.supplier}</p>
                                                 </div>
                                               )}
                                             </div>
@@ -2159,21 +2347,32 @@ const HotelListPageV2: NextPage = () => {
                                             {/* Coordinates */}
                                             {supplierDetails.geolocation && (
                                               <div className="pt-2 border-t border-gray-100">
-                                                <span className="font-semibold text-gray-700 text-xs">Geolocation:</span>
-                                                <p className="text-xs text-gray-600 mt-1 flex items-center gap-2">
-                                                  <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
-                                                  <span>Latitude: {supplierDetails.geolocation.latitude?.toFixed(6)}</span>
-                                                  <span>|</span>
-                                                  <span>Longitude: {supplierDetails.geolocation.longitude?.toFixed(6)}</span>
-                                                </p>
+                                                <span className="font-semibold text-gray-700 text-sm">Geolocation:</span>
+                                                <div className="flex items-center justify-between gap-2 mt-1">
+                                                  <p className="text-sm text-gray-600 flex items-center gap-2 flex-1">
+                                                    <FaMapMarkerAlt className="w-3 h-3 text-red-500" />
+                                                    <span>Latitude: {supplierDetails.geolocation.latitude}</span>
+                                                    <span>|</span>
+                                                    <span>Longitude: {supplierDetails.geolocation.longitude}</span>
+                                                  </p>
+                                                  {isPropertyMatching((d) => d.geolocation ? `${d.geolocation.latitude?.toFixed(3)},${d.geolocation.longitude?.toFixed(3)}` : null) !== null && (
+                                                    <div className="flex-shrink-0">
+                                                      {isPropertyMatching((d) => d.geolocation ? `${d.geolocation.latitude?.toFixed(3)},${d.geolocation.longitude?.toFixed(3)}` : null) ? (
+                                                        <IoCheckmarkCircle className="w-6 h-6 text-green-600" title="Matches other suppliers" />
+                                                      ) : (
+                                                        <IoCloseCircle className="w-6 h-6 text-red-600" title="Does not match other suppliers" />
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
                                             )}
 
-                                            {/* Main Image URL */}
-                                            {/* {supplierDetails.mainImageUrl && (
+                                            {/* Main Image URL
+                                            {supplierDetails.mainImageUrl && (
                                               <div className="pt-2 border-t border-gray-100">
-                                                <span className="font-semibold text-gray-700 text-xs">Main Image URL:</span>
-                                                <p className="text-xs text-blue-600 mt-1 break-all hover:underline">
+                                                <span className="font-semibold text-gray-700 text-sm">Main Image URL:</span>
+                                                <p className="text-sm text-blue-600 mt-1 break-all hover:underline">
                                                   <a href={supplierDetails.mainImageUrl} target="_blank" rel="noopener noreferrer">
                                                     {supplierDetails.mainImageUrl}
                                                   </a>
@@ -2188,8 +2387,8 @@ const HotelListPageV2: NextPage = () => {
                                           />
                                         )}
                                       </div>
-                                    );
-                                  })
+                                    ));
+                                  })()
                                 ) : (
                                   <div className="col-span-full text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
                                     <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -2326,50 +2525,6 @@ const HotelListPageV2: NextPage = () => {
                                   </div>
                                 )}
                               </div>
-
-                              <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-                                {hotel.boardBasis && hotel.boardBasis.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 items-center">
-                                    <span className="text-xs font-medium text-gray-600">Board:</span>
-                                    {hotel.boardBasis.slice(0, 2).map((basis, idx) => (
-                                      <span key={idx} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
-                                        {basis}
-                                      </span>
-                                    ))}
-                                    {hotel.boardBasis.length > 2 && (
-                                      <span className="text-xs text-gray-500">+{hotel.boardBasis.length - 2}</span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-                                {hotel.facilities && hotel.facilities.length > 0 ? (
-                                  <>
-                                    {hotel.facilities.slice(0, 4).map((facility) => (
-                                      <span
-                                        key={facility._id}
-                                        className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md"
-                                      >
-                                        {facility.name}
-                                      </span>
-                                    ))}
-                                    {hotel.facilities.length > 4 && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFacilitiesToShow(hotel.facilities);
-                                        }}
-                                        className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
-                                      >
-                                        +{hotel.facilities.length - 4} more
-                                      </button>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-gray-500">No facilities</span>
-                                )}
-                              </div>
                             </>
                           ) : (
                             <>
@@ -2385,32 +2540,11 @@ const HotelListPageV2: NextPage = () => {
                                 </span>
                               </div>
 
-                              <div className="mt-3 flex flex-wrap gap-1.5 items-center">
-                                {hotel.facilities && hotel.facilities.length > 0 ? (
-                                  <>
-                                    {hotel.facilities.slice(0, 3).map((facility) => (
-                                      <span
-                                        key={facility._id}
-                                        className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-md"
-                                      >
-                                        {facility.name}
-                                      </span>
-                                    ))}
-                                    {hotel.facilities.length > 3 && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFacilitiesToShow(hotel.facilities);
-                                        }}
-                                        className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
-                                      >
-                                        +{hotel.facilities.length - 3} more
-                                      </button>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-gray-500">No facilities</span>
-                                )}
+                              <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-600">
+                                <span className="font-medium">Suppliers:</span>
+                                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-md font-semibold">
+                                  {hotel.mappedSuppliers?.length || 0}
+                                </span>
                               </div>
                             </>
                           )}
