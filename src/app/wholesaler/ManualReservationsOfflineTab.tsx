@@ -85,29 +85,38 @@ type BookingSuccessData = {
     };
 };
 
-// --- NEW: TYPE DEFINITIONS FOR ROOMS API ---
+// --- UPDATED: TYPE DEFINITIONS FOR ROOMS API ---
 type RoomOption = {
-    board: string;
-    price: { value: number; currency: string };
+  board: string;
+  price: { value: number; currency: string };
 };
 
 type RoomType = {
-    name: string;
-    options: RoomOption[];
+  name: string;
+  options: RoomOption[];
+};
+
+type SupplierData = {
+  simplified: {
+    roomTypes: RoomType[];
+  };
+};
+
+type SupplierResponse = {
+  supplierId: string;
+  supplierName: string;
+  data: SupplierData | {};
+  success: boolean;
+  error?: string;
 };
 
 type ApiRoomsResponse = {
   success: boolean;
   data: {
-      suppliers: {
-          data: {
-              simplified: {
-                  roomTypes: RoomType[];
-              };
-          };
-      }[];
-  }
+    suppliers: SupplierResponse[];
+  };
 };
+
 
 type HotelFromCitySearch = {
     _id: string;
@@ -369,6 +378,9 @@ const ManualReservation: NextPage = () => {
   const [exchangeRates, setExchangeRates] = useState<Record<string, number> | null>(null);
   const [convertedCredit, setConvertedCredit] = useState<number>(0);
   const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
+  
+  // --- NEW: WHOLESALER ID STATE ---
+  const [wholesalerId, setWholesalerId] = useState<string | null>(null);
 
   // --- DYNAMIC WHOLESALER ID ---
   const getWholesalerId = useCallback(() => {
@@ -506,7 +518,7 @@ const ManualReservation: NextPage = () => {
     setSubmitError(null);
     setIsPreviewModalOpen(false);
     setBookingSuccessData(null);
-    setApiRoomTypes([]); // <-- NEW: Reset room data
+    setApiRoomTypes([]);
   };
 
   // --- HANDLERS ---
@@ -598,6 +610,13 @@ const ManualReservation: NextPage = () => {
   };
 
   // --- EFFECTS ---
+  
+  // NEW: Load stored wholesaler ID on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("wholesalerId");
+    setWholesalerId(stored);
+  }, []);
+
   useEffect(() => {
     const currencyList = currencyCodes.data.map(curr => ({
       code: curr.code,
@@ -654,21 +673,20 @@ const ManualReservation: NextPage = () => {
     }
   }, [cancellationPolicies]);
 
-    // --- NEW: EFFECT TO FETCH EXCHANGE RATES ---
+    // --- EFFECT TO FETCH EXCHANGE RATES ---
     useEffect(() => {
       const fetchRates = async () => {
         if (!currency || currency === 'USD') {
-          setExchangeRates(null); // No need to fetch if it's USD or not selected
+          setExchangeRates(null);
           return;
         }
         setIsConvertingCurrency(true);
         try {
-          // Using a free, no-key-required API for exchange rates based on USD
           const response = await axios.get('https://open.er-api.com/v6/latest/USD');
           setExchangeRates(response.data.rates);
         } catch (error) {
           console.error("Failed to fetch exchange rates:", error);
-          setExchangeRates(null); // Reset on error to avoid stale data
+          setExchangeRates(null);
         } finally {
           setIsConvertingCurrency(false);
         }
@@ -677,9 +695,8 @@ const ManualReservation: NextPage = () => {
       fetchRates();
     }, [currency]);
   
-    // --- NEW: EFFECT TO CALCULATE CONVERTED CREDIT ---
+    // --- EFFECT TO CALCULATE CONVERTED CREDIT ---
     useEffect(() => {
-      // The base balance is always in USD from agencyData.walletBalance
       const baseCreditUSD = agencyData.walletBalance;
   
       if (currency && currency !== 'USD' && exchangeRates && exchangeRates[currency]) {
@@ -687,26 +704,24 @@ const ManualReservation: NextPage = () => {
         const convertedValue = baseCreditUSD * rate;
         setConvertedCredit(convertedValue);
       } else {
-        // Default to the original USD balance if currency is USD or rates aren't available
         setConvertedCredit(baseCreditUSD);
       }
     }, [currency, exchangeRates, agencyData.walletBalance]);
 
-  // --- NEW: API CALL TO FETCH ROOMS ---
+  // --- UPDATED: API CALL TO FETCH ROOMS ---
   const fetchHotelRooms = useCallback(async () => {
-    if (!selectedHotelDetails || !checkIn || !checkOut || !selectedHotelDetails.mappedSuppliers) {
+    if (!selectedHotelDetails || !checkIn || !checkOut || !selectedHotelDetails.mappedSuppliers || !wholesalerId) {
       setApiRoomTypes([]);
       return;
     }
 
     setIsRoomDataLoading(true);
     setApiRoomTypes([]);
-    
-    // Reset existing room selections when fetching new data
     setRooms(getInitialRooms());
 
     try {
       const payload = {
+        wholesalerId: wholesalerId, // <-- ADDED wholesalerId TO PAYLOAD
         supplierId: selectedHotelDetails.mappedSuppliers.map(s => ({
           supplierId: s.supplier,
           supplierHotelId: String(s.supplierHotelId)
@@ -724,12 +739,23 @@ const ManualReservation: NextPage = () => {
       const axiosInstance = axios.create({ baseURL: process.env.NEXT_PUBLIC_BACKEND_URL });
       const response = await axiosInstance.post<ApiRoomsResponse>('/hotel/rooms', payload);
       
-      if (response.data.success && response.data.data.suppliers.length > 0) {
-        // Assuming we take data from the first supplier
-        const roomTypes = response.data.data.suppliers[0].data.simplified.roomTypes;
-        setApiRoomTypes(roomTypes);
+      if (response.data.success && response.data.data.suppliers) {
+        const allRoomTypes = response.data.data.suppliers.flatMap(supplier => {
+          if (supplier.success && 'simplified' in supplier.data && supplier.data.simplified?.roomTypes) {
+            return supplier.data.simplified.roomTypes;
+          }
+          if (!supplier.success) {
+            console.error(`Supplier ${supplier.supplierName} failed:`, supplier.error);
+          }
+          return [];
+        });
+
+        const uniqueRoomTypes = Array.from(new Map(allRoomTypes.map(room => [room.name, room])).values());
+        setApiRoomTypes(uniqueRoomTypes);
+
       } else {
-        console.error("No suppliers data found in response");
+        console.error("No suppliers data found in API response.");
+        setApiRoomTypes([]);
       }
 
     } catch (error) {
@@ -738,9 +764,11 @@ const ManualReservation: NextPage = () => {
     } finally {
       setIsRoomDataLoading(false);
     }
-  }, [selectedHotelDetails, checkIn, checkOut]);
+  }, [selectedHotelDetails, checkIn, checkOut, wholesalerId]); // <-- ADDED wholesalerId to dependency array
 
   useEffect(() => {
+    // This will now run whenever fetchHotelRooms function reference changes,
+    // which happens when wholesalerId (or other dependencies) changes.
     fetchHotelRooms();
   }, [fetchHotelRooms]);
 
@@ -876,12 +904,12 @@ const ManualReservation: NextPage = () => {
 
       {bookingSuccessData ? (
         <BookingSuccess
-            data={bookingSuccessData}
-            onBookAgain={handleBookAgain}
-            onDownloadVoucher={handleDownloadVoucher}
-            onDownloadInvoice={handleDownloadInvoice}
-            isDownloadingVoucher={isDownloadingVoucher}
-            isDownloadingInvoice={isDownloadingInvoice}
+          data={bookingSuccessData}
+          onBookAgain={handleBookAgain}
+          onDownloadVoucher={handleDownloadVoucher}
+          onDownloadInvoice={handleDownloadInvoice}
+          isDownloadingVoucher={isDownloadingVoucher}
+          isDownloadingInvoice={isDownloadingInvoice}
         />
       ) : (
         <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-10">
@@ -974,14 +1002,22 @@ const ManualReservation: NextPage = () => {
                                 <FormControlLabel
                                     value="CREDIT"
                                     control={<Radio />}
-                                    // UPDATED: Disable if total price is greater than available credit
-                                    disabled={parseFloat(totalPrice) > convertedCredit || isConvertingCurrency}
+                                    disabled={parseFloat(totalPrice) > agencyData.walletBalance || isConvertingCurrency}
                                     label={
                                         <div className="flex items-center gap-2">
                                             <Wallet className="h-5 w-5" />
                                             <span>
                                                 Available credit: <strong>
-                                                  {isConvertingCurrency ? 'Converting...' : `${convertedCredit.toFixed(2)} ${currency || 'USD'}`}
+                                                    {isConvertingCurrency ? 'Converting...' : (
+                                                        <>
+                                                            {agencyData.walletBalance.toFixed(2)} USD
+                                                            {currency && currency !== 'USD' && exchangeRates && (
+                                                                <span className="font-normal text-gray-500 ml-1">
+                                                                    ({convertedCredit.toFixed(2)} {currency})
+                                                                </span>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </strong>
                                             </span>
                                         </div>
