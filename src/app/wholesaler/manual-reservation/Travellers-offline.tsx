@@ -61,6 +61,7 @@ type MuiInputProps = {
   className?: string;
   multiline?: boolean;
   rows?: number;
+  disabled?: boolean;
 };
 
 const FormInput: React.FC<MuiInputProps> = ({
@@ -72,6 +73,7 @@ const FormInput: React.FC<MuiInputProps> = ({
   className = '',
   multiline = false,
   rows,
+  disabled = false,
 }) => (
   <TextField
     label={label}
@@ -79,6 +81,7 @@ const FormInput: React.FC<MuiInputProps> = ({
     type={type}
     value={value}
     onChange={onChange}
+    disabled={disabled}
     InputLabelProps={{ shrink: true }}
     inputProps={{ placeholder }}
     fullWidth
@@ -387,6 +390,8 @@ export const Travellers: React.FC<TravellersProps> = ({
                 .map(boardName => ({ code: boardName, name: boardName }))
             : [];
 
+          const allowManualEntry = !isRoomDataLoading && roomNameOptions.length === 0;
+
           return (
             <div
               key={room.id}
@@ -410,28 +415,54 @@ export const Travellers: React.FC<TravellersProps> = ({
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-8 items-start">
-                <AutocompleteInput
-                  label="Room Type"
-                  placeholder={isRoomDataLoading ? "Loading..." : "Select room type"}
-                  options={roomNameOptions}
-                  value={room.roomName}
-                  disabled={isRoomDataLoading || roomNameOptions.length === 0}
-                  onChange={value => {
-                    handleRoomChange(room.id, 'roomName', value);
-                    handleRoomChange(room.id, 'board', '');
-                    handleRoomChange(room.id, 'price', '');
-                  }}
-                />
-                <AutocompleteInput
-                  label="Board"
-                  placeholder="Select board"
-                  options={boardOptions}
-                  value={room.board}
-                  disabled={!room.roomName || boardOptions.length === 0}
-                  onChange={value => {
-                    handleRoomChange(room.id, 'board', value);
-                  }}
-                />
+                
+                {allowManualEntry ? (
+                  <FormInput
+                    label="Room Type"
+                    placeholder="Enter room type manually"
+                    value={room.roomName}
+                    disabled={isRoomDataLoading}
+                    onChange={e => {
+                        handleRoomChange(room.id, 'roomName', e.target.value);
+                        handleRoomChange(room.id, 'board', ''); // Clear board on room change
+                    }}
+                  />
+                ) : (
+                  <AutocompleteInput
+                    label="Room Type"
+                    placeholder={isRoomDataLoading ? "Loading..." : "Select room type"}
+                    options={roomNameOptions}
+                    value={room.roomName}
+                    disabled={isRoomDataLoading}
+                    onChange={value => {
+                      handleRoomChange(room.id, 'roomName', value);
+                      handleRoomChange(room.id, 'board', ''); // Clear board on room change
+                    }}
+                  />
+                )}
+
+                {allowManualEntry ? (
+                    <FormInput
+                        label="Board"
+                        placeholder="Enter board type manually"
+                        value={room.board}
+                        disabled={!room.roomName}
+                        onChange={e => handleRoomChange(room.id, 'board', e.target.value)}
+                    />
+                ) : (
+                    <AutocompleteInput
+                        label="Board"
+                        placeholder="Select board"
+                        options={boardOptions}
+                        value={room.board}
+                        disabled={!room.roomName || boardOptions.length === 0}
+                        onChange={value => {
+                            // --- UPDATED: Only update the board, do not auto-fill the price ---
+                            handleRoomChange(room.id, 'board', value);
+                        }}
+                    />
+                )}
+
                 <FormInput
                   label="Price"
                   placeholder="Enter price"
@@ -512,7 +543,7 @@ export const Travellers: React.FC<TravellersProps> = ({
                       options={countries}
                       value={traveller.nationality}
                       onChange={e =>
-                        handleTravellerChange(room.id, traveller.id, 'nationality', e.target.value)
+                        handleTravellerChange(room.id, traveller.id, 'nationality', e.target.value as any)
                       }
                     />
                   </div>

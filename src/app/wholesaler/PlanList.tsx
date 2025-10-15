@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState, useMemo, useCallback, Fragment } from 'react';
+// Ensure Transition is imported correctly from headlessui
 import { Disclosure, Transition } from '@headlessui/react';
 import { ChevronDown, ChevronUp, RefreshCw, Search as SearchIcon, Edit, Trash2, Loader2, X, Wrench, AlertTriangle } from 'lucide-react';
 
@@ -161,14 +162,14 @@ const EditMarkupsModal: React.FC<EditMarkupsModalProps> = ({ isOpen, onClose, on
                           <label htmlFor={`markup-${markup._id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5 truncate">
                             {markup.provider?.name || 'N/A'}
                           </label>
-                          <div className="relative flex-grow ml-3">
+                          <div className="relative ml-3">
                             <input
                               id={`markup-${markup._id}`}
                               type="number"
-                              step="0.01"
+                              step="1"
                               value={markupValues[markup._id] || ''}
                               onChange={(e) => handleValueChange(markup._id, e.target.value)}
-                              className="w-full pl-2 pr-6 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                              className="w-20 pl-2 pr-6 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                               placeholder="e.g., 10"
                               required
                             />
@@ -242,8 +243,19 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
         : [...prev, markupId]
     );
   };
+  
+  const handleSelectAllChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allMarkupIds = plan?.markups.map(m => m._id) || [];
+      setSelectedMarkups(allMarkupIds);
+    } else {
+      setSelectedMarkups([]);
+    }
+  };
 
   if (!isOpen || !plan) return null;
+  
+  const allMarkupsSelected = plan.markups.length > 0 && selectedMarkups.length === plan.markups.length;
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -269,6 +281,24 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                         <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                           You are about to delete markups from the plan "<strong>{plan.name}</strong>". Select the suppliers you wish to remove. This action cannot be undone.
                         </p>
+                        
+                        {plan.markups.length > 0 && (
+                            <div className="flex items-center justify-between px-3 py-2 border rounded-md border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 mb-3">
+                                <label htmlFor="select-all-markups" className="flex items-center cursor-pointer">
+                                    <input
+                                        id="select-all-markups"
+                                        type="checkbox"
+                                        checked={allMarkupsSelected}
+                                        onChange={handleSelectAllChange}
+                                        className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                    />
+                                    <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-200">Select All</span>
+                                </label>
+                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                    {selectedMarkups.length} / {plan.markups.length} selected
+                                </span>
+                            </div>
+                        )}
 
                         <div className="border border-gray-200 dark:border-gray-600 rounded-md max-h-60 overflow-y-auto">
                            <div className="space-y-1 p-3">
@@ -453,7 +483,6 @@ export default function PlanListAdvanced() {
         }
 
         const planId = selectedPlan._id;
-        // **UPDATED ENDPOINT HERE**
         const url = `${baseUrl.replace(/\/+$/, '')}/markup/${planId}/markups/bulk-remove`;
 
         const response = await fetch(url, {
@@ -467,7 +496,7 @@ export default function PlanListAdvanced() {
             throw new Error(errorData.message || `Failed to delete markups (HTTP ${response.status})`);
         }
         
-        fetchPlans(); // Refresh the data
+        fetchPlans(); 
         handleCloseModals();
 
     } catch (error: any) {
