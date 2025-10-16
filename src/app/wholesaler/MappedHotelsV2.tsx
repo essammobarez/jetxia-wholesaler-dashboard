@@ -9,6 +9,7 @@ import { Building2, Eye, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { Country, State, City as CityLib } from 'country-state-city';
 import ReactCountryFlag from 'react-country-flag';
 import toast, { Toaster } from 'react-hot-toast';
+import { useDebounce } from 'use-debounce';
 
 // === Types ===
 type MappedSupplier = {
@@ -777,6 +778,10 @@ const HotelListPageV2: NextPage = () => {
   const [showHotelNameDropdown, setShowHotelNameDropdown] = useState(false);
   const [selectedHotelName, setSelectedHotelName] = useState<HotelResult | null>(null);
   
+  // Simple text search for hotel name (with debounce)
+  const [hotelNameTextSearch, setHotelNameTextSearch] = useState('');
+  const [debouncedHotelNameText] = useDebounce(hotelNameTextSearch, 500);
+  
   const [starFilter, setStarFilter] = useState<number | null>(null);
   const [showStarDropdown, setShowStarDropdown] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -873,8 +878,11 @@ const HotelListPageV2: NextPage = () => {
         if (selectedCityForView) {
           url.searchParams.append('cityName', selectedCityForView);
         }
-        if (selectedHotelName) {
-          url.searchParams.append('searchQuery', selectedHotelName.name);
+        if (debouncedHotelNameText) {
+          url.searchParams.append('searchQuery', debouncedHotelNameText);
+        }
+        if (statusFilter && statusFilter !== 'All') {
+          url.searchParams.append('status', statusFilter);
         }
         
         const response = await fetch(url.toString(), {
@@ -910,7 +918,7 @@ const HotelListPageV2: NextPage = () => {
     };
 
     fetchHotels();
-  }, [refreshTrigger, selectedCountryForView, selectedCityForView, selectedHotelName]);
+  }, [refreshTrigger, selectedCountryForView, selectedCityForView, debouncedHotelNameText, statusFilter]);
 
   // Fetch hotels by name (autocomplete search)
   useEffect(() => {
@@ -1022,18 +1030,15 @@ const HotelListPageV2: NextPage = () => {
     await fetchHotelDetails(hotel._id);
   };
 
-  // Client-side filtering (only for star and status, country/city/hotel filters are handled by API)
+  // Client-side filtering (only for star rating, country/city/hotel/status filters are handled by API)
   const filteredHotels = useMemo(() => {
     return allHotels.filter((hotel) => {
       // Filter by star rating
       const matchesStar = starFilter === null || Math.round(hotel.stars) === starFilter;
 
-      // Filter by status
-      const matchesStatus = statusFilter === 'All' || hotel.mappingMetadata?.status === statusFilter;
-
-      return matchesStar && matchesStatus;
+      return matchesStar;
     });
-  }, [allHotels, starFilter, statusFilter]);
+  }, [allHotels, starFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -1308,6 +1313,7 @@ const HotelListPageV2: NextPage = () => {
     setCitySearchInput('');
     setSelectedHotelName(null);
     setHotelNameSearch('');
+    setHotelNameTextSearch('');
     setStarFilter(null);
     setStatusFilter('All');
   };
@@ -1587,7 +1593,8 @@ const HotelListPageV2: NextPage = () => {
                     <FaHotel className="h-4 w-4" />
                     Hotel Name
                   </label>
-                  <div className="relative">
+                  {/* OLD AUTOCOMPLETE HOTEL SEARCH - COMMENTED OUT */}
+                  {/* <div className="relative">
                     {selectedHotelName ? (
                       <div className="flex items-center gap-2 w-full h-12 px-4 py-3 rounded-xl border-2 border-purple-300 bg-purple-50">
                         <FaHotel className="w-4 h-4 text-purple-600 flex-shrink-0" />
@@ -1620,8 +1627,6 @@ const HotelListPageV2: NextPage = () => {
                         )}
                       </div>
                     )}
-
-                    {/* Hotel Name Dropdown */}
                     {showHotelNameDropdown && hotelNameResults.length > 0 && (
                       <div className="absolute top-full mt-1 w-full bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50">
                         <div className="p-2">
@@ -1645,12 +1650,31 @@ const HotelListPageV2: NextPage = () => {
                         </div>
                       </div>
                     )}
+                  </div> */}
+                  {/* NEW SIMPLE TEXT SEARCH WITH DEBOUNCE */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="🏨 Search hotel by name..."
+                      value={hotelNameTextSearch}
+                      onChange={(e) => setHotelNameTextSearch(e.target.value)}
+                      className="w-full px-4 py-3 text-base font-medium bg-white border-2 border-purple-300 rounded-xl shadow-lg hover:border-purple-500 focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition-all duration-200"
+                    />
+                    {hotelNameTextSearch && (
+                      <button
+                        onClick={() => setHotelNameTextSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <IoClose className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Active Filters */}
-              {(selectedCountryForView || selectedCityForView || selectedHotelName || starFilter !== null || statusFilter !== 'All') && (
+              {(selectedCountryForView || selectedCityForView || debouncedHotelNameText || starFilter !== null || statusFilter !== 'All') && (
                 <div className="mt-3 pt-3 border-t border-gray-200 flex items-center flex-wrap gap-2">
                   <span className="text-xs font-medium text-gray-600">Filters:</span>
                   {selectedCountryForView && (
@@ -1664,10 +1688,10 @@ const HotelListPageV2: NextPage = () => {
                       {selectedCityForView}
                     </span>
                   )}
-                  {selectedHotelName && (
+                  {debouncedHotelNameText && (
                     <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md text-xs font-medium">
                       <FaHotel className="w-3 h-3" />
-                      {selectedHotelName.name}
+                      {debouncedHotelNameText}
                     </span>
                   )}
                   {starFilter !== null && (

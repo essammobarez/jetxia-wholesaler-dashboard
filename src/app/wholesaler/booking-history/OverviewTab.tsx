@@ -932,7 +932,7 @@ const BookingsPage: NextPage = () => {
                     />
                     <div className="min-w-0">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
-                        {r.hotelInfo.name || "Hotel details not available"}
+                        {r.hotelInfo.name?.split("(")[0].trim() || "Hotel details not available"}
                         <span className="text-gray-400 dark:text-gray-500 text-sm font-normal ml-2">
                           ({statusDetails.label})
                         </span>
