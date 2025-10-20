@@ -172,87 +172,46 @@ const BookingsPage: NextPage = () => {
 
         if (bookingsArray.length > 0) {
           const mapped: Reservation[] = bookingsArray.map((item: any) => {
+            const dbId = String(item._id ?? "");
+            const bookingId = String(item.bookingId ?? "");
+            const sequenceNumber = Number(item.sequenceNumber ?? 0);
+            const topStatus = String(item.status ?? "").toLowerCase();
+            const createdAt = String(item.createdAt ?? "");
+            const agency = item.agency;
+            const agencyName = item.agency?.agencyName ?? "N/A";
+            const wholesaler = item.wholesaler;
+            const wholesalerName = "N/A";
+            const clientRef = String(item.clientReference ?? "");
+            const serviceType = "hotel";
+            const paymentType = String(item.bookingType ?? "");
+            const price = Number(item.totalPrice?.value ?? 0);
+            const currency = String(item.totalPrice?.currency ?? "USD");
+            const checkIn = String(item.serviceDates?.startDate ?? "");
+            const checkOut = String(item.serviceDates?.endDate ?? "");
+            const nights = Number(item.serviceDates?.duration ?? 0);
+            const destinationCity = item.hotel?.city ?? "";
+            const destinationCountry = item.hotel?.country ?? "";
+            const priceDetails = item.priceDetails;
+            const topLevelHotelInfo = item.hotel;
+
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
                 room.bookingData?.detailedInfo?.service || {};
-              const cancellationDetails =
-                room.bookingData?.initialResponse?.HotelDetails
-                  ?.RoomDetails?.[0]?.CancellationPolicyDetails?.Cancellation;
-
-              let finalCancellationPolicy = room.cancellationPolicy ?? null;
-              if (cancellationDetails && Array.isArray(cancellationDetails)) {
-                const parsedPolicies = cancellationDetails
-                  .map((policy: any) => {
-                    const fromDateStr = String(policy.FromDate);
-                    if (fromDateStr.length !== 8) return null;
-
-                    const year = parseInt(fromDateStr.substring(0, 4), 10);
-                    const month = parseInt(fromDateStr.substring(4, 6), 10);
-                    const day = parseInt(fromDateStr.substring(6, 8), 10);
-
-                    const timeStr = String(
-                      policy.FromTime || "12:00 AM"
-                    ).replace(/[\s\u202F]+/g, " ");
-
-                    const timeParts = timeStr.match(
-                      /(\d+):(\d+)\s*(AM|PM)/i
-                    );
-                    let hours = 0;
-                    let minutes = 0;
-                    if (timeParts) {
-                      hours = parseInt(timeParts[1], 10);
-                      minutes = parseInt(timeParts[2], 10);
-                      const modifier = timeParts[3].toUpperCase();
-                      if (modifier === "PM" && hours < 12) hours += 12;
-                      if (modifier === "AM" && hours === 12) hours = 0;
-                    }
-                    const startDate = new Date(
-                      Date.UTC(year, month - 1, day, hours, minutes)
-                    ).toISOString();
-
-                    return {
-                      startDate,
-                      percentOrAmt: policy.PercentOrAmt,
-                      value: policy.Value,
-                    };
-                  })
-                  .filter((p: any) => p !== null);
-
-                if (parsedPolicies.length > 0) {
-                  finalCancellationPolicy = {
-                    date: parsedPolicies[0].startDate,
-                    policies: parsedPolicies,
-                  };
-                } else {
-                  finalCancellationPolicy = null;
-                }
-              }
-
-              const roomGuests = Array.isArray(room.guests)
-                ? room.guests.map((p: any) => ({
-                    paxId: 0,
-                    type: String(p.type ?? ""),
-                    lead: !!p.lead,
-                    title: "",
-                    firstName: String(p.firstName ?? ""),
-                    lastName: String(p.lastName ?? ""),
-                    email: p.email ?? null,
-                    phone: p.phone ?? null,
-                    phonePrefix: p.phonePrefix ?? null,
-                    nationality: String(p.nationality ?? ""),
-                  }))
-                : [];
-
               const roomInfo = detailedService.rooms?.[0] || {};
               const firstGuestInRoom = room.guests?.[0];
 
-              const descriptiveRoomName =
-                room.bookingData?.initialResponse?.HotelDetails
-                  ?.RoomDetails?.[0]?.RoomType;
-              const genericRoomName = room.name;
-              const finalRoomName = String(
-                descriptiveRoomName || genericRoomName || ""
-              );
+              const roomGuests = (room.guests || []).map((p: any) => ({
+                paxId: 0,
+                type: String(p.type ?? "adult"),
+                lead: !!p.lead,
+                title: "",
+                firstName: String(p.firstName ?? ""),
+                lastName: String(p.lastName ?? ""),
+                email: p.email ?? null,
+                phone: p.phone ?? null,
+                phonePrefix: p.phonePrefix ?? null,
+                nationality: String(p.nationality ?? ""),
+              }));
 
               return {
                 reservationId: Number(room.reservationId ?? 0),
@@ -261,18 +220,16 @@ const BookingsPage: NextPage = () => {
                   detailedService.rateDetails?.name ?? room.board ?? ""
                 ),
                 priceNet: Number(
-                  room.price?.value ??
-                    detailedService.prices?.total?.net?.value ??
-                    0
+                  detailedService.prices?.total?.net?.value ?? 0
                 ),
                 priceCommission: Number(
                   detailedService.prices?.total?.commission?.value ?? 0
                 ),
-                cancellationPolicy: finalCancellationPolicy,
+                cancellationPolicy: room.cancellationPolicy ?? null,
                 guests: roomGuests,
                 remarks: [],
-                roomName: finalRoomName,
-                board: String(roomInfo.board ?? room.board ?? "N/A"),
+                roomName: String(roomInfo.name || room.name || "N/A"),
+                board: String(room.board ?? roomInfo.board ?? "N/A"),
                 boardBasis: String(roomInfo.boardBasis ?? "N/A"),
                 info: String(roomInfo.info ?? ""),
                 nationality: firstGuestInRoom?.nationality ?? "",
@@ -280,162 +237,93 @@ const BookingsPage: NextPage = () => {
                   external: null,
                   confirmation: null,
                 },
-                confirmationNo: room.confirmationNo ?? null,
+                confirmationNo: room.reference?.confirmation ?? null,
               };
             });
 
             const allPassengers = allRoomsData.flatMap((r) => r.guests);
+            const firstRoomData = allRoomsData[0] || {};
+            const firstRawRoom = item.rooms?.[0] || {};
+            const firstDetailedService =
+              firstRawRoom.bookingData?.detailedInfo?.service || {};
 
-            const rawFirstRoom = item.rooms?.[0] || {};
-            const room = {
-              ...rawFirstRoom,
-              cancellationPolicy:
-                allRoomsData[0]?.cancellationPolicy ??
-                rawFirstRoom.cancellationPolicy,
-            };
-
-            const detailedService =
-              room.bookingData?.detailedInfo?.service || {};
-
-            const bookingId = String(item.bookingId ?? "");
-            const sequenceNumber = Number(item.sequenceNumber ?? 0);
-            const reservationId = Number(room.reservationId ?? 0);
-            const topStatus = String(item.status ?? "").toLowerCase();
-            const createdAt = String(item.createdAt ?? "");
-            const dbId = String(item._id ?? "");
-            const agency = item.agency;
-            const agencyName = item.agency?.agencyName ?? "N/A";
-            const source =
-              item.rooms?.[0]?.bookingData?.initialResponse?.BookingDetails
-                ?.Source ?? null;
-
-            const wholesaler = item.wholesaler;
-            const wholesalerName =
-              typeof wholesaler === "object" && wholesaler !== null
-                ? wholesaler.wholesalerName
-                : typeof wholesaler === "string"
-                ? wholesaler
-                : "N/A";
-
-            const providerId = room.provider?._id ?? "N/A";
-            const providerName = room.provider?.name ?? "N/A";
-            const clientRef = String(item.clientReference ?? "");
-            const serviceType = "hotel";
-            const initStatus = String(room.status ?? "").toLowerCase();
-
-            const addedTime = String(detailedService.added?.time ?? "");
-            const addedUser = String(
-              detailedService.added?.user?.name ?? ""
-            );
-
-            const paymentType = String(item.bookingType ?? "");
-            const paymentStatus = String(item.status ?? "");
-            const rateDescription = String(
-              detailedService.rateDetails?.name ?? room.board ?? ""
-            );
-
-            const priceIssueSelling = Number(item.totalPrice?.value ?? 0);
-            const priceIssueNet = Number(
-              detailedService.prices?.total?.net?.value ?? 0
-            );
-            const priceIssueCommission = Number(
-              detailedService.prices?.total?.commission?.value ?? 0
-            );
-
-            const price = priceIssueSelling;
-            const currency = String(item.totalPrice?.currency ?? "USD");
-            const cancellationDate = String(
-              room.cancellationPolicy?.date ?? ""
-            );
-
-            const checkIn = String(item.serviceDates?.startDate ?? "");
-            const checkOut = String(item.serviceDates?.endDate ?? "");
-            let nights = Number(item.serviceDates?.duration ?? 0);
-            if ((!nights || nights <= 0) && checkIn && checkOut) {
-              const d1 = new Date(checkIn);
-              const d2 = new Date(checkOut);
-              const diffMs = d2.getTime() - d1.getTime();
-              nights =
-                diffMs > 0
-                  ? Math.round(diffMs / (1000 * 60 * 60 * 24))
-                  : 0;
-            }
-
-            const destinationCity = item.hotel?.city ?? "";
-            const destinationCountry = item.hotel?.country ?? "";
-            const firstGuest = room.guests?.[0];
-            const nationality = firstGuest?.nationality ?? "";
-            const remarks: any[] = [];
+            const priceIssueNet = firstRoomData.priceNet ?? 0;
+            const priceIssueCommission = firstRoomData.priceCommission ?? 0;
+            const priceIssueSelling = price;
 
             const hotelInfo = {
-              id: String(detailedService.hotel?.id ?? ""),
-              name: String(item.hotel?.name ?? "N/A"),
-              stars: Number(item.hotel?.stars ?? 0),
+              id: String(firstDetailedService.hotel?.id ?? ""),
+              name: String(
+                topLevelHotelInfo?.name ??
+                  firstDetailedService.hotel?.name ??
+                  "N/A"
+              ),
+              stars: Number(
+                topLevelHotelInfo?.stars ??
+                  firstDetailedService.hotel?.stars ??
+                  0
+              ),
               lastUpdated: String(
-                detailedService.hotel?.lastUpdated ?? ""
+                firstDetailedService.hotel?.lastUpdated ?? ""
               ),
-              cityId: String(detailedService.hotel?.cityId ?? ""),
-              countryId: String(
-                detailedService.hotel?.countryId ?? ""
-              ),
+              cityId: String(firstDetailedService.hotel?.cityId ?? ""),
+              countryId: String(firstDetailedService.hotel?.countryId ?? ""),
             };
-
-            const detailedRooms = Array.isArray(detailedService.rooms)
-              ? detailedService.rooms.map((rm: any) => ({
-                  id: String(rm.id ?? ""),
-                  name: String(rm.name ?? ""),
-                  board: String(rm.board ?? ""),
-                  boardBasis: String(rm.boardBasis ?? ""),
-                  info: String(rm.info ?? ""),
-                  passengerIds: Array.isArray(rm.passengers)
-                    ? rm.passengers.map((pid: any) => Number(pid))
-                    : [],
-                }))
-              : [];
-
-            const freeCancellation = cancellationDate;
 
             return {
               dbId,
               bookingId,
               sequenceNumber,
-              reservationId,
+              reservationId: firstRoomData.reservationId ?? 0,
               topStatus,
               createdAt,
               agency,
               agencyName,
               wholesaler,
               wholesalerName,
-              providerId,
-              providerName,
+              providerId: String(firstRawRoom.provider?._id ?? ""),
+              providerName: String(firstRawRoom.provider?.name ?? ""),
               clientRef,
               serviceType,
-              initStatus,
+              initStatus: firstRoomData.status ?? topStatus,
               price,
               currency,
-              addedTime,
-              addedUser,
+              addedTime: String(firstDetailedService.added?.time ?? ""),
+              addedUser: String(firstDetailedService.added?.user?.name ?? ""),
               paymentType,
-              paymentStatus,
-              rateDescription,
+              paymentStatus: topStatus,
+              rateDescription: firstRoomData.rateDescription ?? "",
               priceIssueNet,
               priceIssueCommission,
               priceIssueSelling,
-              cancellationDate,
+              cancellationDate: String(
+                firstRoomData.cancellationPolicy?.date ?? ""
+              ),
               checkIn,
               checkOut,
               nights,
               destinationCity,
               destinationCountry,
-              nationality,
+              nationality: firstRoomData.nationality ?? "",
               passengers: allPassengers,
-              remarks,
+              remarks: [],
               hotelInfo,
-              rooms: detailedRooms,
-              freeCancellation,
-              priceDetails: item.priceDetails,
+              rooms: (firstDetailedService.rooms || []).map((rm: any) => ({
+                id: String(rm.id ?? ""),
+                name: String(rm.name ?? ""),
+                board: String(rm.board ?? ""),
+                boardBasis: String(rm.boardBasis ?? ""),
+                info: String(rm.info ?? ""),
+                passengerIds: Array.isArray(rm.passengers)
+                  ? rm.passengers.map((pid: any) => Number(pid))
+                  : [],
+              })),
+              freeCancellation: String(
+                firstRoomData.cancellationPolicy?.date ?? ""
+              ),
+              priceDetails,
               allRooms: allRoomsData,
-              source,
+              source: null,
             };
           });
           setReservations(mapped);
@@ -567,14 +455,13 @@ const BookingsPage: NextPage = () => {
   const handleCancelClick = (reservation: Reservation) => {
     setCancelModalRes(reservation);
   };
-  
+
   const handleAddConfirmationClick = (
     reservation: Reservation,
     reservationId: number
   ) => {
     setConfirmationModalData({ reservation, reservationId });
   };
-
 
   const handleCancellationSuccess = () => {
     setCancelModalRes(null);
@@ -685,25 +572,25 @@ const BookingsPage: NextPage = () => {
     : null;
 
   const formatDate = (dateString: string | null | undefined): string => {
-    if (!dateString) return "—";
+    if (!dateString) return "-";
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "—";
+      if (isNaN(date.getTime())) return "-";
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
       return `${day}/${month}/${year}`;
     } catch (error) {
       console.error("Error formatting date:", dateString, error);
-      return "—";
+      return "-";
     }
   };
 
   const formatDateTime = (dateString: string | null | undefined): string => {
-    if (!dateString) return "—";
+    if (!dateString) return "-";
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "—";
+      if (isNaN(date.getTime())) return "-";
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const year = date.getFullYear();
@@ -712,7 +599,7 @@ const BookingsPage: NextPage = () => {
       return `${day}/${month}/${year} at ${hours}:${minutes}`;
     } catch (error) {
       console.error("Error formatting date and time:", dateString, error);
-      return "—";
+      return "-";
     }
   };
 
@@ -852,9 +739,11 @@ const BookingsPage: NextPage = () => {
           const guestName = leadPassenger
             ? `${leadPassenger.firstName} ${leadPassenger.lastName}`
             : "N/A";
-          
+
           const firstRoomNeedingConfirmation = r.allRooms.find(
-            (room) => room.reference?.confirmation === null && room.status.toLowerCase() !== 'cancelled'
+            (room) =>
+              room.reference?.confirmation === null &&
+              room.status.toLowerCase() !== "cancelled"
           );
 
           let S, C, M, D, NP, SP;
@@ -915,8 +804,10 @@ const BookingsPage: NextPage = () => {
               key={r.bookingId}
               className="bg-white dark:bg-gray-800 rounded-lg mb-4 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
             >
-              <div className="p-4 flex flex-col lg:flex-row lg:justify-between lg:items-center">
-                <div className="flex items-start justify-between w-full lg:w-auto">
+              {/* MODIFIED STRUCTURE STARTS HERE */}
+              <div className="p-4">
+                {/* Row 1: Hotel Name and Status */}
+                <div className="flex items-start justify-between">
                   <div
                     className="flex items-center space-x-3 min-w-0 cursor-pointer lg:cursor-default"
                     onClick={() =>
@@ -932,7 +823,8 @@ const BookingsPage: NextPage = () => {
                     />
                     <div className="min-w-0">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
-                        {r.hotelInfo.name?.split("(")[0].trim() || "Hotel details not available"}
+                        {r.hotelInfo.name?.split("(")[0].trim() ||
+                          "Hotel details not available"}
                         <span className="text-gray-400 dark:text-gray-500 text-sm font-normal ml-2">
                           ({statusDetails.label})
                         </span>
@@ -940,7 +832,7 @@ const BookingsPage: NextPage = () => {
                       <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                         Booking ID:{" "}
                         <span className="font-medium text-gray-800 dark:text-gray-200">
-                          {r.bookingId || "—"}
+                          {r.bookingId || "-"}
                         </span>
                       </p>
                     </div>
@@ -963,7 +855,8 @@ const BookingsPage: NextPage = () => {
                   </button>
                 </div>
 
-                <div className="flex items-center flex-wrap gap-2 mt-4 lg:mt-0 shrink-0 lg:pl-4">
+                {/* Row 2: Action Buttons */}
+                <div className="flex items-center flex-wrap gap-2 mt-4">
                   {r.topStatus.toLowerCase() === "onrequest" ? (
                     <>
                       <button
@@ -1050,7 +943,7 @@ const BookingsPage: NextPage = () => {
                           <span>Add Confirmation</span>
                         </button>
                       )}
-                      
+
                       <button
                         onClick={() =>
                           handleGenerateVoucher(reservationForModals)
@@ -1082,132 +975,217 @@ const BookingsPage: NextPage = () => {
                   )}
                 </div>
               </div>
-              
+              {/* MODIFIED STRUCTURE ENDS HERE */}
+
               <div
                 className={`
-                transition-all duration-500 ease-in-out
-                ${
-                  isExpanded
-                    ? "max-h-[1500px] opacity-100"
-                    : "max-h-0 opacity-0"
-                }
-                overflow-hidden
-                lg:max-h-full lg:opacity-100
-              `}
+                  transition-all duration-500 ease-in-out
+                  ${
+                    isExpanded
+                      ? "max-h-[1500px] opacity-100"
+                      : "max-h-0 opacity-0"
+                  }
+                  overflow-hidden
+                  lg:max-h-full lg:opacity-100
+                `}
               >
                 <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
                   <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-x-8">
                     <div className="lg:col-span-3 space-y-6">
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Guest</p>
-                            <p className="text-gray-800 dark:text-gray-200">{guestName}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Agency</p>
-                            <p className="text-gray-800 dark:text-gray-200">{r.agencyName}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Created On</p>
-                            <p className="text-gray-800 dark:text-gray-200">{formatDate(r.createdAt)}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Guest
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {guestName}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Agency
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {r.agencyName}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Created On
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {formatDate(r.createdAt)}
+                          </p>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                          <div className="md:col-span-1">
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">Price ({r.currency})</p>
-                              <div className="space-y-1 text-sm dark:text-gray-100">
-                                  <div className="flex justify-between"><span>S (Suppl.):</span> <span>{S.toFixed(2)}</span></div>
-                                  <div className="flex justify-between"><span>M (Markup):</span> <span>{M.toFixed(2)}</span></div>
-                                  <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1"><span>NP (Net):</span> <span>{NP.toFixed(2)}</span></div>
-                                  <div className="flex justify-between text-red-500"><span>C (Comm.):</span> <span>{C.toFixed(2)}</span></div>
-                                  <div className="flex justify-between text-red-500"><span>D (Disc.):</span> <span>{D.toFixed(2)}</span></div>
-                                  <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1"><span>SP (Sell):</span> <span>{SP.toFixed(2)}</span></div>
-                              </div>
+                        <div className="md:col-span-1">
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">
+                            Price ({r.currency})
+                          </p>
+                          <div className="space-y-1 text-sm dark:text-gray-100">
+                            <div className="flex justify-between">
+                              <span>S (Suppl.):</span>{" "}
+                              <span>{S.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>M (Markup):</span>{" "}
+                              <span>{M.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1">
+                              <span>NP (Net):</span> <span>{NP.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-red-500">
+                              <span>C (Comm.):</span> <span>{C.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-red-500">
+                              <span>D (Disc.):</span> <span>{D.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1">
+                              <span>SP (Sell):</span>{" "}
+                              <span>{SP.toFixed(2)}</span>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
-                              <div>
-                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check In</p>
-                                <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkIn)}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Check Out</p>
-                                <p className="text-gray-800 dark:text-gray-200">{formatDate(r.checkOut)}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nights</p>
-                                <p className="text-gray-800 dark:text-gray-200">{r.nights || "—"}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Payment</p>
-                                <p className="text-gray-800 dark:text-gray-200">{r.paymentType || "—"}</p>
-                              </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                              Check In
+                            </p>
+                            <p className="text-gray-800 dark:text-gray-200">
+                              {formatDate(r.checkIn)}
+                            </p>
                           </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                              Check Out
+                            </p>
+                            <p className="text-gray-800 dark:text-gray-200">
+                              {formatDate(r.checkOut)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                              Nights
+                            </p>
+                            <p className="text-gray-800 dark:text-gray-200">
+                              {r.nights || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                              Payment
+                            </p>
+                            <p className="text-gray-800 dark:text-gray-200">
+                              {r.paymentType || "-"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Destination</p>
-                            <p className="text-gray-800 dark:text-gray-200">{r.destinationCity && r.destinationCountry ? `${r.destinationCity}, ${r.destinationCountry}` : "—"}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Nationality</p>
-                            <p className="text-gray-800 dark:text-gray-200">{r.nationality || "—"}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Provider</p>
-                            <p className="text-gray-800 dark:text-gray-200">{r.providerName}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Destination
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {r.destinationCity && r.destinationCountry
+                              ? `${r.destinationCity}, ${r.destinationCountry}`
+                              : "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Nationality
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {r.nationality || "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                            Provider
+                          </p>
+                          <p className="text-gray-800 dark:text-gray-200">
+                            {r.providerName}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
                     <div className="lg:col-span-1 mt-6 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 lg:pl-8 lg:border-l border-gray-200 dark:border-gray-700">
-                        <div className="text-sm">
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">Rooms</p>
-                          <div className="mt-1">
+                      <div className="text-sm">
+                        <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                          Rooms
+                        </p>
+                        <div className="mt-1">
                           {reservationForModals.allRooms.map((room, index) => {
                             let cancellationDateString = null;
                             if (
                               Array.isArray(room.cancellationPolicy?.policies) &&
                               room.cancellationPolicy.policies.length > 0 &&
-                              room.cancellationPolicy.policies[0].startDate
+                              room.cancellationPolicy.policies[0].date
                             ) {
-                              cancellationDateString = room.cancellationPolicy.policies[0].startDate;
+                              cancellationDateString =
+                                room.cancellationPolicy.policies[0].date;
                             } else if (room.cancellationPolicy?.date) {
-                              cancellationDateString = room.cancellationPolicy.date;
+                              cancellationDateString =
+                                room.cancellationPolicy.date;
                             }
                             return (
                               <React.Fragment key={room.reservationId || index}>
                                 <div className="py-2">
-                                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100" title={`${room.roomName} (${room.status})`}>
+                                  <p
+                                    className="font-semibold text-sm text-gray-900 dark:text-gray-100"
+                                    title={`${room.roomName} (${room.status})`}
+                                  >
                                     {room.roomName}
-                                    <span className={`ml-2 capitalize font-medium ${
-                                      room.status === "cancelled" ? "text-red-500"
-                                      : room.status === "pending" ? "text-yellow-500"
-                                      : "text-green-600"
-                                    }`}>
-                                      ({room.status === "pending" ? "Payment Pending"
-                                        : room.status === "confirmed" ? "Paid"
-                                        : room.status})
+                                    <span
+                                      className={`ml-2 capitalize font-medium ${
+                                        room.status === "cancelled"
+                                          ? "text-red-500"
+                                          : room.status === "pending"
+                                          ? "text-yellow-500"
+                                          : "text-green-600"
+                                      }`}
+                                    >
+                                      (
+                                      {room.status === "pending"
+                                        ? "Payment Pending"
+                                        : room.status === "confirmed"
+                                        ? "Paid"
+                                        : room.status}
+                                      )
                                     </span>
                                   </p>
                                   {cancellationDateString && (
                                     <p className="text-sm font-medium mt-0.5">
-                                      <span className="text-red-600 dark:text-red-500">Auto cancellation by--- </span>
-                                      <span className="text-red-600 dark:text-red-500">{formatDateTime(cancellationDateString)}</span>
+                                      <span className="text-red-600 dark:text-red-500">
+                                        Auto cancellation by---{" "}
+                                      </span>
+                                      <span className="text-red-600 dark:text-red-500">
+                                        {formatDateTime(cancellationDateString)}
+                                      </span>
                                     </p>
                                   )}
                                   {room.confirmationNo && (
                                     <p className="text-sm font-medium mt-5">
-  <span className="text-gray-800 dark:text-gray-200">Confirmation No: </span>
-  <span className="font-bold text-blue-600 dark:text-blue-400">{room.confirmationNo}</span>
-</p>
+                                      <span className="text-gray-800 dark:text-gray-200">
+                                        Confirmation No:{" "}
+                                      </span>
+                                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                                        {room.confirmationNo}
+                                      </span>
+                                    </p>
                                   )}
                                 </div>
-                                {index < r.allRooms.length - 1 && (<hr className="border-gray-200 dark:border-gray-600" />)}
+                                {index < r.allRooms.length - 1 && (
+                                  <hr className="border-gray-200 dark:border-gray-600" />
+                                )}
                               </React.Fragment>
                             );
                           })}
-                          </div>
                         </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1248,13 +1226,14 @@ const BookingsPage: NextPage = () => {
           onClose={() => setPayModalRes(null)}
         />
       )}
-      
+
       {confirmationModalData && (
         <AddConfirmationModal
           isOpen={!!confirmationModalData}
           onClose={() => setConfirmationModalData(null)}
           onSuccess={() => {
             setConfirmationModalData(null);
+            fetchReservations();
           }}
           bookingId={confirmationModalData.reservation.dbId}
           reservationId={confirmationModalData.reservationId}
