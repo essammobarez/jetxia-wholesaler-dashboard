@@ -82,9 +82,17 @@ import HotelsTab from './mapping/HotelsTab';
 import HotelContentTab from './mapping/HotelContentTab';
 import MappingDashboardTab from './mapping/DashboardTab';
 
+// ✨ NEW: Import for Flights BS Module
+import FlightsBSPage from './flights-bs/FlightsBSPage';
+import BlockSeatsModule from './flights-bs/block-seats/BlockSeatsModule';
+import HotelsModule from './flights-bs/hotels/HotelsModule';
+import OfflinePackageModule from './flights-bs/offline-package/OfflinePackageModule';
+import PackageRequestsModule from './flights-bs/package-requests/PackageRequestsModule';
+
 // This is the full list of all possible menu items
 const allMenuItems = [
   'Dashboard',
+  'Flights BS', // ✨ NEW: Added Flights BS module
   'Booking',
   'Customers',
   'Campaign', // ✨ NEW: Added Campaign menu
@@ -183,6 +191,26 @@ export default function WholesalerPage() {
 
     if (authToken) {
       try {
+        // Handle demo token (simple string, not JWT)
+        if (authToken.startsWith('demo_token_')) {
+          console.log('Demo token detected:', authToken);
+          
+          // Get demo user data from localStorage
+          const userDataString = localStorage.getItem('userData');
+          if (userDataString) {
+            const userData = JSON.parse(userDataString);
+            setUserName(userData.name || 'Demo User');
+            localStorage.setItem('wholesalerId', userData.wholesalerId || 'demo_wholesaler_456');
+            setUserType('demo');
+            setUserRole('wholesaler');
+            setUserPermissions([]);
+          }
+          
+          setIsLoading(false);
+          return;
+        }
+
+        // Handle real JWT token
         const payloadBase64 = authToken.split('.')[1];
         const payloadJson = atob(payloadBase64);
         const payload = JSON.parse(payloadJson);
@@ -216,6 +244,7 @@ export default function WholesalerPage() {
         // If token is invalid/corrupt, clear it and redirect
         localStorage.removeItem('authToken');
         localStorage.removeItem('wholesalerId');
+        localStorage.removeItem('userData');
         document.cookie = 'authToken=; path=/; max-age=0; SameSite=Lax';
         router.replace('/'); // Redirect to root if token is invalid
       }
@@ -297,6 +326,7 @@ export default function WholesalerPage() {
     // Remove local storage items
     localStorage.removeItem('authToken');
     localStorage.removeItem('wholesalerId');
+    localStorage.removeItem('userData'); // Clear demo user data
     localStorage.removeItem('devMode'); // 🔧 Clear dev mode
     // Remove cookie by setting max-age=0
     document.cookie = 'authToken=; path=/; max-age=0; SameSite=Lax';
@@ -352,7 +382,9 @@ export default function WholesalerPage() {
               {userName}
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {userRole === 'sales'
+              {userType === 'demo'
+                ? '🚀 Demo Mode'
+                : userRole === 'sales'
                 ? 'Sales Person'
                 : userType === 'subuser'
                 ? 'Subuser Panel'
@@ -442,7 +474,7 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {['Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping'].includes(item) && (
+                {['Flights BS', 'Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -452,6 +484,34 @@ export default function WholesalerPage() {
               </button>
 
               {/* --- SUB-MENUS --- */}
+
+              {expandedMenu === 'Flights BS' && item === 'Flights BS' && (
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['Overview', 'Block Seats', 'Hotels', 'Offline Package', 'Package Requests'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('Flights BS');
+                        setActiveTab(tab);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">
+                        {tab === 'Overview' && 'Overview'}
+                        {tab === 'Block Seats' && 'Block Seats'}
+                        {tab === 'Hotels' && 'Hotels'}
+                        {tab === 'Offline Package' && 'Offline Package'}
+                        {tab === 'Package Requests' && 'Package Requests'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {expandedMenu === 'Booking' && item === 'Booking' && (
                 <div className="ml-6 mt-2 space-y-1 animate-slide-up">
@@ -696,6 +756,13 @@ export default function WholesalerPage() {
               🔧 DEVELOPMENT MODE - Authentication temporarily disabled
             </div>
           )}
+          
+          {/* 🚀 Demo Mode Notice */}
+          {userType === 'demo' && (
+            <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white px-4 py-2 text-center text-sm">
+              🚀 DEMO MODE - You are using a demo version with sample data
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-6 flex-1">
@@ -754,6 +821,18 @@ export default function WholesalerPage() {
         {/* Enhanced Body */}
         <main className="p-6 overflow-y-auto flex-1 bg-gradient-to-br from-transparent to-white/30 dark:to-gray-800/30">
           {activePage === 'Dashboard' && <DashboardPage />}
+
+          {/* ✨ NEW: Render Flights BS Module */}
+          {activePage === 'Flights BS' && (
+            <div className="animate-fade-scale">
+              {activeTab === 'Overview' && <FlightsBSPage onModuleSelect={setActiveTab} />}
+              {activeTab === 'Block Seats' && <BlockSeatsModule />}
+              {activeTab === 'Hotels' && <HotelsModule />}
+              {activeTab === 'Offline Package' && <OfflinePackageModule />}
+              {activeTab === 'Package Requests' && <PackageRequestsModule />}
+              {!activeTab && <FlightsBSPage onModuleSelect={setActiveTab} />}
+            </div>
+          )}
 
           {/* ✨ NEW: Render Profile Settings Page */}
           {activePage === 'Profile Settings' && <ProfileSettingsPage />}
