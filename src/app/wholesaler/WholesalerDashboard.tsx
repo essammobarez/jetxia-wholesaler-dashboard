@@ -9,6 +9,26 @@ import {
   Search,
   Sun,
 } from 'lucide-react';
+// Import icons for menu items
+import { 
+  MdDashboard, 
+  MdFlight, 
+  MdBookOnline, 
+  MdPeople, 
+  MdCampaign, 
+  MdLocalOffer, 
+  MdTrendingUp, 
+  MdBusiness, 
+  MdPersonOutline, 
+  MdBarChart, 
+  MdSupportAgent, 
+  MdAssessment, 
+  MdPerson, 
+  MdSecurity, 
+  MdHotel, 
+  MdMap, 
+  MdApi 
+} from 'react-icons/md';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -89,8 +109,8 @@ import HotelsModule from './flights-bs/hotels/HotelsModule';
 import OfflinePackageModule from './flights-bs/offline-package/OfflinePackageModule';
 import PackageRequestsModule from './flights-bs/package-requests/PackageRequestsModule';
 
-// This is the full list of all possible menu items
-const allMenuItems = [
+// General menu items available to all users
+const generalMenuItems = [
   'Dashboard',
   'Flights BS', // ✨ NEW: Added Flights BS module
   'Booking',
@@ -115,12 +135,41 @@ const allMenuItems = [
   'Permissions',
   // 'Notifications',
   // 'Integrations',
-  'Mapped Hotels',
-  'Mapping', // ✨ NEW: Added Mapping menu
   'API Management',
 
   // 'Logs',
 ];
+
+// Protected menu items (require special access)
+const protectedMenuItems: string[] = [
+  'Mapped Hotels',
+  'Mapping',
+];
+
+const permission = false;
+// Combined list of all menu items
+const allMenuItems = permission ? [...generalMenuItems, ...protectedMenuItems] : generalMenuItems;
+
+// Icon mapping for menu items
+const menuIcons: { [key: string]: React.ComponentType<{ className?: string }> } = {
+  'Dashboard': MdDashboard,
+  'Flights BS': MdFlight,
+  'Booking': MdBookOnline,
+  'Customers': MdPeople,
+  'Campaign': MdCampaign,
+  'Coupon': MdLocalOffer,
+  'Markup': MdTrendingUp,
+  'Supplier': MdBusiness,
+  'Sales Person': MdPersonOutline,
+  'Metrics': MdBarChart,
+  'Support Tickets': MdSupportAgent,
+  'Reports': MdAssessment,
+  'Users': MdPerson,
+  'Permissions': MdSecurity,
+  'Mapped Hotels': MdHotel,
+  'Mapping': MdMap,
+  'API Management': MdApi,
+};
 
 export default function WholesalerPage() {
   const searchParams = useSearchParams();
@@ -142,6 +191,7 @@ export default function WholesalerPage() {
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [visibleMenuItems, setVisibleMenuItems] = useState<string[]>(allMenuItems);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [hasProtectedAccess, setHasProtectedAccess] = useState<boolean>(permission); // Track if user has access to protected items
 
   useEffect(() => {
     // ✅ FIX: This check ensures browser-specific code only runs on the client.
@@ -256,9 +306,11 @@ export default function WholesalerPage() {
 
   // Effect to filter menu items based on permissions
   useEffect(() => {
+    let itemsToShow = allMenuItems;
+
     if (userRole === 'sales') {
         const salesMenuItems = ['Dashboard', 'Booking', 'Customers', 'Markup'];
-        setVisibleMenuItems(salesMenuItems);
+        itemsToShow = salesMenuItems;
         // Set a default page if the current one isn't allowed
         if (salesMenuItems.length > 0 && !salesMenuItems.includes(activePage)) {
             setActivePage(salesMenuItems[0]);
@@ -269,17 +321,20 @@ export default function WholesalerPage() {
         userPermissions.map(p => p.split(':')[0])
       );
       // Filter the main menu list to only include items present in the user's permissions
-      const filteredItems = allMenuItems.filter(item => allowedMenuSet.has(item));
-      setVisibleMenuItems(filteredItems);
+      itemsToShow = allMenuItems.filter(item => allowedMenuSet.has(item));
       // Set the default active page to the first available item if the current one is not allowed
-      if (filteredItems.length > 0 && !filteredItems.includes(activePage)) {
-        setActivePage(filteredItems[0]);
+      if (itemsToShow.length > 0 && !itemsToShow.includes(activePage)) {
+        setActivePage(itemsToShow[0]);
       }
-    } else {
-      // If user is not a subuser or has no permissions, show all menu items
-      setVisibleMenuItems(allMenuItems);
     }
-  }, [userType, userPermissions, userRole, activePage]);
+
+    // Filter out protected items if user doesn't have access
+    if (!hasProtectedAccess) {
+      itemsToShow = itemsToShow.filter(item => !protectedMenuItems.includes(item));
+    }
+
+    setVisibleMenuItems(itemsToShow);
+  }, [userType, userPermissions, userRole, activePage, hasProtectedAccess]);
 
 
   // Sync dark mode class on <html>
@@ -290,35 +345,125 @@ export default function WholesalerPage() {
     }
   }, [darkMode]);
 
-  // MODIFIED: Effect to sync component state with URL query params for navigation
+  // MODIFIED: Effect to sync component state with URL query params and localStorage for navigation
   useEffect(() => {
     const page = searchParams.get('page');
     const tab = searchParams.get('tab');
 
-    // Only update if the page parameter is a valid, visible menu item
     if (page && visibleMenuItems.includes(page)) {
-      setActivePage(page);
-      setExpandedMenu(page); // Expand the parent menu in the sidebar
+      // Check if trying to access a protected page without permission
+      if (protectedMenuItems.includes(page) && !hasProtectedAccess) {
+        alert('Access Denied: You do not have permission to access this page.');
+        // Redirect to Dashboard
+        setActivePage('Dashboard');
+        setExpandedMenu(null);
+        setActiveTab(null);
+        localStorage.setItem('wholesaler_activePage', 'Dashboard');
+        localStorage.removeItem('wholesaler_activeTab');
+        const params = new URLSearchParams();
+        params.set('page', 'Dashboard');
+        router.replace(`?${params.toString()}`);
+        return;
+      }
 
+      // URL params take priority
+      setActivePage(page);
+      setExpandedMenu(page);
+      
       if (tab) {
         setActiveTab(tab);
       } else {
-        // If there's a page but no tab, reset the tab
         setActiveTab(null);
       }
+      
+      // Save to localStorage for persistence
+      localStorage.setItem('wholesaler_activePage', page);
+      if (tab) {
+        localStorage.setItem('wholesaler_activeTab', tab);
+      } else {
+        localStorage.removeItem('wholesaler_activeTab');
+      }
+    } else if (!page) {
+      // No URL params, try to restore from localStorage
+      const savedPage = localStorage.getItem('wholesaler_activePage');
+      const savedTab = localStorage.getItem('wholesaler_activeTab');
+      
+      if (savedPage && visibleMenuItems.includes(savedPage)) {
+        // Check if the saved page is protected
+        if (protectedMenuItems.includes(savedPage) && !hasProtectedAccess) {
+          // Can't restore protected page, go to Dashboard
+          setActivePage('Dashboard');
+          setExpandedMenu(null);
+          setActiveTab(null);
+          localStorage.setItem('wholesaler_activePage', 'Dashboard');
+          localStorage.removeItem('wholesaler_activeTab');
+          const params = new URLSearchParams();
+          params.set('page', 'Dashboard');
+          router.replace(`?${params.toString()}`);
+          return;
+        }
+
+        setActivePage(savedPage);
+        setExpandedMenu(savedPage);
+        
+        if (savedTab) {
+          setActiveTab(savedTab);
+        }
+        
+        // Update URL to reflect saved state
+        const params = new URLSearchParams();
+        params.set('page', savedPage);
+        if (savedTab) {
+          params.set('tab', savedTab);
+        }
+        router.replace(`?${params.toString()}`);
+      } else {
+        // No saved state, default to Dashboard
+        setActivePage('Dashboard');
+        setExpandedMenu(null);
+        setActiveTab(null);
+        
+        // Update URL and localStorage to Dashboard
+        localStorage.setItem('wholesaler_activePage', 'Dashboard');
+        localStorage.removeItem('wholesaler_activeTab');
+        
+        const params = new URLSearchParams();
+        params.set('page', 'Dashboard');
+        router.replace(`?${params.toString()}`);
+      }
     }
-  }, [searchParams, visibleMenuItems]);
+  }, [searchParams, visibleMenuItems, router, hasProtectedAccess]);
+
+  // Helper function to check if a page is protected
+  const isProtectedPage = (page: string): boolean => {
+    return protectedMenuItems.includes(page);
+  };
 
   const handleMenuClick = (item: string) => {
+    // Check if trying to access a protected page without permission
+    if (isProtectedPage(item) && !hasProtectedAccess) {
+      alert('Access Denied: You do not have permission to access this page.');
+      return;
+    }
+
     if (activePage === item) {
       // If clicking the same main menu, collapse submenu
       setExpandedMenu((prev) => (prev === item ? null : item));
       // Reset activeTab when toggling submenu
       setActiveTab(null);
+      localStorage.removeItem('wholesaler_activeTab');
     } else {
       setActivePage(item);
       setExpandedMenu(item);
       setActiveTab(null);
+      
+      // Update localStorage and URL
+      localStorage.setItem('wholesaler_activePage', item);
+      localStorage.removeItem('wholesaler_activeTab');
+      
+      const params = new URLSearchParams();
+      params.set('page', item);
+      router.replace(`?${params.toString()}`);
     }
   };
 
@@ -328,6 +473,8 @@ export default function WholesalerPage() {
     localStorage.removeItem('wholesalerId');
     localStorage.removeItem('userData'); // Clear demo user data
     localStorage.removeItem('devMode'); // 🔧 Clear dev mode
+    localStorage.removeItem('wholesaler_activePage'); // Clear tab persistence
+    localStorage.removeItem('wholesaler_activeTab'); // Clear tab persistence
     // Remove cookie by setting max-age=0
     document.cookie = 'authToken=; path=/; max-age=0; SameSite=Lax';
     // Redirect to home/login
@@ -462,11 +609,16 @@ export default function WholesalerPage() {
                       ? 'bg-white/20'
                       : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
                   }`}>
-                    <LayoutGrid className={`w-4 h-4 ${
-                      activePage === item
-                        ? 'text-white'
-                        : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
-                    }`} />
+                    {(() => {
+                      const IconComponent = menuIcons[item] || LayoutGrid;
+                      return (
+                        <IconComponent className={`w-4 h-4 ${
+                          activePage === item
+                            ? 'text-white'
+                            : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
+                        }`} />
+                      );
+                    })()}
                   </div>
                   <span className={`font-medium ${
                     activePage === item
@@ -493,6 +645,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Flights BS');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Flights BS');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Flights BS');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -521,6 +682,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Booking');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Booking');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Booking');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -552,6 +722,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Customers');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Customers');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Customers');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -580,6 +759,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Campaign');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Campaign');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Campaign');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -606,6 +794,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Markup');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Markup');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Markup');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -631,6 +828,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Supplier');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Supplier');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Supplier');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -658,6 +864,15 @@ export default function WholesalerPage() {
                         onClick={() => {
                           setActivePage('Sales Person');
                           setActiveTab(tab);
+                          
+                          // Update localStorage and URL
+                          localStorage.setItem('wholesaler_activePage', 'Sales Person');
+                          localStorage.setItem('wholesaler_activeTab', tab);
+                          
+                          const params = new URLSearchParams();
+                          params.set('page', 'Sales Person');
+                          params.set('tab', tab);
+                          router.replace(`?${params.toString()}`);
                         }}
                         className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                           activeTab === tab
@@ -684,6 +899,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Reports');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Reports');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Reports');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
@@ -713,6 +937,15 @@ export default function WholesalerPage() {
                       onClick={() => {
                         setActivePage('Mapping');
                         setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'Mapping');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'Mapping');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
                       }}
                       className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
                         activeTab === tab
