@@ -624,7 +624,7 @@ const HotelDetailModal = ({
                                     </div>
                                   </div>
                                 )}
-                                {typeof supplierDetails.specialDeals !== 'undefined' && (
+                                {/* {typeof supplierDetails.specialDeals !== 'undefined' && (
                                   <div>
                                     <span className="font-semibold text-gray-700 text-sm">Special Deals:</span>
                                     <p className="text-gray-600 mt-0.5 text-sm">
@@ -635,7 +635,7 @@ const HotelDetailModal = ({
                                       )}
                                     </p>
                                   </div>
-                                )}
+                                )} */}
                                 {/* {supplierDetails.supplier && (
                                 <div className="md:col-span-2">
                                   <span className="font-semibold text-gray-700 text-sm">Supplier Reference ID:</span>
@@ -2359,7 +2359,7 @@ const HotelListPageV2: NextPage = () => {
                                                         </div>
                                                       </div>
                                                     )}
-                                                    {typeof supplierDetails.specialDeals !== 'undefined' && (
+                                                    {/* {typeof supplierDetails.specialDeals !== 'undefined' && (
                                                       <div>
                                                         <span className="font-semibold text-gray-700 text-sm">Special Deals:</span>
                                                         <p className="text-gray-600 text-sm mt-0.5">
@@ -2370,7 +2370,7 @@ const HotelListPageV2: NextPage = () => {
                                                           )}
                                                         </p>
                                                       </div>
-                                                    )}
+                                                    )} */}
                                                   </div>
                                                   {/* {supplierDetails.supplier && (
                                                 <div>
