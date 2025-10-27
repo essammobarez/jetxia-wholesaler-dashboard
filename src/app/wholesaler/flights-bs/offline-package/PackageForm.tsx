@@ -6,17 +6,17 @@ import axios from 'axios';
 import { Plus, X, Save, Plane, Hotel } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-import BasicInformation from './BasicInformation';
-import FlightSelection from './FlightSelection';
-import HotelSelection from './HotelSelection';
-import Availability from './Availability';
-import PackageHighlights from './PackageHighlights';
-import ItineraryBuilder from './ItineraryBuilder';
-import PackageInclusions from './PackageInclusions';
-import PackageImages from './PackageImages';
-import Pricing from './Pricing';
-import Commission from './Commission';
-import Dates from './Dates';
+import BasicInformation from './components/BasicInformation';
+import FlightSelection from './components/FlightSelection';
+import HotelSelection from './components/HotelSelection';
+import Availability from './components/Availability';
+import PackageHighlights from './components/PackageHighlights';
+import ItineraryBuilder from './components/ItineraryBuilder';
+import PackageInclusions from './components/PackageInclusions';
+import PackageImages from './components/PackageImages';
+import Pricing from './components/Pricing';
+import Commission from './components/Commission';
+import Dates from './components/Dates';
 
 import { OfflinePackage, countriesWithCities } from './mockData';
 
