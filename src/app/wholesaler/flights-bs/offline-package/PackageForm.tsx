@@ -1,7 +1,5 @@
-// src/app/wholesaler/flights-bs/offline-package/PackageForm.tsx
-
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Plus, X, Save, Plane, Hotel } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -18,12 +16,13 @@ import Pricing from './components/Pricing';
 import Commission from './components/Commission';
 import Dates from './components/Dates';
 
-import { OfflinePackage, countriesWithCities } from './mockData';
+import { countriesWithCities } from './mockData'; // Keep this for the country/city dropdowns
+import { ApiPackage } from './OfflinePackageModule'; // Import the correct package type
 
 interface PackageFormProps {
-  package?: OfflinePackage;
+  package?: ApiPackage; // Use ApiPackage type
   onClose: () => void;
-  onSave: (packageData: OfflinePackage) => void;
+  onSave: (packageData: ApiPackage) => void;
 }
 
 const getAuthToken = () => {
@@ -36,61 +35,118 @@ const getAuthToken = () => {
     ?.split('=')[1] || localStorage.getItem('authToken');
 };
 
-const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    title: pkg?.title || '',
+// Helper function to format ISO date string to "YYYY-MM-DD" for date inputs
+const formatDateForInput = (isoDate: string | undefined) => {
+  if (!isoDate) return '';
+  try {
+    return new Date(isoDate).toISOString().split('T')[0];
+  } catch (error) {
+    console.warn("Could not parse date:", isoDate);
+    return '';
+  }
+};
+
+// Helper function to clean emoji/unicode from country names
+const cleanString = (str: string) => {
+  if (!str) return '';
+  // This regex matches most common emojis and symbols
+  return str.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+};
+
+// Helper function to initialize form state from a package
+const getInitialFormData = (pkg?: ApiPackage) => {
+  // Reconstruct a partial flight object for display/ID
+  const flightBlock = pkg?.flights[0]?.flightBlockSeatId;
+  const initialFlight = flightBlock ? {
+      id: flightBlock._id, // For handleSubmit
+      name: flightBlock.name, // For display
+      airline: flightBlock.airline, // For display
+      route: flightBlock.route, // For display
+      // Add stubs for other properties that FlightSelection might try to render
+      flightNumber: flightBlock._id.slice(-6).toUpperCase(),
+      departureTime: "N/A",
+      arrivalTime: "N/A",
+      duration: "N/A",
+      departureDate: "N/A",
+      pricing: { economy: 0, business: 0, first: 0 },
+      availability: { class1: {}, class2: {}, class3: {} },
+      availableDates: []
+  } : null;
+
+  // Reconstruct a partial hotel object for display/ID
+  const hotelBlock = pkg?.hotels[0]?.hotelBlockRoomId;
+  const initialHotel = hotelBlock ? {
+      id: hotelBlock._id, // For handleSubmit
+      name: hotelBlock.hotelName, // For display
+      rating: hotelBlock.starRating, // For display
+      city: hotelBlock.city.name, // For display
+      country: hotelBlock.country.name, // For display
+      // Add stubs
+      amenities: [],
+      roomTypes: [] // This will be populated if user *changes* the hotel
+  } : null;
+
+  return {
+    title: pkg?.packageTitle || '',
     destination: {
-      city: pkg?.destination?.city || '',
-      country: pkg?.destination?.country || '',
-      region: pkg?.destination?.region || ''
+      city: pkg?.city || '',
+      country: cleanString(pkg?.country || ''),
+      region: pkg?.region || ''
     },
     duration: {
-      days: pkg?.duration?.days || 1,
-      nights: pkg?.duration?.nights || 0
+      days: pkg?.days || 1,
+      nights: pkg?.nights || 0
     },
     description: pkg?.description || '',
-    highlights: pkg?.highlights || [''],
-    category: pkg?.category || 'Standard' as 'Budget' | 'Standard' | 'Luxury' | 'Premium',
-    status: pkg?.status || 'Draft' as 'Active' | 'Sold Out' | 'Cancelled' | 'Draft',
-    selectedBlockSeat: null as any,
-    selectedDateIndex: null as number | null,
-    selectedHotel: null as any,
-    selectedRoomType: null as any,
+    highlights: [''], // 'highlights' is not in the API response, default to form's structure
+    category: (pkg?.category as 'Budget' | 'Standard' | 'Luxury' | 'Premium') || 'Standard',
+    status: (pkg?.status ? (pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)) : 'Draft') as 'Active' | 'Sold Out' | 'Cancelled' | 'Draft',
+    
+    selectedBlockSeat: initialFlight,
+    selectedDateIndex: null, // This doesn't seem to be in the API response
+    selectedHotel: initialHotel,
+    selectedRoomType: null, // This doesn't seem to be in the API response
+    
+    // Store the *original* selected rooms for submit logic
+    selectedHotelRooms: pkg?.hotels[0]?.selectedRooms || [],
+
     pricing: {
-      adult: pkg?.pricing?.adult || 0,
-      child: pkg?.pricing?.child || 0,
-      infant: pkg?.pricing?.infant || 0,
+      adult: pkg?.pricing?.adultPrice || 0,
+      child: pkg?.pricing?.childPrice || 0,
+      infant: pkg?.pricing?.infantPrice || 0,
       singleSupplement: pkg?.pricing?.singleSupplement || 0
     },
-    supplierCommission: { type: 'fixed' as 'fixed' | 'percentage', value: 0 },
-    agencyCommission: { type: 'percentage' as 'fixed' | 'percentage', value: 10 },
+    supplierCommission: pkg?.supplierCommission || { type: 'fixed' as 'fixed' | 'percentage', value: 0 },
+    agencyCommission: pkg?.agencyCommission || { type: 'percentage' as 'fixed' | 'percentage', value: 10 },
     availability: {
-      singleRooms: {
-        total: pkg?.availability?.singleRooms?.total || 0,
-        booked: pkg?.availability?.singleRooms?.booked || 0
-      },
-      doubleRooms: {
-        total: pkg?.availability?.doubleRooms?.total || 0,
-        booked: pkg?.availability?.doubleRooms?.booked || 0
-      },
-      tripleRooms: {
-        total: pkg?.availability?.tripleRooms?.total || 0,
-        booked: pkg?.availability?.tripleRooms?.booked || 0
-      }
+      // 'availability' is not in the API response, default to form's structure
+      singleRooms: { total: 0, booked: 0 },
+      doubleRooms: { total: 0, booked: 0 },
+      tripleRooms: { total: 0, booked: 0 }
     },
     dates: {
-      startDate: pkg?.dates?.startDate || '',
-      endDate: pkg?.dates?.endDate || '',
-      bookingDeadline: pkg?.dates?.bookingDeadline || ''
+      startDate: formatDateForInput(pkg?.startDate),
+      endDate: formatDateForInput(pkg?.endDate),
+      bookingDeadline: formatDateForInput(pkg?.bookingDeadline)
     },
-    itinerary: pkg?.itinerary || [] as any[],
-    images: pkg?.images || [] as string[],
+    itinerary: [] as any[], // 'itinerary' is not in the API response
+    images: pkg?.packageImages || [] as string[],
     selectedInclusions: {
+      // 'inclusions' is not in the API response
       meals: [] as string[],
       activities: [] as string[],
       extras: [] as string[]
     }
-  });
+  };
+};
+
+
+const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave }) => {
+  
+  // Use an initializer function for useState to map props
+  const [formData, setFormData] = useState(() => getInitialFormData(pkg));
+  // Store the original state for comparison during update
+  const [originalFormData] = useState(() => getInitialFormData(pkg));
 
 
   const [blockSeatsData, setBlockSeatsData] = useState<any[]>([]);
@@ -117,7 +173,9 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
   });
   const [showDayForm, setShowDayForm] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [selectedCountry, setSelectedCountry] = useState('');
+  
+  // Initialize selectedCountry from the (cleaned) package data
+  const [selectedCountry, setSelectedCountry] = useState(cleanString(pkg?.country || ''));
   const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   const availableMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
@@ -152,8 +210,8 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
             logo: `https://ui-avatars.com/api/?name=${seat.airline.name.replace(/\s/g, "+")}&background=random`,
           },
           route: {
-            from: [{ city: seat.route.from.iataCode, code: seat.route.from.iataCode }],
-            to: [{ city: seat.route.to.iataCode, code: seat.route.to.iataCode }],
+            from: [{ city: seat.route.from.iataCode, code: seat.route.from.iataCode, country: seat.route.from.country }],
+            to: [{ city: seat.route.to.iataCode, code: seat.route.to.iataCode, country: seat.route.to.country }],
           },
           departureTime: "N/A",
           arrivalTime: "N/A",
@@ -252,7 +310,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
   };
 
   useEffect(() => {
-    if (formData.selectedHotel) {
+    if (formData.selectedHotel && formData.selectedHotel.roomTypes?.length > 0) {
       const hotel = formData.selectedHotel;
       let singleCount = 0;
       let doubleCount = 0;
@@ -274,13 +332,36 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
   }, [formData.selectedHotel]);
 
   useEffect(() => {
-    if (pkg?.destination?.country) {
-      const country = pkg.destination.country;
-      setSelectedCountry(country);
-      const selected = countriesWithCities.find(c => c.country === country);
-      setAvailableCities(selected ? selected.cities : []);
+    // Populate cities when country changes
+    if (selectedCountry) {
+        const selected = countriesWithCities.find(c => c.country === selectedCountry);
+        setAvailableCities(selected ? selected.cities : []);
+    } else {
+      setAvailableCities([]);
     }
-  }, [pkg]);
+  }, [selectedCountry, countriesWithCities]);
+  
+  // Sync form state if selectedCountry changes
+  useEffect(() => {
+    // On mount, this just syncs the country from state, but keeps the city from getInitialFormData
+    setFormData(prev => ({
+      ...prev,
+      destination: { ...prev.destination, country: selectedCountry },
+    }));
+
+     // Only reset selections AND CITY if the country is *actually* changed by the user
+     if (pkg && selectedCountry !== cleanString(pkg.country)) {
+      setFormData(prev => ({
+        ...prev,
+        destination: { ...prev.destination, city: '' }, // Reset city here
+        selectedBlockSeat: null,
+        selectedDateIndex: null,
+        selectedHotel: null,
+      }));
+      setErrors(prev => ({...prev, city: '', blockSeat: '', hotel: ''}));
+    }
+  }, [selectedCountry, pkg]);
+
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -372,12 +453,15 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
 
   const handleCountryChange = (country: string) => {
     setSelectedCountry(country);
-    const selected = countriesWithCities.find(c => c.country === country);
-    setAvailableCities(selected ? selected.cities : []);
+    // Reset city and selections
     setFormData(prev => ({
       ...prev,
-      destination: { ...prev.destination, country, city: '' }
+      destination: { ...prev.destination, country, city: '' },
+      selectedBlockSeat: null,
+      selectedDateIndex: null,
+      selectedHotel: null,
     }));
+    setErrors(prev => ({...prev, city: '', blockSeat: '', hotel: ''}));
   };
 
   const handleAddHighlight = () => {
@@ -405,14 +489,105 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
+  const filteredBlockSeatsData = useMemo(() => {
+    if (!selectedCountry) {
+      return []; // Return empty array if no country is selected
+    }
+    // Print the target value to the console
+    console.log("Filtering flights for target country:", selectedCountry);
 
-  const handleSubmit = async () => {
-    if (!validateForm()) {
-        toast.error("Please fill all required fields.");
-        return;
+    return blockSeatsData.filter(seat =>
+      seat.route.from[0]?.country?.toLowerCase() === selectedCountry.toLowerCase()
+    );
+  }, [blockSeatsData, selectedCountry]);
+
+  // Builds the payload for *only* changed fields during an update
+  const buildPartialPayload = () => {
+    const changedData: { [key: string]: any } = {};
+
+    // Compare simple string/number fields
+    if (formData.title !== originalFormData.title) changedData.packageTitle = formData.title;
+    if (formData.destination.country !== originalFormData.destination.country) changedData.country = formData.destination.country;
+    if (formData.destination.city !== originalFormData.destination.city) changedData.city = formData.destination.city;
+    if (formData.destination.region !== originalFormData.destination.region) changedData.region = formData.destination.region;
+    if (formData.duration.days !== originalFormData.duration.days) changedData.days = formData.duration.days;
+    if (formData.duration.nights !== originalFormData.duration.nights) changedData.nights = formData.duration.nights;
+    if (formData.description !== originalFormData.description) changedData.description = formData.description;
+    if (formData.category !== originalFormData.category) changedData.category = formData.category;
+    if (formData.status.toLowerCase() !== originalFormData.status.toLowerCase()) changedData.status = formData.status.toLowerCase();
+
+    // Compare selected flight
+    if (formData.selectedBlockSeat?.id !== originalFormData.selectedBlockSeat?.id) {
+      changedData.flights = [
+        {
+          flightBlockSeatId: formData.selectedBlockSeat.id,
+          selectedSeats: 1 // Assuming 1 seat
+        }
+      ];
     }
 
-    const payload = {
+    // Compare selected hotel
+    if (formData.selectedHotel?.id !== originalFormData.selectedHotel?.id) {
+      changedData.hotels = [
+        {
+          hotelBlockRoomId: formData.selectedHotel.id,
+          selectedRooms: (formData.selectedHotel.roomTypes || []).map((rt: any) => ({
+            roomTypeId: rt.id,
+            quantity: 1 // Assuming 1 room
+          }))
+        }
+      ];
+    }
+    
+    // Compare nested pricing object
+    const changedPricing: { [key: string]: any } = {};
+    if (formData.pricing.adult !== originalFormData.pricing.adult) changedPricing.adultPrice = formData.pricing.adult;
+    if (formData.pricing.child !== originalFormData.pricing.child) changedPricing.childPrice = formData.pricing.child;
+    if (formData.pricing.infant !== originalFormData.pricing.infant) changedPricing.infantPrice = formData.pricing.infant;
+    if (formData.pricing.singleSupplement !== originalFormData.pricing.singleSupplement) changedPricing.singleSupplement = formData.pricing.singleSupplement;
+    if (Object.keys(changedPricing).length > 0) {
+      // Add currency if any price changed
+      changedPricing.currency = "USD";
+      changedData.pricing = changedPricing;
+    }
+
+    // Compare supplier commission
+    if (formData.supplierCommission.type !== originalFormData.supplierCommission.type || formData.supplierCommission.value !== originalFormData.supplierCommission.value) {
+      changedData.supplierCommission = formData.supplierCommission;
+    }
+
+    // Compare agency commission
+    if (formData.agencyCommission.type !== originalFormData.agencyCommission.type || formData.agencyCommission.value !== originalFormData.agencyCommission.value) {
+      changedData.agencyCommission = formData.agencyCommission;
+    }
+
+    // Compare dates
+    if (formData.dates.startDate !== originalFormData.dates.startDate) changedData.startDate = new Date(formData.dates.startDate).toISOString();
+    if (formData.dates.endDate !== originalFormData.dates.endDate) changedData.endDate = new Date(formData.dates.endDate).toISOString();
+    if (formData.dates.bookingDeadline !== originalFormData.dates.bookingDeadline) changedData.bookingDeadline = formData.dates.bookingDeadline ? new Date(formData.dates.bookingDeadline).toISOString() : undefined;
+
+    // Note: itinerary, images, highlights, etc., are not in the original `pkg` data model,
+    // so they are not compared here. If you add them to the API, you'd compare them too.
+
+    return changedData;
+  }
+
+  // Builds the full payload for creating a new package
+  const buildFullPayload = () => {
+    // Logic to determine the correct hotel rooms payload
+    let hotelRoomsPayload;
+    if (formData.selectedHotel?.roomTypes?.length > 0) {
+      hotelRoomsPayload = formData.selectedHotel.roomTypes.map((rt: any) => ({
+        roomTypeId: rt.id,
+        quantity: 1 // Default to 1, as form doesn't specify quantity
+      }));
+    } else {
+      // Fallback in case hotel was selected but roomTypes aren't populated
+      hotelRoomsPayload = formData.selectedHotelRooms;
+    }
+
+    return {
         packageTitle: formData.title,
         country: formData.destination.country,
         city: formData.destination.city,
@@ -425,16 +600,13 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         flights: [
             {
                 flightBlockSeatId: formData.selectedBlockSeat.id,
-                selectedSeats: 1 // Assuming 1 seat for now as it's not in the form
+                selectedSeats: 1 // Assuming 1 seat
             }
         ],
         hotels: [
             {
                 hotelBlockRoomId: formData.selectedHotel.id,
-                selectedRooms: formData.selectedHotel.roomTypes.map((rt: any) => ({
-                    roomTypeId: rt.id,
-                    quantity: 1 // Assuming 1 room of each type for now
-                }))
+                selectedRooms: hotelRoomsPayload 
             }
         ],
         pricing: {
@@ -442,29 +614,54 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
             childPrice: formData.pricing.child,
             infantPrice: formData.pricing.infant,
             singleSupplement: formData.pricing.singleSupplement,
-            currency: "USD" // Hardcoded as per payload idea
+            currency: "USD"
         },
-        supplierCommission: {
-            type: formData.supplierCommission.type,
-            value: formData.supplierCommission.value
-        },
-        agencyCommission: {
-            type: formData.agencyCommission.type,
-            value: formData.agencyCommission.value
-        },
+        supplierCommission: formData.supplierCommission,
+        agencyCommission: formData.agencyCommission,
         startDate: new Date(formData.dates.startDate).toISOString(),
         endDate: new Date(formData.dates.endDate).toISOString(),
-        bookingDeadline: formData.dates.bookingDeadline ? new Date(formData.dates.bookingDeadline).toISOString() : undefined
+        bookingDeadline: formData.dates.bookingDeadline ? new Date(formData.dates.bookingDeadline).toISOString() : undefined,
     };
+  }
 
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+        toast.error("Please fill all required fields.");
+        return;
+    }
+
+    const isEditing = !!pkg;
+    let payload: { [key: string]: any } = {};
+    let url = '';
+    let method: 'post' | 'patch' = 'post'; // Changed 'put' to 'patch'
+
+    if (isEditing) {
+      // --- UPDATE (PATCH) LOGIC ---
+      payload = buildPartialPayload();
+      
+      if (Object.keys(payload).length === 0) {
+        toast("No changes detected.", { icon: "🤷" });
+        return;
+      }
+      
+      url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/packages/${pkg._id}`;
+      method = 'patch'; // Use PATCH for update
+
+    } else {
+      // --- CREATE (POST) LOGIC ---
+      payload = buildFullPayload();
+      url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/packages`;
+      method = 'post';
+    }
+    
     try {
         const token = getAuthToken();
         if (!token) {
             throw new Error("Authentication token not found.");
         }
 
-        const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/packages`,
+        const response = await axios[method]( // axios[method] will be axios.patch or axios.post
+            url,
             payload,
             {
                 headers: {
@@ -474,14 +671,14 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         );
 
         if (response.data && response.data.success) {
-            toast.success("Package created successfully!");
-            onSave(response.data.data); // Assuming the API returns the created package
+            toast.success(`Package ${isEditing ? 'updated' : 'created'} successfully!`);
+            onSave(response.data.data); // onSave handles both create/update in parent
             onClose();
         } else {
-            toast.error(`Failed to create package: ${response.data.message}`);
+            toast.error(`Failed to ${isEditing ? 'update' : 'create'} package: ${response.data.message}`);
         }
     } catch (error: any) {
-        console.error("An error occurred while creating the package:", error);
+        console.error(`An error occurred while ${isEditing ? 'updating' : 'creating'} the package:`, error);
         toast.error(`An error occurred: ${error.response?.data?.message || error.message}`);
     }
 };
@@ -526,7 +723,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               setFormData={setFormData}
               errors={errors}
               setErrors={setErrors}
-              blockSeatsData={blockSeatsData}
+              blockSeatsData={filteredBlockSeatsData}
               isLoadingFlights={isLoadingFlights}
               showBlockSeatSelector={showBlockSeatSelector}
               handleSelectFlightClick={handleSelectFlightClick}
@@ -562,6 +759,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               setShowDayForm={setShowDayForm}
               handleAddDay={handleAddDay}
               handleRemoveDay={handleRemoveDay}
+    
               handleToggleMeal={handleToggleMeal}
               handleToggleActivity={handleToggleActivity}
               availableMeals={availableMeals}

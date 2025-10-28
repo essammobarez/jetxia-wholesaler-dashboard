@@ -1,5 +1,3 @@
-// OfflinePackageModule.tsx
-
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Filter, Package, X, Loader2 } from 'lucide-react';
@@ -13,11 +11,57 @@ export interface ApiPackage {
   packageTitle: string;
   country: string;
   city: string;
+  region: string;
   days: number;
   nights: number;
   description: string;
   category: string;
   status: string;
+  packageImages: any[]; // Use 'any[]' or define a specific image type
+  flights: {
+    flightBlockSeatId: {
+      airline: {
+        code: string;
+        name: string;
+        country: string;
+      };
+      _id: string;
+      name: string;
+      route: {
+        from: {
+          country: string;
+          iataCode: string;
+        };
+        to: {
+          country: string;
+          iataCode: string;
+        };
+        tripType: string;
+      };
+    };
+    selectedSeats: number;
+  }[];
+  hotels: {
+    hotelBlockRoomId: {
+      country: {
+        id: string;
+        name: string;
+        iso: string;
+      };
+      city: {
+        id: string;
+        name: string;
+        countryId: string;
+      };
+      _id: string;
+      hotelName: string;
+      starRating: number;
+    };
+    selectedRooms: {
+      roomTypeId: string;
+      quantity: number;
+    }[];
+  }[];
   pricing: {
     adultPrice: number;
     childPrice: number;
@@ -25,9 +69,27 @@ export interface ApiPackage {
     singleSupplement: number;
     currency: string;
   };
+  supplierCommission: {
+    type: 'fixed' | 'percentage';
+    value: number;
+  };
+  agencyCommission: {
+    type: 'fixed' | 'percentage';
+    value: number;
+  };
   startDate: string;
+  endDate: string;
   bookingDeadline: string;
+  createdBy: {
+    _id: string;
+    email: string;
+  };
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
+
 
 const OfflinePackageModule = () => {
   const [packages, setPackages] = useState<ApiPackage[]>([]);
@@ -97,6 +159,7 @@ const OfflinePackageModule = () => {
 
   const cleanString = (str: string) => {
     if (!str) return '';
+    // This regex matches most common emojis and symbols
     return str.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
   };
 
@@ -184,9 +247,11 @@ const OfflinePackageModule = () => {
   
   const handleSavePackage = (pkg: ApiPackage) => {
     if(selectedPackage) {
+      // Edit mode: replace the package in the list
       setPackages(prev => prev.map(p => (p._id === pkg._id ? pkg : p)));
     } else {
-      setPackages(prev => [{ ...pkg, _id: Date.now().toString() }, ...prev]);
+      // Create mode: add the new package to the top
+      setPackages(prev => [pkg, ...prev]);
     }
     setSelectedPackage(null);
     setShowAddForm(false);
@@ -371,11 +436,11 @@ const OfflinePackageModule = () => {
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && packageToDelete && (
         <DeleteConfirmationModal
-            isOpen={isDeleteModalOpen}
-            onClose={handleCloseDeleteModal}
-            onConfirm={handleConfirmDelete}
-            packageName={packageToDelete.packageTitle}
-            isDeleting={isDeleting}
+          isOpen={isDeleteModalOpen}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleConfirmDelete}
+          packageName={packageToDelete.packageTitle}
+          isDeleting={isDeleting}
         />
       )}
     </div>

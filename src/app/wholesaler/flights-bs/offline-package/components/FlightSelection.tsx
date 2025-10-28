@@ -1,7 +1,7 @@
 // src/components/FlightSelection.tsx
 
 import React from 'react';
-import { Plane } from 'lucide-react';
+import { Plane, Info } from 'lucide-react';
 
 interface FlightSelectionProps {
   formData: any;
@@ -148,14 +148,22 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
         <div className="text-center py-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
           <Plane className="w-12 h-12 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-500 dark:text-gray-400 text-sm">No flight selected</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Select a country to see available flights</p>
         </div>
       )}
       {showBlockSeatSelector && (
         <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Available Flights:
+            Available Flights {formData.destination.country && `from ${formData.destination.country}`}:
           </p>
-          {isLoadingFlights ? (
+          {!formData.destination.country ? (
+             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
+               <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 flex items-center">
+                 <Info className="w-4 h-4 mr-2" />
+                 Please select a country first to see available flights.
+               </p>
+             </div>
+          ) : isLoadingFlights ? (
             <div className="text-center py-4 text-gray-600 dark:text-gray-400">
               Loading flights...
             </div>
@@ -202,7 +210,7 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
             ))
           ) : (
             <div className="text-center py-4 text-gray-600 dark:text-gray-400">
-              No available flights found.
+              No available flights found for {formData.destination.country}.
             </div>
           )}
         </div>

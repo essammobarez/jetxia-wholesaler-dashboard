@@ -27,27 +27,22 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-// Library for countries and cities
 import { Country, City, ICountry, ICity } from 'country-state-city';
-// NOTE: ReactCountryFlag is not used
 
-// Import types and helpers from the main module
 import {
   HotelInventory,
   RoomType,
   HotelAmenity,
   getAuthToken
-} from './HotelsModule'; // Assuming files are in the same directory
+} from './HotelsModule';
 
-// Props for the form
 interface HotelFormProps {
   hotel?: HotelInventory;
   onClose: () => void;
   onSave: (hotel: any) => void;
 }
 
-const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
-  // Initial state setup based on optional `hotel` prop or defaults
+const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
   const [formData, setFormData] = useState({
     name: hotel?.name || '',
     category: hotel?.category || 5,
@@ -58,9 +53,8 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     },
     description: hotel?.description || '',
     images: hotel?.images || [] as string[],
-    checkInDate: '', // Used for temp date picking for availableDates
-    checkOutDate: '', // Used for temp date picking for availableDates
-    // Map availableDates for editing (use date part)
+    checkInDate: '',
+    checkOutDate: '',
     availableDates: hotel?.availableDates?.map(d => ({...d, checkIn: d.checkIn.split('T')[0], checkOut: d.checkOut.split('T')[0]})) || [] as { id: string; checkIn: string; checkOut: string }[],
     currency: hotel?.currency || 'USD',
     supplierCommission: hotel?.supplierCommission || {
@@ -71,9 +65,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
       type: 'fixed' as 'fixed' | 'percentage',
       value: 0,
     },
-     // Map roomTypes for editing
     roomTypes: hotel?.roomTypes?.map(rt => ({ ...rt })) || [] as RoomType[],
-     // Map amenities for editing (simplified, assuming name is key)
     amenities: hotel?.amenities?.map(am => ({...am})) || [] as HotelAmenity[],
     status: hotel?.status || 'Available' as 'Available' | 'Sold Out' | 'Maintenance' | 'Blocked',
   });
@@ -83,23 +75,20 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     type: '',
     price: 0,
     maxOccupancy: 2,
-    available: 0, // This might not be directly editable, depends on logic
-    total: 0, // Represents blockedRooms
+    available: 0,
+    total: 0,
     amenities: []
   });
 
-  // State for dynamic countries and cities
   const [allCountries, setAllCountries] = useState<ICountry[]>([]);
   const [availableCities, setAvailableCities] = useState<ICity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load all countries on component mount
   useEffect(() => {
     setAllCountries(Country.getAllCountries());
   }, []);
 
 
-  // Update cities when country changes
   useEffect(() => {
     if (formData.location.country) {
       const countryData = allCountries.find(c => c.name === formData.location.country);
@@ -107,17 +96,16 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
         const cities = City.getCitiesOfCountry(countryData.isoCode);
         setAvailableCities(cities || []);
 
-         // If editing and the original city is not in the list for the selected country, reset it
         if (hotel && hotel.location.country === formData.location.country && !cities.find(c => c.name === formData.location.city)) {
              setFormData(prev => ({ ...prev, location: { ...prev.location, city: '' } }));
         }
       } else {
-        setAvailableCities([]); // Country not found
+        setAvailableCities([]);
       }
     } else {
-      setAvailableCities([]); // No country selected
+      setAvailableCities([]);
     }
-  }, [formData.location.country, hotel, allCountries]); // Add allCountries dependency
+  }, [formData.location.country, hotel, allCountries]);
 
 
   const handleCountryChange = (countryName: string) => {
@@ -131,7 +119,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
         location: {
           ...prev.location,
           country: selectedCountryData.name,
-          city: '' // Reset city when country changes
+          city: ''
         }
       }));
     } else {
@@ -147,7 +135,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     }
   };
 
-  // Available currencies (Unchanged)
   const currencies = [
     { code: 'USD', name: 'US Dollar', symbol: '$' },
     { code: 'EUR', name: 'Euro', symbol: '€' },
@@ -162,7 +149,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     return currency ? currency.symbol : '';
   };
 
-  // Available amenities for selection (Unchanged)
   const availableAmenitiesList = [
     { icon: Wifi, name: 'Free WiFi' },
     { icon: Car, name: 'Parking' },
@@ -170,7 +156,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     { icon: Waves, name: 'Swimming Pool' },
     { icon: Utensils, name: 'Restaurant' },
     { icon: Coffee, name: 'Room Service' },
-     // Add more predefined amenities as needed
   ];
 
   const handleToggleAmenity = (amenityName: string, icon: any) => {
@@ -178,13 +163,11 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     if (exists) {
       setFormData(prev => ({
         ...prev,
-         // Filter out by name
         amenities: prev.amenities.filter(a => a.name !== amenityName)
       }));
     } else {
       setFormData(prev => ({
         ...prev,
-         // Add the amenity object
         amenities: [...prev.amenities, { icon, name: amenityName, available: true }]
       }));
     }
@@ -199,7 +182,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     if (!formData.location.country) newErrors.country = 'Country is required';
     if (formData.roomTypes.length === 0) newErrors.roomTypes = 'At least one room type is required';
     if (formData.availableDates.length === 0) newErrors.availableDates = 'At least one available date period is required';
-     // Validate individual room types
     formData.roomTypes.forEach((rt, index) => {
         if (!rt.type) newErrors[`roomType_${index}_type`] = `Room type name is required for room #${index + 1}`;
         if (rt.price <= 0) newErrors[`roomType_${index}_price`] = `Price must be positive for room #${index + 1}`;
@@ -211,7 +193,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
   };
 
   const handleAddRoomType = () => {
-    // Basic validation before adding
     if (!newRoomType.type) {
         toast.warn('Please enter a room type name.');
         return;
@@ -227,15 +208,14 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
 
     setFormData(prev => ({
         ...prev,
-        roomTypes: [...prev.roomTypes, { ...newRoomType, available: newRoomType.total }] // Set available = total initially
+        roomTypes: [...prev.roomTypes, { ...newRoomType, available: newRoomType.total }]
     }));
-    // Reset the newRoomType form
     setNewRoomType({
         type: '',
         price: 0,
         maxOccupancy: 2,
-        available: 0, // Reset
-        total: 0, // Reset
+        available: 0,
+        total: 0,
         amenities: []
     });
   };
@@ -254,72 +234,106 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
     }
 
     setIsLoading(true);
-    const token = getAuthToken(); // Use imported helper
+    const token = getAuthToken();
     if (!token) {
         toast.error('Authentication token not found. Please log in again.');
         setIsLoading(false);
         return;
     }
 
-    // --- Create API Payload ---
-    // Find country and city IDs based on names (using mock logic here)
-    // REPLICATING OLD MOCK LOGIC as requested
-    const selectedCountryObj = allCountries.find(c => c.name === formData.location.country);
-
-    const countryId = formData.location.country.substring(0, 3).toUpperCase() || 'N/A'; // Replicate old logic
-    const cityId = formData.location.city.substring(0, 3).toUpperCase() || 'N/A'; // Replicate old logic
-
-
-    const apiPayload = {
-      hotelName: formData.name,
-      starRating: formData.category,
-      country: {
-        id: countryId, // Mock ID from old logic
-        name: formData.location.country,
-        iso: selectedCountryObj?.isoCode || countryId, // Send real ISO if available, else mock
-      },
-      city: {
-        id: cityId, // Mock ID from old logic
-        name: formData.location.city,
-        countryId: countryId, // Mock Country ID
-      },
-      fullAddress: formData.location.address,
-      description: formData.description,
-      // Ensure dates are sent in ISO format with time
-      availableDatePeriods: formData.availableDates.map(date => ({
-        checkInDate: `${date.checkIn}T15:00:00.000Z`, // Append mock time
-        checkOutDate: `${date.checkOut}T11:00:00.000Z`, // Append mock time
-      })),
-      roomTypes: formData.roomTypes.map(room => ({
-        roomTypeName: room.type,
-        blockedRooms: room.total, // Map 'total' from form state to 'blockedRooms'
-        price: {
-          value: room.price,
-          currency: formData.currency,
-        },
-        maxGuests: room.maxOccupancy,
-         // Include other fields if your API expects them
-         // availableRooms: room.available, // Might be calculated server-side
-         // amenities: room.amenities,
-         // roomTypeCode: "DEFAULT", // Add if needed
-         // mealPlan: "RO" // Add if needed
-      })),
-      // Include hotel amenities if needed by API
-      // hotelAmenities: formData.amenities.map(a => a.name),
-      currency: formData.currency,
-      supplierCommission: formData.supplierCommission,
-      agencyCommission: formData.agencyCommission,
-      // Add other fields required by API (status, blockType, etc.)
-       status: formData.status === 'Available' ? 'active' : 'inactive', // Example mapping back
-       // blockType: "group", // Example
-       // releasePolicy: "automatic", // Example
-       // paymentTerms: { ... }, // Example
-    };
-
-    // Determine API URL and Method (POST for new, PUT/PATCH for update)
     const isEditing = !!hotel?.id;
-    const API_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/hotel-block-rooms${isEditing ? `/${hotel.id}` : ''}`;
-    const method = isEditing ? 'PUT' : 'POST'; // Or PATCH if applicable
+    let apiPayload: any = {};
+    const API_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}hotel-block-rooms${isEditing ? `/${hotel.id}` : ''}`;
+    const method = isEditing ? 'PATCH' : 'POST';
+
+    if (isEditing && hotel) { // Ensure hotel object exists for comparison
+        // Build PATCH payload with only changed values
+        if (formData.name !== hotel.name) apiPayload.hotelName = formData.name;
+        if (formData.category !== hotel.category) apiPayload.starRating = formData.category;
+        if (formData.location.address !== hotel.location.address) apiPayload.fullAddress = formData.location.address;
+        if (formData.description !== hotel.description) apiPayload.description = formData.description;
+        if (formData.currency !== hotel.currency) apiPayload.currency = formData.currency;
+        
+        if (formData.location.country !== hotel.location.country || formData.location.city !== hotel.location.city) {
+            const countryData = allCountries.find(c => c.name === formData.location.country);
+            apiPayload.country = {
+                id: countryData?.isoCode || 'N/A',
+                name: formData.location.country,
+                iso: countryData?.isoCode || 'N/A',
+            };
+            apiPayload.city = {
+                id: availableCities.find(c => c.name === formData.location.city)?.stateCode || 'N/A',
+                name: formData.location.city,
+                countryId: countryData?.isoCode || 'N/A',
+            };
+        }
+
+        // Deep comparison for arrays of objects can be complex; simplified for this case
+        if (JSON.stringify(formData.availableDates) !== JSON.stringify(hotel.availableDates)) {
+            apiPayload.availableDatePeriods = formData.availableDates.map(date => ({
+                checkInDate: `${date.checkIn}T15:00:00.000Z`,
+                checkOutDate: `${date.checkOut}T11:00:00.000Z`,
+            }));
+        }
+
+        if (JSON.stringify(formData.roomTypes) !== JSON.stringify(hotel.roomTypes)) {
+            apiPayload.roomTypes = formData.roomTypes.map(room => ({
+                roomTypeName: room.type,
+                blockedRooms: room.total,
+                price: { value: room.price, currency: formData.currency },
+                maxGuests: room.maxOccupancy,
+            }));
+        }
+
+        if (JSON.stringify(formData.supplierCommission) !== JSON.stringify(hotel.supplierCommission)) {
+            apiPayload.supplierCommission = formData.supplierCommission;
+        }
+        if (JSON.stringify(formData.agencyCommission) !== JSON.stringify(hotel.agencyCommission)) {
+            apiPayload.agencyCommission = formData.agencyCommission;
+        }
+        
+        // This is a simple check; for complex objects, a deep-diff library might be better
+        if (Object.keys(apiPayload).length === 0) {
+            toast.info("No changes were made.");
+            setIsLoading(false);
+            onClose();
+            return;
+        }
+
+    } else {
+        // Build POST payload (full object) for creating a new hotel
+        const selectedCountryObj = allCountries.find(c => c.name === formData.location.country);
+        apiPayload = {
+          hotelName: formData.name,
+          starRating: formData.category,
+          country: {
+            id: selectedCountryObj?.isoCode || 'N/A',
+            name: formData.location.country,
+            iso: selectedCountryObj?.isoCode || 'N/A',
+          },
+          city: {
+            id: availableCities.find(c => c.name === formData.location.city)?.stateCode || 'N/A',
+            name: formData.location.city,
+            countryId: selectedCountryObj?.isoCode || 'N/A',
+          },
+          fullAddress: formData.location.address,
+          description: formData.description,
+          availableDatePeriods: formData.availableDates.map(date => ({
+            checkInDate: `${date.checkIn}T15:00:00.000Z`,
+            checkOutDate: `${date.checkOut}T11:00:00.000Z`,
+          })),
+          roomTypes: formData.roomTypes.map(room => ({
+            roomTypeName: room.type,
+            blockedRooms: room.total,
+            price: { value: room.price, currency: formData.currency },
+            maxGuests: room.maxOccupancy,
+          })),
+          currency: formData.currency,
+          supplierCommission: formData.supplierCommission,
+          agencyCommission: formData.agencyCommission,
+          status: formData.status === 'Available' ? 'active' : 'inactive',
+        };
+    }
 
     try {
       const response = await fetch(API_URL, {
@@ -336,41 +350,36 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
         throw new Error(errorData.message || `API error: ${response.status}`);
       }
 
-      const responseData = await response.json(); // Assuming API returns the created/updated hotel
+      const responseData = await response.json();
 
-      // --- Create the updated/new HotelInventory object for the UI ---
-       // Use responseData if available and structure matches, otherwise use formData
+      // Construct the full object for UI update after a successful save/update
       const savedHotelData: HotelInventory = {
-            id: responseData.data?._id || hotel?.id || Date.now().toString(), // Use ID from response if available
+            id: responseData.data?._id || hotel?.id || Date.now().toString(),
             name: formData.name,
             category: formData.category,
             location: formData.location,
             description: formData.description,
-            images: formData.images, // Keep local images or update if API returns them
-            amenities: formData.amenities, // Use form amenities
-            roomTypes: formData.roomTypes, // Use form room types
+            images: formData.images,
+            amenities: formData.amenities,
+            roomTypes: formData.roomTypes,
             checkInDate: formData.availableDates[0]?.checkIn || 'N/A',
             checkOutDate: formData.availableDates[0]?.checkOut || 'N/A',
             availableDates: formData.availableDates,
             supplierCommission: formData.supplierCommission,
             agencyCommission: formData.agencyCommission,
             currency: formData.currency,
-            status: formData.status, // Use status from form
-            // Recalculate totals based on form data
+            status: formData.status,
             totalRooms: formData.roomTypes.reduce((sum, room) => sum + room.total, 0),
-            // Assuming available rooms aren't directly edited, might need update based on response
-            availableRooms: formData.roomTypes.reduce((sum, room) => sum + (room.available > 0 ? room.available : room.total), 0), // Placeholder logic
-            rating: hotel?.rating || 0, // Keep existing or default
-            reviews: hotel?.reviews || 0, // Keep existing or default
+            availableRooms: formData.roomTypes.reduce((sum, room) => sum + (room.available > 0 ? room.available : room.total), 0),
+            rating: hotel?.rating || 0,
+            reviews: hotel?.reviews || 0,
             createdAt: responseData.data?.createdAt?.split('T')[0] || hotel?.createdAt || new Date().toISOString().split('T')[0],
-             // Use last checkout date from form
             validUntil: formData.availableDates?.[formData.availableDates.length - 1]?.checkOut || 'N/A',
       };
 
-
-      onSave(savedHotelData); // Pass the transformed data back to the parent
-      toast.success(isEditing ? 'Hotel updated successfully!' : 'Hotel added successfully!');
-      // onClose(); // Close the form modal after successful save
+      onSave(savedHotelData);
+      toast.success(isEditing ? 'update successfull' : 'Hotel added successfully!');
+      onClose();
 
     } catch (error: any) {
       console.error('API Error:', error);
@@ -383,8 +392,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
 
   return (
     <div className="w-full">
-       {/* ToastContainer might be better placed in the main layout */}
-       {/* <ToastContainer position="top-right" autoClose={3000} /> */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8 rounded-t-xl">
@@ -492,7 +499,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                 >
                   <option value="">Select Country</option>
                   {allCountries.map((country) => (
-                    // CORRECTED: Show only the name for compatibility
                     <option key={country.isoCode} value={country.name}>
                       {country.name}
                     </option>
@@ -591,7 +597,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableAmenitiesList.map((amenity) => {
                 const IconComponent = amenity.icon;
-                 // Check if the amenity name exists in formData.amenities
                 const isSelected = formData.amenities.some(a => a.name === amenity.name);
 
                 return (
@@ -651,73 +656,71 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                 Add New Room Type
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-                 <div className="lg:col-span-2">
+                   <div className="lg:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Room Type Name *
+                      </label>
+                      <input
+                           type="text"
+                           value={newRoomType.type}
+                           onChange={(e) => setNewRoomType(prev => ({ ...prev, type: e.target.value }))}
+                           className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_type'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                           placeholder="e.g., Deluxe Room"
+                      />
+                       {errors['newRoom_type'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_type']}</p>}
+                  </div>
+                  <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Price *
+                      </label>
+                      <input
+                           type="number"
+                           value={newRoomType.price}
+                           onChange={(e) => setNewRoomType(prev => ({ ...prev, price: Number(e.target.value) || 0 }))}
+                           min="0"
+                           className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_price'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                           placeholder="0"
+                      />
+                       {errors['newRoom_price'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_price']}</p>}
+                  </div>
+                   <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Blocked Rooms *
+                      </label>
+                      <input
+                           type="number"
+                           value={newRoomType.total}
+                           onChange={(e) => setNewRoomType(prev => ({ ...prev, total: Number(e.target.value) || 0 }))}
+                           min="0"
+                           className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_total'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                           placeholder="0"
+                      />
+                       {errors['newRoom_total'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_total']}</p>}
+                  </div>
+                  <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                         Room Type Name *
+                      Max Guests
                     </label>
                     <input
-                         type="text"
-                         value={newRoomType.type}
-                         onChange={(e) => setNewRoomType(prev => ({ ...prev, type: e.target.value }))}
-                         className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_type'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
-                         placeholder="e.g., Deluxe Room"
+                      type="number"
+                      value={newRoomType.maxOccupancy}
+                      onChange={(e) => setNewRoomType(prev => ({ ...prev, maxOccupancy: Number(e.target.value) || 1 }))}
+                      min="1"
+                      max="10"
+                      className="w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm"
                     />
-                     {errors['newRoom_type'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_type']}</p>}
-                </div>
-                <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                         Price *
-                    </label>
-                    <input
-                         type="number"
-                         value={newRoomType.price}
-                         onChange={(e) => setNewRoomType(prev => ({ ...prev, price: Number(e.target.value) || 0 }))}
-                         min="0"
-                         className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_price'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
-                         placeholder="0"
-                    />
-                     {errors['newRoom_price'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_price']}</p>}
-                </div>
-                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                         Blocked Rooms *
-                    </label>
-                    <input
-                         type="number"
-                         value={newRoomType.total} // Use 'total' for blocked rooms input
-                         onChange={(e) => setNewRoomType(prev => ({ ...prev, total: Number(e.target.value) || 0 }))}
-                         min="0"
-                         className={`w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm ${errors['newRoom_total'] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
-                         placeholder="0"
-                    />
-                     {errors['newRoom_total'] && <p className="text-red-500 text-xs mt-1">{errors['newRoom_total']}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Max Guests
-                  </label>
-                  <input
-                    type="number"
-                    value={newRoomType.maxOccupancy}
-                    onChange={(e) => setNewRoomType(prev => ({ ...prev, maxOccupancy: Number(e.target.value) || 1 }))}
-                    min="1"
-                    max="10" // Example max
-                    className="w-full px-4 py-2 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all text-sm"
-                  />
-                </div>
-                <div>
-                  {/* Label removed for alignment */}
-                  <button
-                    type="button"
-                    onClick={handleAddRoomType}
-                     // Disable based on validation rules matching the handler
-                    disabled={!newRoomType.type || newRoomType.price <= 0 || newRoomType.total <= 0}
-                    className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all flex items-center justify-center disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add
-                  </button>
-                </div>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleAddRoomType}
+                      disabled={!newRoomType.type || newRoomType.price <= 0 || newRoomType.total <= 0}
+                      className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all flex items-center justify-center disabled:cursor-not-allowed"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add
+                    </button>
+                  </div>
               </div>
             </div>
 
@@ -727,7 +730,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
               <div className="space-y-4">
                 {formData.roomTypes.map((room, index) => (
                   <div
-                    key={index} // Consider using a more stable key if available (e.g., room._id from API if editing)
+                    key={index}
                     className="p-4 bg-white dark:bg-gray-700 rounded-xl border-2 border-green-200 dark:border-gray-600 hover:shadow-md transition-all"
                   >
                     <div className="flex items-center justify-between">
@@ -735,7 +738,6 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                         <h5 className="font-bold text-lg text-gray-900 dark:text-white mb-2">
                           {room.type || `Room #${index + 1}`}
                         </h5>
-                         {/* Display validation errors for existing rooms */}
                          {errors[`roomType_${index}_type`] && <p className="text-red-500 text-xs mt-1">{errors[`roomType_${index}_type`]}</p>}
                          {errors[`roomType_${index}_price`] && <p className="text-red-500 text-xs mt-1">{errors[`roomType_${index}_price`]}</p>}
                          {errors[`roomType_${index}_total`] && <p className="text-red-500 text-xs mt-1">{errors[`roomType_${index}_total`]}</p>}
@@ -746,24 +748,19 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                             {getSelectedCurrencySymbol()} {room.price} / night
                           </span>
                            <span className="flex items-center">
-                             <Bed className="w-4 h-4 mr-1" />
-                             {room.total} Blocked
+                              <Bed className="w-4 h-4 mr-1" />
+                              {room.total} Blocked
                            </span>
                           <span className="flex items-center">
                             <Users className="w-4 h-4 mr-1" />
                             Max {room.maxOccupancy} guests
                           </span>
-                             {/* Optionally display available rooms if meaningful */}
-                             {/* <span className="flex items-center">
-                                 <CheckCircle className="w-4 h-4 mr-1 text-green-500" />
-                                 {room.available} Available
-                             </span> */}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleRemoveRoomType(index)}
-                        className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all ml-4" // Added margin
+                        className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all ml-4"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
@@ -859,13 +856,12 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                   type="button"
                   onClick={() => {
                     if (formData.checkInDate && formData.checkOutDate) {
-                        // Basic validation: check-out must be after check-in
                         if (new Date(formData.checkOutDate) <= new Date(formData.checkInDate)) {
-                             toast.warn("Check-out date must be after check-in date.");
-                             return;
+                            toast.warn("Check-out date must be after check-in date.");
+                            return;
                         }
                       const newDate = {
-                        id: Date.now().toString(), // Temporary ID for UI
+                        id: Date.now().toString(),
                         checkIn: formData.checkInDate,
                         checkOut: formData.checkOutDate
                       };
@@ -876,7 +872,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                         checkOutDate: ''
                       }));
                     } else {
-                         toast.warn("Please select both check-in and check-out dates.");
+                        toast.warn("Please select both check-in and check-out dates.");
                     }
                   }}
                   disabled={!formData.checkInDate || !formData.checkOutDate}
@@ -891,7 +887,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                      <AlertTriangle className="w-4 h-4 mr-1" />
                      {errors.availableDates}
                  </p>
-                )}
+               )}
 
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Add specific date periods when this hotel is available for booking.
@@ -912,7 +908,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Check-In</p>
                             <p className="text-base font-bold text-gray-900 dark:text-white">
-                              {new Date(dateItem.checkIn + 'T00:00:00').toLocaleDateString('en-US', { // Add time to avoid timezone issues with date-only strings
+                              {new Date(dateItem.checkIn + 'T00:00:00').toLocaleDateString('en-US', {
                                 weekday: 'short',
                                 year: 'numeric',
                                 month: 'short',
@@ -924,7 +920,7 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Check-Out</p>
                             <p className="text-base font-bold text-gray-900 dark:text-white">
-                               {new Date(dateItem.checkOut + 'T00:00:00').toLocaleDateString('en-US', { // Add time
+                               {new Date(dateItem.checkOut + 'T00:00:00').toLocaleDateString('en-US', {
                                 weekday: 'short',
                                 year: 'numeric',
                                 month: 'short',
@@ -1139,14 +1135,14 @@ const HotelForm = ({ hotel, onClose, onSave }: HotelFormProps) => {
           <div className="flex justify-end space-x-4">
             <button
               onClick={onClose}
-              type="button" // Ensure it doesn't submit form unintentionally
+              type="button"
               className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transition-all shadow-md"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              type="button" // Explicitly type button
+              type="button"
               disabled={isLoading}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-all shadow-md flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
             >

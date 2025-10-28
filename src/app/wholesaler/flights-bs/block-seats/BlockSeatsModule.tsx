@@ -119,6 +119,11 @@ const BlockSeatsModule = () => {
   const [selectedBlockSeat, setSelectedBlockSeat] = useState<BlockSeat | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  // State for delete confirmation modal
+  const [seatToDeleteId, setSeatToDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   
   const fetchBlockSeats = useCallback(async () => {
     setIsLoading(true);
@@ -173,29 +178,42 @@ const BlockSeatsModule = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleDeleteBlockSeat = async (id: string) => {
-    if (confirm('Are you sure you want to delete this block seat?')) {
-      try {
-        const token = getAuthToken();
-        if (!token) throw new Error("Authentication token not found.");
-        
-        const response = await fetch(`${process.env.NEXT_PUBLIC_FLIGHT_URL}block-seats/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+  const openDeleteModal = (id: string) => {
+    setSeatToDeleteId(id);
+  };
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Failed to delete block seat.'}));
-          throw new Error(errorData.message);
+  const closeDeleteModal = () => {
+    setSeatToDeleteId(null);
+    setDeleteConfirmationText(''); // Reset on close
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!seatToDeleteId || deleteConfirmationText !== 'yes') return;
+
+    setIsDeleting(true);
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error("Authentication token not found.");
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_FLIGHT_URL}block-seats/${seatToDeleteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
 
-        await fetchBlockSeats();
-      } catch (err: any) {
-        console.error("Delete error:", err);
-        alert(`Error deleting seat: ${err.message}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete block seat.'}));
+        throw new Error(errorData.message);
       }
+      
+      await fetchBlockSeats();
+      closeDeleteModal();
+    } catch (err: any) {
+      console.error("Delete error:", err);
+      alert(`Error deleting seat: ${err.message}`);
+    } finally {
+        setIsDeleting(false);
     }
   };
 
@@ -277,7 +295,7 @@ const BlockSeatsModule = () => {
                     key={seat.id}
                     blockSeat={seat}
                     onEdit={setSelectedBlockSeat}
-                    onDelete={handleDeleteBlockSeat}
+                    onDelete={openDeleteModal}
                 />
                 ))}
             </div>
@@ -301,6 +319,63 @@ const BlockSeatsModule = () => {
                 </div>
             )}
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {seatToDeleteId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md transform transition-all">
+                <div className="flex items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
+                        <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
+                    </div>
+                    <div className="ml-4 text-left flex-1">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
+                            Delete Block Seat
+                        </h3>
+                        <div className="mt-2">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                This action is permanent. To confirm, please type <strong className="text-red-600 dark:text-red-400">yes</strong> in the box below.
+                            </p>
+                        </div>
+                        <div className="mt-4">
+                           <input
+                             type="text"
+                             value={deleteConfirmationText}
+                             onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                             placeholder='Type "yes" to confirm'
+                             className="w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 block shadow-sm sm:text-sm rounded-none"
+                           />
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                        type="button"
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleConfirmDelete}
+                        disabled={deleteConfirmationText !== 'yes' || isDeleting}
+                    >
+                        {isDeleting ? (
+                            <>
+                                <Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
+                                Deleting...
+                            </>
+                        ) : (
+                            'Yes, delete'
+                        )}
+                    </button>
+                    <button
+                        type="button"
+                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                        onClick={closeDeleteModal}
+                        disabled={isDeleting}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
