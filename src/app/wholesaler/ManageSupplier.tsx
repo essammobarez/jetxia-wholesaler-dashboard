@@ -17,6 +17,15 @@ import {
 import { useEffect, useState } from "react";
 import { TextField, Modal, Box, Typography, Button } from "@mui/material";
 
+const getAuthToken = () => {
+  return (
+    document.cookie
+      .split("; ")
+      .find((r) => r.startsWith("authToken="))
+      ?.split("=")[1] || localStorage.getItem("authToken")
+  );
+};
+
 interface OfflineSupplier {
   _id: string;
   name: string;
@@ -162,8 +171,21 @@ export default function ManageSupplier() {
       );
       const offlineData = await offlineResponse.json();
       const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
+      // --- MODIFICATION START ---
+      const token = getAuthToken(); // Fetch the token
+
       // Fetch online providers
-      const onlineResponse = await fetch(`${apiUrl}/provider`);
+      const onlineResponse = await fetch(
+        `${apiUrl}/wholesaler/supplier-connection`, // Changed API URL
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Added Bearer token
+          },
+        }
+      );
+      // --- MODIFICATION END ---
+
       const onlineData = await onlineResponse.json();
 
       if (offlineResponse.ok && onlineResponse.ok) {

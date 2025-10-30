@@ -53,6 +53,15 @@ const NotificationPopup: React.FC<{
   );
 };
 
+// --- ADDED AUTH TOKEN HELPER ---
+// Helper function to get the auth token from cookies or localStorage
+const getAuthToken = () => {
+    return document.cookie
+            .split('; ')
+            .find(r => r.startsWith('authToken='))
+            ?.split('=')[1] || localStorage.getItem('authToken');
+};
+
 // --- Main Component ---
 const Promotion: React.FC<PromotionProps> = ({
   name,
@@ -76,9 +85,18 @@ const Promotion: React.FC<PromotionProps> = ({
   useEffect(() => {
     (async () => {
       try {
+        // --- MODIFICATION START ---
+        const token = getAuthToken(); // 1. Get token
+        const authHeaders = { // 2. Create headers
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+        
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/supplier-connection`, // 3. Changed URL
+          { headers: authHeaders } // 4. Pass headers
         );
+        // --- MODIFICATION END ---
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status} - ${await res.text()}`);

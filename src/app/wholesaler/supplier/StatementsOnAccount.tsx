@@ -169,6 +169,14 @@ interface LedgerEntry {
 }
 
 const StatementsOnAccount = () => {
+  // --- TOKEN FETCH FUNCTION ---
+  const getAuthToken = () => {
+    return document.cookie
+            .split('; ')
+            .find(r => r.startsWith('authToken='))
+            ?.split('=')[1] || localStorage.getItem('authToken');
+  };
+
   // --- EXISTING STATE ---
   const [bookings, setBookings] = useState<SupplierBooking[]>([]);
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
@@ -252,10 +260,21 @@ const StatementsOnAccount = () => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+      
+      // --- Use the new getAuthToken function ---
+      const token = getAuthToken();
+      // --- End of change ---
+
       try {
         const [offlineResponse, onlineResponse, bookingsResponse] = await Promise.allSettled([
           fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`),
+          // --- API URL AND TOKEN ADDED AS REQUESTED ---
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/supplier-connection`, {
+            headers: {
+              'Authorization': `Bearer ${token}` // Use the token fetched by getAuthToken
+            }
+          }),
+          // --- END OF CHANGE ---
           fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/booking/wholesaler/${wholesalerId}`)
         ]);
 
@@ -289,7 +308,7 @@ const StatementsOnAccount = () => {
                 if (supplierName && supplierId) {
                     addSupplier({ _id: supplierId, name: supplierName, type: undefined });
                 }
-            });
+             });
         }
 
         allSuppliers.sort((a, b) => a.name.localeCompare(b.name));
@@ -645,7 +664,7 @@ const StatementsOnAccount = () => {
               ) : (
                 <div className="border-t pt-6 text-center text-gray-500">
                     <p>Click "View" on a booking to see comprehensive details here.</p>
-                </div>
+We                </div>
               )}
             </div>
           </div>
