@@ -55,6 +55,7 @@ export default function RegistrationForm() {
   const [captchaCode, setCaptchaCode] = useState<string>('')
   const [captchaInput, setCaptchaInput] = useState<string>('')
   const [wholesalerId, setWholesalerId] = useState<string | null>(null)
+  const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null); // State for the logo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,8 +71,14 @@ export default function RegistrationForm() {
 
   useEffect(() => {
     setCaptchaCode(generateCaptcha())
-    const stored = localStorage.getItem('wholesalerId')
-    setWholesalerId(stored)
+    const storedId = localStorage.getItem('wholesalerId')
+    setWholesalerId(storedId)
+
+    // Fetch logo from local storage
+    const storedLogo = localStorage.getItem('wholesalerLogo');
+    if (storedLogo) {
+        setWholesalerLogo(storedLogo);
+    }
 
     const countries = Country.getAllCountries() || []
     countries.sort((a, b) => a.name.localeCompare(b.name))
@@ -323,11 +330,13 @@ export default function RegistrationForm() {
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
           <div className="absolute left-0">
-            <img src="/images/bdesk.jpg" alt="Logo" className="h-28 w-auto object-contain" />
+            {wholesalerLogo && (
+                <img src={wholesalerLogo} alt="Logo" className="h-28 w-auto object-contain" />
+            )}
           </div>
- <h2 className="w-full pr-4 text-2xl font-bold text-gray-800 text-right sm:text-3xl md:pr-0 md:text-center">
-    Registration Form
-  </h2>
+          <h2 className="w-full pr-4 text-2xl font-bold text-gray-800 text-right sm:text-3xl md:pr-0 md:text-center">
+            Registration Form
+          </h2>
         </div>
         {error && <div className="mt-4 text-red-600">{error}</div>}
         <form onSubmit={handleSubmit}>
@@ -380,7 +389,6 @@ export default function RegistrationForm() {
                         <ReactCountryFlag
                           countryCode={option.isoCode}
                           svg
-                          // increased gap in dropdown
                           style={{ width: '1.2em', height: '1.2em', marginRight: '0.5em' }}
                         />
                         {option.name}
@@ -511,7 +519,6 @@ export default function RegistrationForm() {
               <TextField
                 label="License"
                 type="file"
-                // removed required so submission is allowed without a license
                 variant="outlined"
                 InputLabelProps={{ shrink: true }}
                 InputProps={{

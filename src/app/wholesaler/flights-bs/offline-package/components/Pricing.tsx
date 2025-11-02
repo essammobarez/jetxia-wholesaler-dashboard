@@ -1,0 +1,126 @@
+// src/components/Pricing.tsx
+
+import React from 'react';
+import { DollarSign, AlertTriangle } from 'lucide-react';
+
+interface PricingProps {
+  formData: any;
+  setFormData: React.Dispatch<React.SetStateAction<any>>;
+  errors: { [key: string]: string };
+}
+
+const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
+  return (
+    <div className="card-modern p-6 border-2 border-yellow-200 dark:border-yellow-800 shadow-lg hover:shadow-xl transition-all">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+          <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg mr-2">
+            <DollarSign className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <span>Pricing</span>
+        </h3>
+        <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-full text-xs font-bold">
+          Required
+        </span>
+      </div>
+      <div className="space-y-5">
+        <div>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+            Adult Price ($) *
+          </label>
+          <div className="relative">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.pricing.adult}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                pricing: { ...prev.pricing, adult: parseFloat(e.target.value) || 0 }
+              }))}
+              className={`w-full pl-12 pr-5 py-4 border-2 rounded-xl transition-all duration-200 ${
+                errors.pricing
+                  ? 'border-red-500 focus:border-red-600'
+                  : 'border-gray-300 dark:border-gray-600 focus:border-yellow-500 dark:focus:border-yellow-400'
+              } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-yellow-100 dark:focus:ring-yellow-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg`}
+              placeholder="0.00"
+            />
+          </div>
+          {errors.pricing && (
+            <p className="text-red-500 text-sm mt-2 flex items-center">
+              <AlertTriangle className="w-4 h-4 mr-1" />
+              {errors.pricing}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+            Child Price ($) <span className="text-gray-400 ml-1">(Optional)</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.pricing.child}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                pricing: { ...prev.pricing, child: parseFloat(e.target.value) || 0 }
+              }))}
+              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+            Infant Price ($) <span className="text-gray-400 ml-1">(Optional)</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.pricing.infant}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                pricing: { ...prev.pricing, infant: parseFloat(e.target.value) || 0 }
+              }))}
+              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-green-500 dark:focus:border-green-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+            <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+            Single Supplement ($) <span className="text-gray-400 ml-1">(Optional)</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.pricing.singleSupplement}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                pricing: { ...prev.pricing, singleSupplement: parseFloat(e.target.value) || 0 }
+              }))}
+              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-purple-500 dark:focus:border-purple-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Pricing;

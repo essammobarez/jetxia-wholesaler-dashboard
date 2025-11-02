@@ -233,6 +233,7 @@ export default function Login() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null);
+  const [wholesalerName, setWholesalerName] = useState<string>('Booking Desk');
   const [isLoadingLogo, setIsLoadingLogo] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
@@ -267,7 +268,7 @@ export default function Login() {
 
   // --- Check if user is already logged in ---
   const { isAuthenticated } = useAppSelector((state) => state.auth);
-  
+
   useEffect(() => {
     const authToken = localStorage.getItem('authToken');
     if (isAuthenticated || authToken) {
@@ -275,23 +276,30 @@ export default function Login() {
     }
   }, [isAuthenticated, router]);
 
-  // --- New Effect Hook to fetch wholesaler logo ---
+  // --- Effect Hook to fetch wholesaler data (logo and name) and save to localStorage ---
   useEffect(() => {
-    const fetchWholesalerLogo = async () => {
+    const fetchWholesalerData = async () => {
       try {
         const website = "http://www.bdesktravel.com";
         const res = await fetch(`${API_URL}wholesaler/getbywebsite/?website=${website}`);
         const json = await res.json();
-        if (res.ok && json.success && json.data?.logo) {
-          setWholesalerLogo(json.data.logo);
+        if (res.ok && json.success && json.data) {
+          if (json.data.logo) {
+            setWholesalerLogo(json.data.logo);
+            localStorage.setItem('wholesalerLogo', json.data.logo); // Save logo to local storage
+          }
+          if (json.data.name) {
+            setWholesalerName(json.data.name);
+            localStorage.setItem('wholesalerName', json.data.name); // Save name to local storage
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch wholesaler logo:', err);
+        console.error('Failed to fetch wholesaler data:', err);
       } finally {
         setIsLoadingLogo(false);
       }
     };
-    fetchWholesalerLogo();
+    fetchWholesalerData();
   }, [API_URL]);
 
   // --- Helpers & Handlers (UPDATED) ---
@@ -333,11 +341,10 @@ export default function Login() {
         const res = await fetch(`${API_URL}auth/google-authenticator`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // **FIX**: Added type: 'wholesaler' to the payload
           body: JSON.stringify({ email: lowercasedEmail, password, type: 'wholesaler' }),
         });
         const json = await res.json();
-          
+
         if (!res.ok || !json.success) {
           throw new Error(json.message || 'Invalid credentials or server error.');
         }
@@ -349,7 +356,7 @@ export default function Login() {
           document.cookie = `authToken=${authToken}; expires=${expires}; path=/; SameSite=Lax; Secure`;
           localStorage.setItem('authToken', authToken);
         } else {
-            throw new Error('Authentication failed: No access token received.');
+          throw new Error('Authentication failed: No access token received.');
         }
 
         if (json.data?.secretKey) {
@@ -359,7 +366,7 @@ export default function Login() {
         } else {
           toast.success('Credentials verified. Please set up your 2FA.');
           const newSecret = authenticator.generateSecret();
-          const otpAuthUrl = authenticator.keyuri(lowercasedEmail, 'Booking Desk', newSecret);
+          const otpAuthUrl = authenticator.keyuri(lowercasedEmail, wholesalerName, newSecret);
           const qrUrl = await QRCode.toDataURL(otpAuthUrl);
           setSetupSecret(newSecret);
           setQrCodeDataUrl(qrUrl);
@@ -391,9 +398,9 @@ export default function Login() {
       if (twoFactorToken.length !== 6) {
         throw new Error('Please enter a valid 6-digit code.');
       }
-        
+
       const isValid = authenticator.verify({ token: twoFactorToken, secret: setupSecret });
-        
+
       if (!isValid) {
         throw new Error('Invalid 2FA code. Please try again.');
       }
@@ -413,7 +420,7 @@ export default function Login() {
         if (!saveRes.ok || !saveData.success) {
           throw new Error(saveData.message || 'Failed to save 2FA setup.');
         }
-          
+
         toast.success('2FA set up successfully! Redirecting...');
         router.push('/wholesaler');
 
@@ -428,7 +435,7 @@ export default function Login() {
       toast.error(err.message);
       setTwoFactorToken('');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -475,7 +482,7 @@ export default function Login() {
       setIsLoading(false);
     }
   };
-    
+
   // --- Render logic for different authentication steps ---
   const renderAuthStep = () => {
     const buttonClassName = `w-full py-3 rounded-lg text-white font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
@@ -506,7 +513,7 @@ export default function Login() {
               required
               placeholder="Password"
             />
-              
+
             <div className="pt-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">Verification Method</label>
               <div className="grid grid-cols-2 gap-2">
@@ -561,7 +568,7 @@ export default function Login() {
             <h2 className="mb-1 text-xl font-bold text-gray-800">Set Up 2-Factor Authentication</h2>
             <p className="mb-2 text-sm text-gray-600">Scan QR or enter code manually.</p>
             {qrCodeDataUrl && <Image src={qrCodeDataUrl} alt="2FA QR Code" width={160} height={160} className="mx-auto my-2 rounded-lg border p-1 bg-white" />}
-              
+
             <p className="text-xs text-gray-500 mt-3">Manual Setup Code:</p>
             <div className="my-1 bg-gray-100 p-2 rounded-md">
               <p className="text-base font-mono tracking-wider text-gray-800 break-all select-all">
@@ -641,23 +648,20 @@ export default function Login() {
 
         <div className="w-full max-w-6xl mx-auto">
           <div className="bg-white grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-              
-            {/* Left Panel (Unchanged) */}
+
+            {/* Left Panel (UPDATED) */}
             <div className="relative p-8 md:p-12 flex flex-col justify-center">
               <div className="absolute -top-5 left-12 w-[320px] h-[90px]">
                 <Image src="/images/Vector.svg" alt="Decorative dashed plane path" width={320} height={90} priority />
               </div>
               <div className="relative z-10">
                 <h2 className="text-3xl font-semibold text-gray-800 mb-3 leading-tight">
-                  Welcome To <span className="text-blue-600 font-bold">Booking Desk,</span>
+                  Welcome To <span className="text-blue-600 font-bold">{wholesalerName},</span>
                 </h2>
-                <p className="mb-4 text-blue-600">Booking Desk helps travel agencies do their business better.</p>
+                <p className="mb-4 text-blue-600">{wholesalerName} helps travel agencies do their business better.</p>
                 <p className="text-gray-600 text-sm mb-8 max-w-md">
-                  Welcome to Booking Desk, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, Booking Desk helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.
+                  Welcome to {wholesalerName}, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, {wholesalerName} helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.
                 </p>
-                {/* <button type="button" className="text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium py-2 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
-                  Register For Free
-                </button> */}
               </div>
             </div>
 
@@ -666,7 +670,7 @@ export default function Login() {
               <div className="absolute inset-0 w-full h-full">
                 <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
               </div>
-                
+
               <div className="relative bg-white rounded-xl shadow-lg p-8 w-full max-w-sm m-4">
                 {authStep === 'credentials' && (
                   <div className="flex justify-center mb-0">
@@ -677,13 +681,13 @@ export default function Login() {
                     )}
                   </div>
                 )}
-                  
+
                 {message && (
                   <div className={`w-full p-2 rounded text-center mb-4 text-sm ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {message}
                   </div>
                 )}
-                  
+
                 {renderAuthStep()}
               </div>
 

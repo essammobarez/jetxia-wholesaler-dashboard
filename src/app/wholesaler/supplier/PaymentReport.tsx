@@ -5,6 +5,14 @@ import {
     Plus, Search, Eye, CheckCircle, DollarSign, FileText, Building2, CreditCard, Download, X, Check
 } from 'lucide-react';
 
+// --- TOKEN FETCH FUNCTION ---
+const getAuthToken = () => {
+    return document.cookie
+            .split('; ')
+            .find(r => r.startsWith('authToken='))
+            ?.split('=')[1] || localStorage.getItem('authToken');
+};
+
 interface Payment {
     _id: string;
     paymentId: string;
@@ -117,13 +125,22 @@ const PaymentReport = () => {
         const fetchData = async () => {
             setLoading(true);
             setError(null);
+            
+            // --- Get auth token ---
+            const token = getAuthToken();
+            const authHeaders = {
+                'Authorization': `Bearer ${token}`
+            };
+            // --- End of change ---
 
             try {
                 // Fetch dashboard data, suppliers, and other necessary data in parallel
                 const [dashboardRes, offlineSuppliersRes, onlineSuppliersRes] = await Promise.all([
-                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/dashboard/payment-management/${wholesalerId}`),
-                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`),
-                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`)
+                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/dashboard/payment-management/${wholesalerId}`, { headers: authHeaders }),
+                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/offline-provider/by-wholesaler/${wholesalerId}`, { headers: authHeaders }),
+                    // --- API URL AND TOKEN ADDED AS REQUESTED ---
+                    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/supplier-connection`, { headers: authHeaders })
+                    // --- END OF CHANGE ---
                 ]);
 
                 // Handle dashboard data
@@ -142,9 +159,14 @@ const PaymentReport = () => {
                 // Handle suppliers (unchanged logic)
                 const offlineData = offlineSuppliersRes.ok ? await offlineSuppliersRes.json() : [];
                 const onlineData = onlineSuppliersRes.ok ? await onlineSuppliersRes.json() : { data: [] };
+                
+                // --- Handle new structure for supplier-connection endpoint ---
+                const onlineSuppliersList = Array.isArray(onlineData) ? onlineData : (onlineData.data || []);
+                // --- End of change ---
+
                 const allSuppliers = [
                     ...(Array.isArray(offlineData) ? offlineData : []).map((s: any) => ({ ...s, type: 'offline' })),
-                    ...(Array.isArray(onlineData?.data) ? onlineData.data : []).map((s: any) => ({ ...s, type: 'online' }))
+                    ...(Array.isArray(onlineSuppliersList) ? onlineSuppliersList : []).map((s: any) => ({ ...s, type: 'online' }))
                 ];
                 setSuppliers(allSuppliers);
 
@@ -206,8 +228,17 @@ const PaymentReport = () => {
         }
         setPaymentsLoading(true);
         setPaymentsError(null);
+        
+        // --- Get auth token ---
+        const token = getAuthToken();
+        // --- End of change ---
+
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/payments/${wholesalerId}/${supplierId}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/payments/${wholesalerId}/${supplierId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.message || `Failed to fetch payments.`);
@@ -268,12 +299,17 @@ const PaymentReport = () => {
 
         const bookingIds = selectedBookingsData.map(b => b._id);
         const payload = { bookingIds };
+        
+        // --- Get auth token ---
+        const token = getAuthToken();
+        // --- End of change ---
 
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/payment/${paymentId}/match`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // --- Add token ---
                 },
                 body: JSON.stringify(payload),
             });
@@ -306,8 +342,17 @@ const PaymentReport = () => {
         }
 
         setSupplierBookingsLoading(true);
+        
+        // --- Get auth token ---
+        const token = getAuthToken();
+        // --- End of change ---
+
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/matching/${supplierId}/${wholesalerId}/available-bookings`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/matching/${supplierId}/${wholesalerId}/available-bookings`, {
+                headers: {
+                    'Authorization': `Bearer ${token}` // --- Add token ---
+                }
+            });
             if (!res.ok) {
                 throw new Error('Failed to fetch available bookings.');
             }
@@ -377,6 +422,10 @@ const PaymentReport = () => {
         setIsCreatingPayment(true);
         setPaymentValidation({});
 
+        // --- Get auth token ---
+        const token = getAuthToken();
+        // --- End of change ---
+
         try {
             const payload = {
                 wholesaler: wholesalerId,
@@ -393,6 +442,7 @@ const PaymentReport = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // --- Add token ---
                 },
                 body: JSON.stringify(payload),
             });
@@ -697,8 +747,17 @@ const PaymentMatchingModal: React.FC<{
         const fetchAvailableBookings = async () => {
             setIsLoadingBookings(true);
             setFetchError(null);
+            
+            // --- Get auth token ---
+            const token = getAuthToken();
+            // --- End of change ---
+
             try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/matching/${payment.supplier._id}/${wholesalerId}/available-bookings`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-payments/matching/${payment.supplier._id}/${wholesalerId}/available-bookings`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}` // --- Add token ---
+                    }
+                });
                 if (!res.ok) {
                     throw new Error('Failed to fetch available bookings for matching.');
                 }

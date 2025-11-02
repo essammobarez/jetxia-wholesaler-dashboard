@@ -171,10 +171,16 @@ const APIManagement: NextPage = () => {
 
 
     // --- Helpers ---
+
+    // --- MODIFICATION START: Updated getAuthToken function ---
     const getAuthToken = useCallback(() => {
-        if (typeof window !== "undefined") return localStorage.getItem("authToken") || "";
-        return "";
+        if (typeof window === "undefined") return ""; // Guard for SSR
+        return document.cookie
+            .split('; ')
+            .find(r => r.startsWith('authToken='))
+            ?.split('=')[1] || localStorage.getItem('authToken') || "";
     }, []);
+    // --- MODIFICATION END ---
 
     const getWholesalerId = useCallback(() => {
         if (typeof window !== "undefined") return localStorage.getItem("wholesalerId") || "";
@@ -196,12 +202,16 @@ const APIManagement: NextPage = () => {
         }
 
         try {
+            // --- MODIFICATION START: Updated API endpoint and added token ---
             const [providerResponse, connectionResponse] = await Promise.all([
-                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`),
+                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/supplier-connection`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                }),
                 fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/wholesaler/${wholesalerId}`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 })
             ]);
+            // --- MODIFICATION END ---
 
             if (!providerResponse.ok) throw new Error('Failed to fetch the list of available suppliers.');
             if (!connectionResponse.ok) throw new Error('Failed to fetch your supplier connections.');
@@ -209,13 +219,19 @@ const APIManagement: NextPage = () => {
             const providerResult = await providerResponse.json();
             const connectionResult = await connectionResponse.json();
 
-            if (!providerResult.success || !Array.isArray(providerResult.data)) throw new Error('Invalid format for supplier list.');
+            
+            if (!providerResult.success || !Array.isArray(providerResult.data)) {
+                 
+                 throw new Error('Invalid format for supplier list.');
+            }
             if (!connectionResult.success || !Array.isArray(connectionResult.data)) throw new Error('Invalid format for connections data.');
 
             setAllProviders(providerResult.data);
             const providerDetailsMap = new Map<string, { name: string, logo: string }>(
                 providerResult.data.map((p: ApiProvider) => [p._id, { name: p.name, logo: p.logoUrl }])
             );
+            // --- MODIFICATION END ---
+
 
             const suppliersMap = new Map<string, Supplier>();
             for (const connection of connectionResult.data as SupplierConnection[]) {
@@ -324,7 +340,8 @@ const APIManagement: NextPage = () => {
         fieldsConfig.forEach(field => {
             // Pre-fill non-password fields. Leave passwords blank for security.
             if (field.type !== 'password') {
-                initialValues[field.name] = credential.values[field.name] || '';
+                {/* --- ERROR FIX IS HERE --- */}
+                initialValues[field.name] = credential.values?.[field.name] || '';
             } else {
                 initialValues[field.name] = ''; 
             }
@@ -521,7 +538,7 @@ const APIManagement: NextPage = () => {
                                                 {(() => {
                                                     const fieldsConfig = supplierFieldConfig[supplier.name] || supplierFieldConfig.Default;
                                                     return fieldsConfig.map(field => {
-                                                        const value = cred.values[field.name] || '';
+                                                        const value = cred.values?.[field.name] || '';
                                                         const isPassword = field.type === 'password';
 
                                                         return (

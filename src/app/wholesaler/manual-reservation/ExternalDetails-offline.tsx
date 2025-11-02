@@ -116,6 +116,15 @@ type Provider = {
     source?: 'online' | 'offline'; // To track if a provider is online or offline
 };
 
+// --- ADDED AUTH TOKEN HELPER ---
+// Helper function to get the auth token from cookies or localStorage
+const getAuthToken = () => {
+    return document.cookie
+            .split('; ')
+            .find(r => r.startsWith('authToken='))
+            ?.split('=')[1] || localStorage.getItem('authToken');
+};
+
 // ExternalDetailsProps
 type ExternalDetailsProps = {
     externalId: string;
@@ -188,14 +197,24 @@ export const ExternalDetails: React.FC<ExternalDetailsProps> = ({
             setLoadingProviders(true);
             const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
             
+            // --- MODIFIED API CALL ---
+            const token = getAuthToken(); // Get the token
+            const authHeaders = {
+                'Authorization': `Bearer ${token}`, // Use "Bearer" (standard)
+                'Content-Type': 'application/json',
+            };
+            
             const offlineUrl = `${baseUrl}/offline-provider/by-wholesaler/${id}`;
-            const onlineUrl = `${baseUrl}/provider`;
+            // CHANGED: Updated the onlineUrl endpoint
+            const onlineUrl = `${baseUrl}/wholesaler/supplier-connection`;
 
             try {
                 const [offlineResponse, onlineResponse] = await Promise.all([
-                    fetch(offlineUrl),
-                    fetch(onlineUrl),
+                    fetch(offlineUrl), // Offline call (unchanged)
+                    // CHANGED: Added headers to the online call
+                    fetch(onlineUrl, { headers: authHeaders }), 
                 ]);
+                // --- END OF MODIFICATION ---
 
                 if (!offlineResponse.ok) {
                     throw new Error(`HTTP error! Offline providers status: ${offlineResponse.status}`);

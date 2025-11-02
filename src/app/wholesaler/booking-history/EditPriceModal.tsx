@@ -22,6 +22,17 @@ import {
 import { MdWifiOff } from "react-icons/md"; // Import MdWifiOff for Offline suppliers
 import { Reservation } from "./BookingModal"; // Ensure Reservation interface is imported
 
+// --- ADDED TOKEN FETCH LOGIC ---
+const getAuthToken = () => {
+  return (
+    document.cookie
+      .split("; ")
+      .find((r) => r.startsWith("authToken="))
+      ?.split("=")[1] || localStorage.getItem("authToken")
+  );
+};
+// --- END ---
+
 interface EditPriceModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -201,9 +212,20 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({
           type: "Offline",
         }));
 
+        // --- MODIFICATION START ---
+        const token = getAuthToken(); // Fetch the token
+        const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
+
         const response2 = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/provider`
+          `${apiUrl}/wholesaler/supplier-connection`, // Changed API URL
+          {
+            headers: {
+              Authorization: `Bearer ${token}`, // Added Bearer token
+            },
+          }
         );
+        // --- MODIFICATION END ---
+
         if (!response2.ok)
           throw new Error(`HTTP error! status: ${response2.status}`);
         const data2 = await response2.json();

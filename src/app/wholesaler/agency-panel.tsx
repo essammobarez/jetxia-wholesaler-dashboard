@@ -8,7 +8,6 @@ import AssignModal from './AssignModal';
 import { TbCreditCardPay } from 'react-icons/tb';
 import { toast } from 'react-toastify';
 import { SubAgencyModal } from './SubAgencyModal';
-// NEW: Import the delete confirmation modal
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 type PartnerProvider = {
