@@ -25,7 +25,10 @@ import { generateInvoicePDF } from "./InvoiceGenerator";
 import PercentageLoaderModal from "./LoadingModal";
 import RoomCancellationModal from "./RoomCancellationModal";
 import PayOptionsModal from "./payoptionsmodal";
-import { generateVoucherPDF, Reservation as VoucherReservationData } from "./voucher"; 
+import {
+  generateVoucherPDF,
+  Reservation as VoucherReservationData,
+} from "./voucher";
 
 const statusMap = {
   upcoming: { icon: FaCommentAlt, color: "text-yellow-500", label: "Upcoming" },
@@ -172,11 +175,11 @@ const BookingsPage: NextPage = () => {
             const sequenceNumber = Number(item.sequenceNumber ?? 0);
             const topStatus = String(item.status ?? "").toLowerCase();
             const createdAt = String(item.createdAt ?? "");
-            
+
             // --- MODIFICATION: Get agency object directly from response ---
-            const agency = item.agency; 
+            const agency = item.agency;
             const agencyName = item.agency?.agencyName ?? "N/A";
-            
+
             const wholesaler = item.wholesaler;
             const wholesalerName = "N/A";
             const clientRef = String(item.clientReference ?? "");
@@ -673,6 +676,13 @@ const BookingsPage: NextPage = () => {
           </div>
         )}
         {filteredReservations.map((r) => {
+          // --- START: ADDED UPDATE ---
+          // Check if the booking is considered 'cancelled'
+          const isCancelled =
+            r.topStatus.toLowerCase() === "cancelled" ||
+            r.allRooms.some((room) => room.status.toLowerCase() === "cancelled");
+          // --- END: ADDED UPDATE ---
+
           return (
             <BookingCard
               key={r.bookingId}
@@ -685,18 +695,32 @@ const BookingsPage: NextPage = () => {
               isLoaderVisible={isLoaderVisible}
               formatDate={formatDate}
               formatDateTime={formatDateTime}
-              onOnRequestStatusChange={handleOnRequestStatusChange}
-              onAddServiceClick={() =>
-                router.push(
-                  "/wholesaler?page=Booking&tab=ManualReservationsOnline"
-                )
+              // --- START: MODIFIED PROPS ---
+              // Conditionally pass props based on isCancelled status
+              onOnRequestStatusChange={
+                isCancelled ? undefined : handleOnRequestStatusChange
               }
-              onCancelClick={handleCancelClick}
-              onPayNowClick={setPayModalRes}
-              onAddConfirmationClick={handleAddConfirmationClick}
-              onGenerateVoucherClick={handleGenerateVoucher}
-              onGenerateInvoiceClick={handleGenerateInvoice}
-              onViewClick={setViewModalRes}
+              onAddServiceClick={
+                isCancelled
+                  ? undefined
+                  : () =>
+                      router.push(
+                        "/wholesaler?page=Booking&tab=ManualReservationsOnline"
+                      )
+              }
+              onCancelClick={handleCancelClick} // Always show
+              onPayNowClick={isCancelled ? undefined : setPayModalRes}
+              onAddConfirmationClick={
+                isCancelled ? undefined : handleAddConfirmationClick
+              }
+              onGenerateVoucherClick={
+                isCancelled ? undefined : handleGenerateVoucher
+              }
+              onGenerateInvoiceClick={
+                isCancelled ? undefined : handleGenerateInvoice
+              }
+              onViewClick={setViewModalRes} // Always show
+              // --- END: MODIFIED PROPS ---
             />
           );
         })}

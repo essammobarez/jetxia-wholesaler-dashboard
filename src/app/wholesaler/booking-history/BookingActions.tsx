@@ -121,71 +121,95 @@ const BookingActions: React.FC<BookingActionsProps> = ({
         </>
       ) : (
         <>
-          <button
-            onClick={onAddServiceClick}
-            className={`${baseButtonStyles} ${defaultButtonStyles}`}
-          >
-            <FaPlus />
-            <span>Add Service</span>
-          </button>
-          <button
-            onClick={() => onCancelClick(reservationForModals)}
-            disabled={overallStatusKey === "cancelled"}
-            className={`${baseButtonStyles} ${cancelButtonStyles}`}
-          >
-            <FaBan />
-            <span>Cancel</span>
-          </button>
+          {isCancelled ? (
+            <>
+              {/* Show only Cancel and View for cancelled bookings */}
+              <button
+                onClick={() => onCancelClick(reservationForModals)}
+                disabled={overallStatusKey === "cancelled"}
+                className={`${baseButtonStyles} ${cancelButtonStyles}`}
+              >
+                <FaBan />
+                <span>Cancel</span>
+              </button>
+              <button
+                onClick={() => onViewClick(reservationForModals)}
+                className={`${baseButtonStyles} ${viewButtonStyles}`}
+              >
+                <FaEye />
+                <span>View</span>
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Original buttons for non-cancelled bookings */}
+              <button
+                onClick={onAddServiceClick}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaPlus />
+                <span>Add Service</span>
+              </button>
+              <button
+                onClick={() => onCancelClick(reservationForModals)}
+                disabled={overallStatusKey === "cancelled"}
+                className={`${baseButtonStyles} ${cancelButtonStyles}`}
+              >
+                <FaBan />
+                <span>Cancel</span>
+              </button>
 
-          {reservation.paymentType.toLowerCase() === "paylater" && (
-            <button
-              onClick={() => onPayNowClick(reservationForModals)}
-              disabled={overallStatusKey === "cancelled"}
-              className={`${baseButtonStyles} ${payButtonStyles}`}
-            >
-              <FaCreditCard />
-              <span>PayNow</span>
-            </button>
+              {reservation.paymentType.toLowerCase() === "paylater" && (
+                <button
+                  onClick={() => onPayNowClick(reservationForModals)}
+                  disabled={overallStatusKey === "cancelled"}
+                  className={`${baseButtonStyles} ${payButtonStyles}`}
+                >
+                  <FaCreditCard />
+                  <span>PayNow</span>
+                </button>
+              )}
+
+              {firstRoomNeedingConfirmation && !isCancelled && (
+                <button
+                  onClick={() =>
+                    onAddConfirmationClick(
+                      reservation,
+                      firstRoomNeedingConfirmation.reservationId
+                    )
+                  }
+                  className={`${baseButtonStyles} bg-purple-500 hover:bg-purple-600 text-white border-purple-600`}
+                >
+                  <FaCheckCircle />
+                  <span>Add Confirmation</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => onGenerateVoucherClick(reservationForModals)}
+                disabled={isGenerating || isLoaderVisible}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaTicketAlt />
+                <span>Voucher</span>
+              </button>
+              <button
+                onClick={() => onGenerateInvoiceClick(reservationForModals)}
+                disabled={isGenerating || isLoaderVisible}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaFileInvoiceDollar />
+                <span>Invoice</span>
+              </button>
+              <button
+                onClick={() => onViewClick(reservationForModals)}
+                className={`${baseButtonStyles} ${viewButtonStyles}`}
+              >
+                <FaEye />
+                <span>View</span>
+              </button>
+            </>
           )}
-
-          {firstRoomNeedingConfirmation && !isCancelled && (
-            <button
-              onClick={() =>
-                onAddConfirmationClick(
-                  reservation,
-                  firstRoomNeedingConfirmation.reservationId
-                )
-              }
-              className={`${baseButtonStyles} bg-purple-500 hover:bg-purple-600 text-white border-purple-600`}
-            >
-              <FaCheckCircle />
-              <span>Add Confirmation</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => onGenerateVoucherClick(reservationForModals)}
-            disabled={isGenerating || isLoaderVisible}
-            className={`${baseButtonStyles} ${defaultButtonStyles}`}
-          >
-            <FaTicketAlt />
-            <span>Voucher</span>
-          </button>
-          <button
-            onClick={() => onGenerateInvoiceClick(reservationForModals)}
-            disabled={isGenerating || isLoaderVisible}
-            className={`${baseButtonStyles} ${defaultButtonStyles}`}
-          >
-            <FaFileInvoiceDollar />
-            <span>Invoice</span>
-          </button>
-          <button
-            onClick={() => onViewClick(reservationForModals)}
-            className={`${baseButtonStyles} ${viewButtonStyles}`}
-          >
-            <FaEye />
-            <span>View</span>
-          </button>
         </>
       )}
     </div>
