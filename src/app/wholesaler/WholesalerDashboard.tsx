@@ -27,7 +27,8 @@ import {
   MdSecurity, 
   MdHotel, 
   MdMap, 
-  MdApi 
+  MdApi,
+  MdPalette 
 } from 'react-icons/md';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -109,9 +110,14 @@ import HotelsModule from './flights-bs/hotels/HotelsModule';
 import OfflinePackageModule from './flights-bs/offline-package/OfflinePackageModule';
 import PackageRequestsModule from './flights-bs/package-requests/PackageRequestsModule';
 
+// ✨ NEW: Import for UI Setup Module
+import AgencyUITab from './ui-setup/AgencyUITab';
+import WholesalerUITab from './ui-setup/WholesalerUITab';
+
 // General menu items available to all users
 const generalMenuItems = [
   'Dashboard',
+  'UI Setup',
   'Flights BS', // ✨ NEW: Added Flights BS module
   'Booking',
   'Customers',
@@ -153,6 +159,7 @@ const allMenuItems = permission ? [...generalMenuItems, ...protectedMenuItems] :
 // Icon mapping for menu items
 const menuIcons: { [key: string]: React.ComponentType<{ className?: string }> } = {
   'Dashboard': MdDashboard,
+  'UI Setup': MdPalette,
   'Flights BS': MdFlight,
   'Booking': MdBookOnline,
   'Customers': MdPeople,
@@ -626,7 +633,7 @@ export default function WholesalerPage() {
                       : 'text-gray-700 dark:text-gray-300'
                   }`}>{item}</span>
                 </div>
-                {['Flights BS', 'Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping'].includes(item) && (
+                {['Flights BS', 'Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping', 'UI Setup'].includes(item) && (
                   <ChevronDown
                     className={`w-4 h-4 transform transition-all duration-300 ${
                       expandedMenu === item ? 'rotate-180' : ''
@@ -959,6 +966,37 @@ export default function WholesalerPage() {
                   ))}
                 </div>
               )}
+
+              {expandedMenu === 'UI Setup' && item === 'UI Setup' && (
+                <div className="ml-6 mt-2 space-y-1 animate-slide-up">
+                  {['Agency UI', 'Wholesaler UI'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActivePage('UI Setup');
+                        setActiveTab(tab);
+                        
+                        // Update localStorage and URL
+                        localStorage.setItem('wholesaler_activePage', 'UI Setup');
+                        localStorage.setItem('wholesaler_activeTab', tab);
+                        
+                        const params = new URLSearchParams();
+                        params.set('page', 'UI Setup');
+                        params.set('tab', tab);
+                        router.replace(`?${params.toString()}`);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
+                        activeTab === tab
+                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
+                      <span className="text-sm">{tab}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           </nav>
@@ -1250,6 +1288,24 @@ export default function WholesalerPage() {
           {activePage === 'Support Tickets' && <SupportTicketsPage />}
           {activePage === 'Permissions' && <Permissions />}
         {activePage === 'Users' && <Users />}
+
+          {/* ✨ NEW: UI Setup Module */}
+          {activePage === 'UI Setup' && (
+            <div className="animate-fade-scale">
+              {activeTab === 'Agency UI' && <AgencyUITab />}
+              {activeTab === 'Wholesaler UI' && <WholesalerUITab />}
+              {!activeTab && (
+                <div className="card-modern p-12 text-center">
+                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LayoutGrid className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">UI Setup</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Select an option to customize your agency or wholesaler interface branding.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {activePage === 'Reports' && (
             <div className="animate-fade-scale">
               {activeTab === 'OutstandingReport' && <OutstandingReport />}
