@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, FC, ElementType, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, FC, ElementType, ChangeEvent, FormEvent, useRef } from 'react';
 import {
   User,
   Building,
@@ -15,7 +15,9 @@ import {
   X,
   Check,
   AlertCircle,
-  Loader2
+  Loader2,
+  Camera,
+  UploadCloud,
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS & INTERFACES ---
@@ -36,6 +38,7 @@ interface ProfileData {
   emailId: string;
   designation: string;
   mobileNumber: string;
+  logo: string | null; // Added for profile image
 }
 
 interface InfoRowProps {
@@ -50,6 +53,12 @@ interface EditModalProps {
   initialData: ProfileData;
   onClose: () => void;
   onSave: (updatedData: Partial<ProfileData>) => Promise<void>;
+}
+
+// Added for the new Image Upload Modal
+interface ImageUploadModalProps {
+  onClose: () => void;
+  onSave: (base64Image: string) => Promise<void>;
 }
 
 interface FormInputProps {
@@ -175,6 +184,7 @@ const EditProfileModal: FC<EditModalProps> = ({ section, initialData, onClose, o
       userName: 'Username',
       designation: 'Designation',
       mobileNumber: 'Mobile Number',
+      logo: 'Logo', // Added to satisfy TS
       // other fields not in forms
       city: '', country: '', email: '', emailId: ''
   };
@@ -245,12 +255,148 @@ const EditProfileModal: FC<EditModalProps> = ({ section, initialData, onClose, o
 };
 
 
+// --- NEW IMAGE UPLOAD MODAL COMPONENT ---
+const ImageUploadModal: FC<ImageUploadModalProps> = ({ onClose, onSave }) => {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [base64Image, setBase64Image] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        setError("File is too large. Please select an image under 2MB.");
+        setPreview(null);
+        setBase64Image(null);
+        return;
+      }
+      setError(null);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPreview(result);
+        setBase64Image(result); // This is the base64 string
+      };
+      reader.onerror = () => {
+        setError("Failed to read the file.");
+      };
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!base64Image) {
+      setError("Please select an image to upload.");
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    await onSave(base64Image);
+    // Parent component will handle closing on success
+    setIsSubmitting(false);
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 transform transition-all duration-300 scale-95 animate-scale-in">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+              Upload Profile Image
+            </h3>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/png, image/jpeg, image/gif"
+            className="hidden"
+          />
+
+          {preview ? (
+            <div className="mb-4 text-center">
+              {/* --- FIXED IMAGE PREVIEW --- */}
+              <div className="w-40 h-40 rounded-full mx-auto mb-3 border-4 border-slate-200 dark:border-slate-700 overflow-hidden">
+                <img 
+                  src={preview} 
+                  alt="Image preview" 
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+              {/* --- END FIX --- */}
+              <button
+                type="button"
+                onClick={triggerFileSelect}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Change image
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={triggerFileSelect}
+              className="mb-4 w-full h-48 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <UploadCloud className="w-10 h-10 mb-2" />
+              <span className="font-medium">Click to upload</span>
+              <span className="text-sm">PNG, JPG, or GIF (max 2MB)</span>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-sm text-red-500 text-center mb-4">{error}</p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !base64Image}
+              className="px-5 py-2.5 rounded-lg flex items-center justify-center bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : 'Save Image'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+
 // --- MAIN PAGE COMPONENT ---
 function ProfileSettingsPage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<ProfileSection | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false); // State for new modal
   const [activeTab, setActiveTab] = useState<ProfileSection>('company');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -306,6 +452,37 @@ function ProfileSettingsPage() {
     }
   };
 
+  // --- New handler for saving the profile image ---
+  const handleImageSave = async (base64Image: string) => {
+    setNotification(null);
+    const payload = { logo: base64Image };
+
+    try {
+      const token = document.cookie.split("; ").find(r => r.startsWith("authToken="))?.split("=")[1] || localStorage.getItem("authToken");
+      if (!token) throw new Error("Authorization token not found.");
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.message || "Failed to update profile image.");
+
+      // Optimistically update the profile state with the new image
+      setProfile(prev => prev ? { ...prev, logo: base64Image } : null);
+      setIsImageModalOpen(false);
+      setNotification({ message: 'Profile image updated!', type: 'success' });
+    } catch (err: any) {
+      setNotification({ message: err.message, type: 'error' });
+    }
+  };
+
+
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 5000);
@@ -329,6 +506,8 @@ function ProfileSettingsPage() {
   );
 
   if (!profile) return null;
+
+  const avatarSrc = profile.logo || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.firstName} ${profile.lastName}`;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
@@ -355,11 +534,27 @@ function ProfileSettingsPage() {
             {/* Profile Header */}
             <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
               <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <img 
-                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile.firstName} ${profile.lastName}`} 
-                  alt="User Avatar"
-                  className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-700 shadow-md"
-                />
+                
+                {/* --- MODIFIED IMAGE SECTION --- */}
+                <div className="relative group flex-shrink-0">
+                  {/* --- FIXED AVATAR --- */}
+                  <div className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-700 shadow-md overflow-hidden">
+                    <img 
+                      src={avatarSrc} 
+                      alt="User Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {/* --- END FIX --- */}
+                  <button
+                    onClick={() => setIsImageModalOpen(true)}
+                    className="absolute inset-0 w-full h-full bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer"
+                  >
+                    <Camera className="w-6 h-6" />
+                  </button>
+                </div>
+                {/* --- END MODIFIED IMAGE SECTION --- */}
+
                 <div className="text-center sm:text-left">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{`${profile.firstName} ${profile.lastName}`}</h2>
                   <p className="text-md text-slate-500 dark:text-slate-400">{profile.designation}</p>
@@ -429,6 +624,14 @@ function ProfileSettingsPage() {
           initialData={profile}
           onClose={() => setEditingSection(null)}
           onSave={handleSave}
+        />
+      )}
+
+      {/* --- NEW IMAGE MODAL RENDER --- */}
+      {isImageModalOpen && (
+        <ImageUploadModal
+          onClose={() => setIsImageModalOpen(false)}
+          onSave={handleImageSave}
         />
       )}
     </div>

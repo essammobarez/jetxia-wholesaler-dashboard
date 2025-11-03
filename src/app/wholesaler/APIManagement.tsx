@@ -221,8 +221,9 @@ const APIManagement: NextPage = () => {
 
             
             if (!providerResult.success || !Array.isArray(providerResult.data)) {
-                 
-                 throw new Error('Invalid format for supplier list.');
+                
+                
+                throw new Error('Invalid format for supplier list.');
             }
             if (!connectionResult.success || !Array.isArray(connectionResult.data)) throw new Error('Invalid format for connections data.');
 
@@ -380,7 +381,7 @@ const APIManagement: NextPage = () => {
         const payload = { credentials: credentialsToUpdate };
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/update/${editingCredential.id}`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}supplier-connection/update/${editingCredential.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAuthToken()}` },
                 body: JSON.stringify(payload)
@@ -436,7 +437,22 @@ const APIManagement: NextPage = () => {
         let finalTestStatus: TestStatus = 'Failed';
 
         try {
-            const payload = { wholesalerId, supplierId };
+            // --- MODIFICATION START: DYNAMIC PAYLOAD ---
+            let payload: any;
+            
+            if (endpointPath === 'connectivityTest/ebooking/token-test') {
+                // Use the payload specified by the user
+                payload = {
+                    "client_id": "114c416dd39e405d2cd8e137aa49",
+                    "client_secret": "b4a6da5ba4464ddeb373507bf7359bf5",
+                    "scope": "read:hotels-search write:hotels-book"
+                };
+            } else {
+                // Default payload for other suppliers
+                payload = { wholesalerId, supplierId };
+            }
+            // --- MODIFICATION END ---
+            
             const response = await fetch(fullEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
