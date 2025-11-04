@@ -231,6 +231,7 @@ const APIManagement: NextPage = () => {
             if (!providerResult.success || !Array.isArray(providerResult.data)) {
                 
                 
+                
                 throw new Error('Invalid format for supplier list.');
             }
             if (!connectionResult.success || !Array.isArray(connectionResult.data)) throw new Error('Invalid format for connections data.');
@@ -503,6 +504,8 @@ const APIManagement: NextPage = () => {
             if (endpointPath === 'connectivityTest/ebooking/token-test') {
                 // Use the payload specified by the user
                 payload = {
+                    "supplierId": supplierId,
+                    "wholesalerId": wholesalerId,
                     "client_id": "114c416dd39e405d2cd8e137aa49",
                     "client_secret": "b4a6da5ba4464ddeb373507bf7359bf5",
                     "scope": "read:hotels-search write:hotels-book"
