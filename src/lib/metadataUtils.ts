@@ -45,6 +45,8 @@ export async function generateUnifiedMetadata({
 }): Promise<Metadata> {
   try {
     const branding = await getWholesalerBrandingServer(hostname);
+
+    console.log("Branding:", branding);
     const pageTitle = title || formatPathToTitle(pathname);
 
     return {

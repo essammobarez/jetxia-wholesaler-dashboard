@@ -36,14 +36,30 @@ export async function generatePageMetadata(pathname: string): Promise<Metadata> 
  * Use this for static pages without dynamic params.
  * 
  * @param pathname - Page path (e.g., "/hotels-list")
+ * @param options - Optional title and description overrides
  * @returns Async function that generates metadata
  * 
  * @example
  * export const generateMetadata = createMetadata("/hotels-list");
+ * export const generateMetadata = createMetadata("/hotels-list", { title: "Hotels" });
  */
-export const createMetadata = (pathname: string, optional={title: "", description: ""}) => {
+export const createMetadata = (
+  pathname: string,
+  options?: {
+    title?: string;
+    description?: string;
+  }
+) => {
   return async (): Promise<Metadata> => {
-    return await generatePageMetadata(pathname);
+    const headersList = await headers();
+    const hostname = headersList.get("host") || "localhost";
+    
+    return await generateUnifiedMetadata({
+      pathname,
+      hostname,
+      title: options?.title,
+      description: options?.description,
+    });
   };
 };
 
@@ -67,7 +83,7 @@ export default function RootLayout({
 }>) {
   return (
     <Providers>
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <head>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link
@@ -76,7 +92,7 @@ export default function RootLayout({
             crossOrigin=""
           />
         </head>
-        <body className={`${montserrat.variable} font-sans antialiased`}>
+        <body className={`${montserrat.variable} font-sans antialiased`} suppressHydrationWarning>
           <BrandingMetaUpdater />
           {children}
         </body>

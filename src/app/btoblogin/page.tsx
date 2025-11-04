@@ -534,7 +534,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-start text-sm">
               <label className="flex items-center text-gray-600 select-none">
                 <input
                   type="checkbox"
@@ -542,9 +542,9 @@ export default function Login() {
                 />
                 Remember me
               </label>
-              <a href="#" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
+              {/* <a href="#" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
                 Forgot Password?
-              </a>
+              </a> */}
             </div>
             <div className="pt-2">
               <button type="submit" disabled={isLoading} className={buttonClassName}>
@@ -670,9 +670,9 @@ export default function Login() {
 
               <div className="relative bg-white rounded-xl shadow-lg p-8 w-full max-w-sm m-4">
                 {authStep === 'credentials' && (
-                  <div className="flex justify-center mb-0">
-                    {branding?.navLogo ? (
-                      <Image src={branding.navLogo} alt="Company Logo" width={160} height={55} priority />
+                  <div className="flex justify-center mb-8">
+                    {branding?.logo ? (
+                      <Image src={branding.logo} alt="Company Logo" width={160} height={55} priority />
                     ) : (
                       <div className="h-14 w-40 bg-gray-100 animate-pulse rounded"></div>
                     )}

@@ -15,6 +15,7 @@ import { Country, State, City } from 'country-state-city'
 import currencyCodes from 'currency-codes'
 import ReactCountryFlag from 'react-country-flag'
 import Autocomplete from '@mui/material/Autocomplete'
+import { getWholesalerBranding } from '@/utils/apiHandler'
 
 const REGISTER_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}agency/register`
 
@@ -55,7 +56,7 @@ export default function RegistrationForm() {
   const [captchaCode, setCaptchaCode] = useState<string>('')
   const [captchaInput, setCaptchaInput] = useState<string>('')
   const [wholesalerId, setWholesalerId] = useState<string | null>(null)
-  const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null); // State for the logo
+  const [brandLogo, setBrandLogo] = useState<string>('');
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,11 +75,18 @@ export default function RegistrationForm() {
     const storedId = localStorage.getItem('wholesalerId')
     setWholesalerId(storedId)
 
-    // Fetch logo from local storage
-    const storedLogo = localStorage.getItem('wholesalerLogo');
-    if (storedLogo) {
-        setWholesalerLogo(storedLogo);
-    }
+    // Fetch branding from API
+    const fetchBranding = async () => {
+      try {
+        const branding = await getWholesalerBranding(true);
+        if (branding.logo) {
+          setBrandLogo(branding.logo);
+        }
+      } catch (err) {
+        console.error('Failed to fetch branding for registration:', err);
+      }
+    };
+    fetchBranding();
 
     const countries = Country.getAllCountries() || []
     countries.sort((a, b) => a.name.localeCompare(b.name))
@@ -330,8 +338,10 @@ export default function RegistrationForm() {
       <div className="max-w-4xl mx-auto bg-white p-8 border border-gray-200 rounded-lg">
         <div className="relative flex items-center h-16">
           <div className="absolute left-0">
-            {wholesalerLogo && (
-                <img src={wholesalerLogo} alt="Logo" className="h-28 w-auto object-contain" />
+            {brandLogo ? (
+                <img src={brandLogo} alt="Company Logo" className="h-24 w-auto max-w-32 object-contain" />
+            ) : (
+                <div className="h-24 w-32 bg-gray-100 animate-pulse rounded"></div>
             )}
           </div>
           <h2 className="w-full pr-4 text-2xl font-bold text-gray-800 text-right sm:text-3xl md:pr-0 md:text-center">
