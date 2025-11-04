@@ -18,7 +18,11 @@ import {
   Loader2,
   Camera,
   UploadCloud,
+  Lock, // ADDED
+  Eye, // ADDED
+  EyeOff, // ADDED
 } from 'lucide-react';
+import ChangePasswordModal from './ChangePasswordModal'; // ADDED IMPORT
 
 // --- TYPE DEFINITIONS & INTERFACES ---
 
@@ -397,6 +401,7 @@ function ProfileSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<ProfileSection | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false); // State for new modal
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false); // ADDED: State for password modal
   const [activeTab, setActiveTab] = useState<ProfileSection>('company');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -577,12 +582,22 @@ function ProfileSettingsPage() {
                 onClick={() => setActiveTab('personal')}
               />
               <div className="flex-grow"></div>
+              
+              {/* --- ADDED PASSWORD BUTTON (DESKTOP) --- */}
               <button
                 onClick={() => setEditingSection(activeTab)}
                 className="hidden sm:flex items-center gap-2 px-4 py-2 my-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md"
               >
                 <Edit className="w-4 h-4" /> Edit Details
               </button>
+              <button
+                onClick={() => setIsPasswordModalOpen(true)}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 my-2 ml-3 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Lock className="w-4 h-4" /> Change Password
+              </button>
+              {/* --- END OF ADDED BUTTON --- */}
+
             </div>
             
             {/* Tab Content */}
@@ -606,12 +621,22 @@ function ProfileSettingsPage() {
                   <InfoRow icon={Smartphone} label="Mobile" value={profile.mobileNumber} iconColorClass="text-green-500"/>
                 </div>
               )}
+              
+              {/* --- ADDED PASSWORD BUTTON (MOBILE) --- */}
                <button
                 onClick={() => setEditingSection(activeTab)}
                 className="sm:hidden w-full mt-8 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md"
               >
                 <Edit className="w-4 h-4" /> Edit Details
               </button>
+              <button
+                onClick={() => setIsPasswordModalOpen(true)}
+                className="sm:hidden w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Lock className="w-4 h-4" /> Change Password
+              </button>
+              {/* --- END OF ADDED BUTTON --- */}
+
             </div>
           </main>
         </div>
@@ -632,6 +657,17 @@ function ProfileSettingsPage() {
         <ImageUploadModal
           onClose={() => setIsImageModalOpen(false)}
           onSave={handleImageSave}
+        />
+      )}
+
+      {/* --- NEW PASSWORD MODAL RENDER --- */}
+      {isPasswordModalOpen && (
+        <ChangePasswordModal
+          onClose={() => setIsPasswordModalOpen(false)}
+          onSaveSuccess={() => {
+            setIsPasswordModalOpen(false);
+            setNotification({ message: 'Password updated successfully!', type: 'success' });
+          }}
         />
       )}
     </div>

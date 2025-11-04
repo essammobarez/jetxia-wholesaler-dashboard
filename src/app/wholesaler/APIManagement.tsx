@@ -15,6 +15,8 @@ import {
     Copy,
     ChevronDown,
     Edit,
+    Trash2, // Added for delete button
+    AlertTriangle, // Added for delete modal
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS (UPDATED) --- //
@@ -152,6 +154,7 @@ const APIManagement: NextPage = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [isTestResultModalOpen, setIsTestResultModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // --- ADDED ---
 
     // --- Add Credential State ---
     const [selectedProviderId, setSelectedProviderId] = useState('');
@@ -168,6 +171,11 @@ const APIManagement: NextPage = () => {
 
     // --- Test Connectivity State ---
     const [testResultInfo, setTestResultInfo] = useState<TestResultInfo | null>(null);
+
+    // --- Delete Credential State ---
+    const [deletingInfo, setDeletingInfo] = useState<{ credential: Credential, supplier: Supplier } | null>(null); // --- ADDED ---
+    const [isDeleting, setIsDeleting] = useState(false); // --- ADDED ---
+    const [deleteError, setDeleteError] = useState<string | null>(null); // --- ADDED ---
 
 
     // --- Helpers ---
@@ -402,6 +410,58 @@ const APIManagement: NextPage = () => {
         }
     };
 
+    // --- Delete Credential Logic ---
+    const openDeleteModal = (credential: Credential, supplier: Supplier) => {
+        setDeletingInfo({ credential, supplier });
+        setDeleteError(null);
+        setIsDeleteModalOpen(true);
+    };
+
+    const closeDeleteModal = () => {
+        setIsDeleteModalOpen(false);
+        setDeletingInfo(null);
+        setDeleteError(null);
+        setIsDeleting(false);
+    };
+
+    const handleDeleteCredential = async () => {
+        if (!deletingInfo) return;
+
+        setIsDeleting(true);
+        setDeleteError(null);
+
+        try {
+            const connectionId = deletingInfo.credential.id;
+            const authToken = getAuthToken();
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/supplier-connection/delete/${connectionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                let errorMsg = 'Failed to delete connection.';
+                try {
+                    const result = await response.json();
+                    errorMsg = result.message || errorMsg;
+                } catch (e) {
+                    // response was not json
+                }
+                throw new Error(errorMsg);
+            }
+
+            closeDeleteModal();
+            await fetchAllData(); // Refresh the list
+
+        } catch (error) {
+            setDeleteError(error instanceof Error ? error.message : 'An unknown error occurred.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // --- Test Connectivity Logic ---
     const handleTestConnectivity = async (credentialId: string, supplierId: string) => {
         const supplier = suppliers.find(s => s.id === supplierId);
@@ -539,13 +599,18 @@ const APIManagement: NextPage = () => {
                                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{cred.name}</h3>
                                                     <StatusBadge status={cred.status} />
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center gap-2"> {/* --- MODIFIED: Added flex-wrap --- */}
                                                     <button onClick={() => openUpdateModal(cred, supplier)} className="flex items-center justify-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                                                         <Edit className="h-4 w-4" /><span>Edit</span>
                                                     </button>
                                                     <button onClick={() => handleTestConnectivity(cred.id, supplier.id)} className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:w-auto">
                                                         <Wifi className="h-4 w-4" /><span>Test</span>
                                                     </button>
+                                                    {/* --- START: ADDED DELETE BUTTON --- */}
+                                                    <button onClick={() => openDeleteModal(cred, supplier)} className="flex w-full items-center justify-center gap-2 rounded-md bg-red-100 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 sm:w-auto">
+                                                        <Trash2 className="h-4 w-4" /><span>Delete</span>
+                                                    </button>
+                                                    {/* --- END: ADDED DELETE BUTTON --- */}
                                                 </div>
                                             </div>
 
@@ -745,6 +810,77 @@ const APIManagement: NextPage = () => {
                     </div>
                 </div>
             )}
+
+            {/* --- START: ADDED DELETE MODAL --- */}
+            {isDeleteModalOpen && deletingInfo && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-sm">
+                    <div className="m-4 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                                    <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-300" aria-hidden="true" />
+                                </div>
+                            </div>
+                            <div className="ml-4 mt-0 flex-1 text-left">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white" id="modal-title">
+                                    Delete Credential
+                                </h3>
+                                <div className="mt-2">
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                                        Are you sure you want to delete the <strong>{deletingInfo.credential.name}</strong> credential for <strong>{deletingInfo.supplier.name}</strong>?
+                                    </p>
+                                    <p className="mt-1 text-sm font-medium text-red-600 dark:text-red-400">
+                                        This action cannot be undone.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="ml-4 flex-shrink-0">
+                                <button onClick={closeDeleteModal} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <X className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {deleteError && (
+                            <div className="mt-4 rounded-md bg-red-50 p-4 dark:bg-red-900/30">
+                                <div className="flex">
+                                    <div className="flex-shrink-0">
+                                        <XCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                                    </div>
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-red-800 dark:text-red-300">{deleteError}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
+                            <button
+                                type="button"
+                                onClick={closeDeleteModal}
+                                className="w-full rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 sm:w-auto"
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteCredential}
+                                className="flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? (
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                ) : (
+                                    "Yes, Delete"
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* --- END: ADDED DELETE MODAL --- */}
+
         </div>
     );
 };
