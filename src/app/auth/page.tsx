@@ -1,6 +1,8 @@
 'use client';
 import React from 'react';
 import { useState, useEffect, useCallback, FC, useRef } from 'react';
+
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
 import Image from 'next/image';
 import { Eye, EyeOff, Loader, Mail, ShieldCheck, AlertTriangle, X } from 'lucide-react';
 import { useAppDispatch } from '@/hooks/useRedux';

@@ -35,13 +35,13 @@ export default function UISetupPage() {
 
   // Extract domain from current URL
   const extractDomain = (): string => {
-    if (typeof window === 'undefined') return 'bdesktravel.com';
+    if (typeof window === 'undefined') return 'jetixia.com';
 
     const hostname = window.location.hostname;
 
     // If localhost, return default
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'bdesktravel.com';
+      return 'jetixia.com';
     }
 
     // Extract domain using regex
@@ -55,10 +55,39 @@ export default function UISetupPage() {
     return hostname;
   };
 
+  // Update favicon dynamically
+  const updateFavicon = (logoUrl: string) => {
+    if (typeof window === 'undefined' || !logoUrl) return;
+    if (!document || !document.head) return;
+
+    try {
+      // Remove existing favicon safely
+      const existingFavicon = document.querySelector('link[rel~="icon"]');
+      if (existingFavicon && existingFavicon.parentNode) {
+        existingFavicon.parentNode.removeChild(existingFavicon);
+      }
+
+      // Create and add new favicon
+      const newFavicon = document.createElement('link');
+      newFavicon.rel = 'icon';
+      newFavicon.href = logoUrl;
+      newFavicon.type = 'image/x-icon';
+      
+      if (document.head) {
+        document.head.appendChild(newFavicon);
+        console.log('Favicon updated to:', logoUrl);
+      }
+    } catch (error) {
+      console.error('Error updating favicon:', error);
+      // Silently fail - don't break the app
+    }
+  };
+
   // Initialize domain on mount
   useEffect(() => {
     const domain = extractDomain();
     setExtractedDomain(domain);
+    // Favicon will be fetched from server via API call in fetchUISettings
   }, []);
 
   const fetchUISettings = async () => {
@@ -96,7 +125,8 @@ export default function UISetupPage() {
           const brandSettings = result.data.brandSettings;
           console.log('Extracted brandSettings:', brandSettings);
           console.log('Wholesaler Site Content:', brandSettings.wholesalerSiteContent);
-          setFormData({
+          
+          const newFormData = {
             wholesalerDomain: brandSettings.wholesalerDomain || '',
             wholesalerSiteContent: brandSettings.wholesalerSiteContent || '',
             agencyDomain: brandSettings.agencyDomain || '',
@@ -104,9 +134,16 @@ export default function UISetupPage() {
             brandLogo: brandSettings.brandLogo || '',
             metaName: brandSettings.metaName || '',
             brandName: brandSettings.brandName || '',
-          });
+          };
+          
+          setFormData(newFormData);
           setIsExisting(true);
           setIsEditMode(false); // Start in view mode
+          
+          // Update favicon with brandLogo
+          if (brandSettings.brandLogo) {
+            updateFavicon(brandSettings.brandLogo);
+          }
         }
       } else if (response.status === 404) {
         // No existing settings found
@@ -220,6 +257,12 @@ export default function UISetupPage() {
         setIsExisting(true);
         setIsEditMode(false); // Switch back to view mode
         setUiSettingEnabled(true); // Update the flag after successful creation/update
+        
+        // Update favicon immediately with the saved brandLogo
+        if (formData.brandLogo) {
+          updateFavicon(formData.brandLogo);
+        }
+        
         // Refresh the data
         setTimeout(() => {
           fetchUISettings();

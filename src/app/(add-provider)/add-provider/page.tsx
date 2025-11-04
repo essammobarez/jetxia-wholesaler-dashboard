@@ -9,6 +9,8 @@ import {
   Box
 } from '@mui/material';
 
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
+
 interface ToastProps {
   message: string;
   onClose: () => void;

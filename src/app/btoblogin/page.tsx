@@ -11,6 +11,8 @@ import { useAppSelector } from '@/hooks/useRedux';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
+
 // --- MUI Theme (Unchanged) ---
 const muiTheme = createTheme({
   palette: {

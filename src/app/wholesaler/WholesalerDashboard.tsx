@@ -34,6 +34,7 @@ import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import axios from 'axios'; // ✨ ADDED: For making API calls
+import { getWholesalerBranding } from '@/utils/apiHandler'; // ✨ ADDED: Import branding helper
 
 // Page imports
 import OverviewTab from './booking-history/OverviewTab';
@@ -185,8 +186,8 @@ export default function WholesalerPage() {
   // Added a loading state to prevent UI flash before auth check
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✨ ADDED: State for profile logo
-  const [logoUrl, setLogoUrl] = useState<string>('/images/profile.png');
+  // ✨ ADDED: State for profile logo (no default, wait for API)
+  const [logoUrl, setLogoUrl] = useState<string>('');
 
   // State for user type and permissions
   const [userType, setUserType] = useState<string | null>(null);
@@ -314,7 +315,7 @@ export default function WholesalerPage() {
     }
   }, [searchParams, router]);
 
-  // Fetch profile and menu items from API
+  // Fetch profile, menu items, and branding from API
   useEffect(() => {
     const fetchProfileAndMenuItems = async () => {
       // Only fetch if user is authenticated (not loading)
@@ -351,7 +352,20 @@ export default function WholesalerPage() {
       }
     };
 
+    // Fetch wholesaler branding (logo)
+    const fetchBranding = async () => {
+      try {
+        const branding = await getWholesalerBranding();
+        if (branding.navLogo) {
+          setLogoUrl(branding.navLogo);
+        }
+      } catch (error) {
+        console.error('Error fetching branding:', error);
+      }
+    };
+
     fetchProfileAndMenuItems();
+    fetchBranding();
   }, [isLoading]);
 
   // Effect to filter menu items based on permissions
@@ -545,14 +559,15 @@ export default function WholesalerPage() {
         >
           {/* --- MODIFIED SECTION START --- */}
           <div className="relative">
-            <img
-              src={logoUrl} // ✨ UPDATED: Use logoUrl from state
-              onError={(e) =>
-                (e.currentTarget.src = '/images/profile.png')
-              } // ✨ ADDED: Fallback
-              className="w-10 h-10 rounded-full ring-2 ring-white/20 group-hover:ring-blue-500/50 transition-all duration-300"
-              alt="Profile"
-            />
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                className="w-10 h-10 rounded-full ring-2 ring-white/20 group-hover:ring-blue-500/50 transition-all duration-300"
+                alt="Profile"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full ring-2 ring-white/20 bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            )}
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
           </div>
           {/* --- MODIFIED SECTION END --- */}

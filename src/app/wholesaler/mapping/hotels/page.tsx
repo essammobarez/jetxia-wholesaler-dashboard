@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Search, Plus, Eye, Edit, Trash2, Download, Upload, RefreshCw, Check, X, AlertCircle, Navigation, Star, MapPin, Clock, Users, Home } from 'lucide-react';
 
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
+
 interface HotelData {
   id: string;
   supplierId: string;
