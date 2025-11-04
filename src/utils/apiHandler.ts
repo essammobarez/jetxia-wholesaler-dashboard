@@ -94,8 +94,8 @@ export async function getWholesalerBranding(
       const { data } = json;
       const brandSettings = data.brandSettings || {};
       
-      console.log("API Response - data:", data);
-      console.log("API Response - brandSettings:", brandSettings);
+      // console.log("API Response - data:", data);
+      // console.log("API Response - brandSettings:", brandSettings);
       
       // Proper data extraction according to API response structure
       const branding: WholesalerBranding = {
@@ -105,7 +105,7 @@ export async function getWholesalerBranding(
         siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
       };
 
-      console.log("Extracted branding:", branding);
+      // console.log("Extracted branding:", branding);
       return branding;
     }
 
