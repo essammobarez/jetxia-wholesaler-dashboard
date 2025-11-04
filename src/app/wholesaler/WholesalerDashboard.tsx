@@ -58,11 +58,11 @@ import CreateMarkup from './CreateMarkup';
 import MarkupAgencyList from './MarkupAgencyList';
 import PlanList from './PlanList';
 
-// ✨ NEW: Import for Profile Settings
-import ProfileSettingsPage from './ProfileSettingsPage';
+// ✨ NEW: Import for Profile Settings (imports default export wrapper)
+import ProfileSettingsPageWrapper from './ProfileSettingsPage';
 
-// ✨ NEW: Import for Preferences Page
-import PreferencesPage from './PreferencesPage';
+// ✨ NEW: Import for Preferences Page (imports default export)
+import PreferencesPageWrapper from './PreferencesPage';
 
 // New imports for Supplier submenu
 import CreateOfflineSupplier from './CreateOfflineSupplier';
@@ -112,49 +112,27 @@ import OfflinePackageModule from './flights-bs/offline-package/OfflinePackageMod
 import PackageRequestsModule from './flights-bs/package-requests/PackageRequestsModule';
 
 // ✨ NEW: Import for UI Setup Module
-import AgencyUITab from './ui-setup/AgencyUITab';
-import WholesalerUITab from './ui-setup/WholesalerUITab';
+import UISetupPage from './UISetupPage';
 
-// General menu items available to all users
-const generalMenuItems = [
-  'Dashboard',
-  'UI Setup',
-  'Flights BS', // ✨ NEW: Added Flights BS module
-  'Booking',
-  'Customers',
-  'Campaign', // ✨ NEW: Added Campaign menu
-  'Coupon',
-  'Markup',
-  'Supplier',
-  'Sales Person',
-  'Metrics',
-  // 'Payment',
-  // 'History',
-  // 'Messages',
-  // 'Masters',
-  'Support Tickets',
-  // 'Tools',
-  // 'Visa',
-  // 'Settings',
-  'Reports',
-  // 'Analytics',
-  'Users',
-  'Permissions',
-  // 'Notifications',
-  // 'Integrations',
-  'API Management',
+// ✨ NEW: Import for Get Support Page (Token-authorized only)
+// import GetSupportPage from './GetSupportPage'; // TODO: Create this component
 
-  // 'Logs',
-];
-
-// Protected menu items (require special access)
-const protectedMenuItems: string[] = ['Mapped Hotels', 'Mapping'];
-
-const permission = false;
-// Combined list of all menu items
-const allMenuItems = permission
-  ? [...generalMenuItems, ...protectedMenuItems]
-  : generalMenuItems;
+/**
+ * 🔐 MENU SYSTEM ARCHITECTURE:
+ * 
+ * 1. API-Controlled Menu Items:
+ *    - Fetched from backend /wholesaler/profile endpoint
+ *    - Backend determines which menu items user has access to
+ *    - Stored in `apiMenuItems` state and displayed in sidebar
+ * 
+ * 2. Token-Authorized Pages (Not in menu, always accessible if authenticated):
+ *    - Profile Settings
+ *    - Preferences
+ *    - Get Support
+ *    - These pages are accessible via direct navigation but not shown in sidebar
+ *    - Authorization validated by JWT token presence only
+ */
+const TOKEN_AUTHORIZED_PAGES = ['Profile Settings', 'Preferences', 'Get Support'];
 
 // Icon mapping for menu items
 const menuIcons: { [key: string]: React.ComponentType<{ className?: string }> } =
@@ -213,12 +191,10 @@ export default function WholesalerPage() {
   // State for user type and permissions
   const [userType, setUserType] = useState<string | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [visibleMenuItems, setVisibleMenuItems] =
-    useState<string[]>(allMenuItems);
+  const [visibleMenuItems, setVisibleMenuItems] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [hasProtectedAccess, setHasProtectedAccess] = useState<boolean>(
-    permission,
-  ); // Track if user has access to protected items
+  const [apiMenuItems, setApiMenuItems] = useState<string[]>([]); // Menu items from API
+  const [menuItemsLoaded, setMenuItemsLoaded] = useState(false); // Track if API menu items are loaded
 
   useEffect(() => {
     // ✅ FIX: This check ensures browser-specific code only runs on the client.
@@ -338,63 +314,56 @@ export default function WholesalerPage() {
     }
   }, [searchParams, router]);
 
-  // ✨ ADDED: Effect to fetch wholesaler profile (logo) after auth check is complete
+  // Fetch profile and menu items from API
   useEffect(() => {
-    // Only fetch profile if auth check is complete (!isLoading) and was successful
-    if (
-      !isLoading &&
-      (localStorage.getItem('authToken') ||
-        localStorage.getItem('devMode') === 'true')
-    ) {
-      // Skip API call in dev bypass mode
-      const devBypass = localStorage.getItem('devMode') === 'true';
-      if (devBypass) {
-        setLogoUrl('/images/profile.png'); // Use default logo for dev mode
-        return;
-      }
+    const fetchProfileAndMenuItems = async () => {
+      // Only fetch if user is authenticated (not loading)
+      if (isLoading) return;
 
-      const fetchProfile = async () => {
-        const token = getAuthToken();
+      try {
+        const token = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('authToken='))
+          ?.split('=')[1] || localStorage.getItem('authToken');
+
         if (!token) {
-          console.warn('No token found, cannot fetch profile logo.');
+          console.warn('No auth token found, menu will be empty');
+          setMenuItemsLoaded(true);
           return;
         }
 
-        try {
-          const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-          if (!baseUrl) {
-            console.error('NEXT_PUBLIC_BACKEND_URL is not set.');
-            return;
-          }
-          const response = await axios.get(`${baseUrl}/wholesaler/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/wholesaler/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-          if (
-            response.data &&
-            response.data.success &&
-            response.data.data.logo
-          ) {
-            setLogoUrl(response.data.data.logo);
-          } else {
-            console.warn('Could not fetch logo, using default.');
-          }
-        } catch (error) {
-          console.error('Error fetching wholesaler profile:', error);
-          // Keep default logo on error
+        const result = await response.json();
+
+        if (response.ok && result.success && result.data?.menuItems) {
+          console.log('Menu items loaded from API:', result.data.menuItems);
+          setApiMenuItems(result.data.menuItems);
+        } else {
+          console.warn('Failed to fetch menu items from API, menu will be empty');
         }
-      };
+      } catch (error) {
+        console.error('Error fetching profile/menu items:', error);
+      } finally {
+        setMenuItemsLoaded(true);
+      }
+    };
 
-      fetchProfile();
-    }
-  }, [isLoading]); // This effect runs once the initial auth check is done.
+    fetchProfileAndMenuItems();
+  }, [isLoading]);
 
   // Effect to filter menu items based on permissions
   useEffect(() => {
-    let itemsToShow = allMenuItems;
+    // Only use API menu items - backend controls all menu access
+    let itemsToShow: string[] = [];
+    
+    if (menuItemsLoaded) {
+      itemsToShow = apiMenuItems.length > 0 ? [...apiMenuItems] : [];
+    }
 
+    // Special handling for sales role (if needed locally)
     if (userRole === 'sales') {
       const salesMenuItems = ['Dashboard', 'Booking', 'Customers', 'Markup'];
       itemsToShow = salesMenuItems;
@@ -407,23 +376,17 @@ export default function WholesalerPage() {
       const allowedMenuSet = new Set(
         userPermissions.map((p) => p.split(':')[0]),
       );
-      // Filter the main menu list to only include items present in the user's permissions
-      itemsToShow = allMenuItems.filter((item) => allowedMenuSet.has(item));
+      // Filter the API menu items to only include items present in the user's permissions
+      itemsToShow = itemsToShow.filter(item => allowedMenuSet.has(item));
       // Set the default active page to the first available item if the current one is not allowed
       if (itemsToShow.length > 0 && !itemsToShow.includes(activePage)) {
         setActivePage(itemsToShow[0]);
       }
     }
 
-    // Filter out protected items if user doesn't have access
-    if (!hasProtectedAccess) {
-      itemsToShow = itemsToShow.filter(
-        (item) => !protectedMenuItems.includes(item),
-      );
-    }
-
     setVisibleMenuItems(itemsToShow);
-  }, [userType, userPermissions, userRole, activePage, hasProtectedAccess]);
+  }, [userType, userPermissions, userRole, activePage, apiMenuItems, menuItemsLoaded]);
+
 
   // Sync dark mode class on <html>
   useEffect(() => {
@@ -438,25 +401,10 @@ export default function WholesalerPage() {
     const page = searchParams.get('page');
     const tab = searchParams.get('tab');
 
-    // Define special pages that don't need to be in 'visibleMenuItems'
-    const specialPages = ['Profile Settings', 'Preferences'];
+    // Check if page is a token-authorized page (not in menu but accessible)
+    const isTokenAuthorizedPage = TOKEN_AUTHORIZED_PAGES.includes(page || '');
 
-    if (page && (visibleMenuItems.includes(page) || specialPages.includes(page))) {
-      // Check if trying to access a protected page without permission
-      if (protectedMenuItems.includes(page) && !hasProtectedAccess) {
-        alert('Access Denied: You do not have permission to access this page.');
-        // Redirect to Dashboard
-        setActivePage('Dashboard');
-        setExpandedMenu(null);
-        setActiveTab(null);
-        localStorage.setItem('wholesaler_activePage', 'Dashboard');
-        localStorage.removeItem('wholesaler_activeTab');
-        const params = new URLSearchParams();
-        params.set('page', 'Dashboard');
-        router.replace(`?${params.toString()}`);
-        return;
-      }
-
+    if (page && (visibleMenuItems.includes(page) || isTokenAuthorizedPage)) {
       // URL params take priority
       setActivePage(page);
       // Only expand the menu if it's one of the main sidebar items
@@ -483,25 +431,10 @@ export default function WholesalerPage() {
       // No URL params, try to restore from localStorage
       const savedPage = localStorage.getItem('wholesaler_activePage');
       const savedTab = localStorage.getItem('wholesaler_activeTab');
-
-      if (
-        savedPage &&
-        (visibleMenuItems.includes(savedPage) || specialPages.includes(savedPage))
-      ) {
-        // Check if the saved page is protected
-        if (protectedMenuItems.includes(savedPage) && !hasProtectedAccess) {
-          // Can't restore protected page, go to Dashboard
-          setActivePage('Dashboard');
-          setExpandedMenu(null);
-          setActiveTab(null);
-          localStorage.setItem('wholesaler_activePage', 'Dashboard');
-          localStorage.removeItem('wholesaler_activeTab');
-          const params = new URLSearchParams();
-          params.set('page', 'Dashboard');
-          router.replace(`?${params.toString()}`);
-          return;
-        }
-
+      
+      const isSavedPageTokenAuthorized = TOKEN_AUTHORIZED_PAGES.includes(savedPage || '');
+      
+      if (savedPage && (visibleMenuItems.includes(savedPage) || isSavedPageTokenAuthorized)) {
         setActivePage(savedPage);
         if (visibleMenuItems.includes(savedPage)) {
           setExpandedMenu(savedPage);
@@ -535,20 +468,9 @@ export default function WholesalerPage() {
         router.replace(`?${params.toString()}`);
       }
     }
-  }, [searchParams, visibleMenuItems, router, hasProtectedAccess]);
-
-  // Helper function to check if a page is protected
-  const isProtectedPage = (page: string): boolean => {
-    return protectedMenuItems.includes(page);
-  };
+  }, [searchParams, visibleMenuItems, router]);
 
   const handleMenuClick = (item: string) => {
-    // Check if trying to access a protected page without permission
-    if (isProtectedPage(item) && !hasProtectedAccess) {
-      alert('Access Denied: You do not have permission to access this page.');
-      return;
-    }
-
     if (activePage === item) {
       // If clicking the same main menu, collapse submenu
       setExpandedMenu((prev) => (prev === item ? null : item));
@@ -670,15 +592,9 @@ export default function WholesalerPage() {
                   setShowProfileMenu(false);
                   setExpandedMenu(null);
                   setActiveTab(null);
-
-                  // 2. Update localStorage
-                  localStorage.setItem(
-                    'wholesaler_activePage',
-                    'Profile Settings',
-                  );
+                  // Update localStorage and URL
+                  localStorage.setItem('wholesaler_activePage', 'Profile Settings');
                   localStorage.removeItem('wholesaler_activeTab');
-
-                  // 3. Update URL
                   const params = new URLSearchParams();
                   params.set('page', 'Profile Settings');
                   router.replace(`?${params.toString()}`);
@@ -696,15 +612,9 @@ export default function WholesalerPage() {
                   setShowProfileMenu(false);
                   setExpandedMenu(null);
                   setActiveTab(null);
-
-                  // 2. Update localStorage
-                  localStorage.setItem(
-                    'wholesaler_activePage',
-                    'Preferences',
-                  );
+                  // Update localStorage and URL
+                  localStorage.setItem('wholesaler_activePage', 'Preferences');
                   localStorage.removeItem('wholesaler_activeTab');
-
-                  // 3. Update URL
                   const params = new URLSearchParams();
                   params.set('page', 'Preferences');
                   router.replace(`?${params.toString()}`);
@@ -732,74 +642,51 @@ export default function WholesalerPage() {
         <div className="flex-1 overflow-y-auto">
           {/* Render the menu using the dynamically filtered 'visibleMenuItems' list */}
           <nav className="px-4 space-y-2 mt-4 sidebar-scroll pb-20">
-            {visibleMenuItems.map((item, index) => (
-              <div
-                key={item}
-                className="animate-slide-right"
-                style={{ animationDelay: `${index * 0.05}s` }}
+          {visibleMenuItems.map((item, index) => (
+            <div key={item} className="animate-slide-right" style={{ animationDelay: `${index * 0.05}s` }}>
+              <button
+                onClick={() => handleMenuClick(item)}
+                className={`
+                  w-full flex items-center justify-between px-4 py-3 rounded-xl
+                  transition-all duration-300 ease-in-out group
+                  ${
+                    activePage === item
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-800/50 hover:shadow-md'
+                  }
+                `}
               >
-                <button
-                  onClick={() => handleMenuClick(item)}
-                  className={`
-                    w-full flex items-center justify-between px-4 py-3 rounded-xl
-                    transition-all duration-300 ease-in-out group
-                    ${
-                      activePage === item
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-800/50 hover:shadow-md'
-                    }
-                  `}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className={`p-2 rounded-lg transition-all duration-300 ${
-                        activePage === item
-                          ? 'bg-white/20'
-                          : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
-                      }`}
-                    >
-                      {(() => {
-                        const IconComponent = menuIcons[item] || LayoutGrid;
-                        return (
-                          <IconComponent
-                            className={`w-4 h-4 ${
-                              activePage === item
-                                ? 'text-white'
-                                : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
-                            }`}
-                          />
-                        );
-                      })()}
-                    </div>
-                    <span
-                      className={`font-medium ${
-                        activePage === item
-                          ? 'text-white'
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {item}
-                    </span>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-lg transition-all duration-300 ${
+                    activePage === item
+                      ? 'bg-white/20'
+                      : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
+                  }`}>
+                    {(() => {
+                      const IconComponent = menuIcons[item] || LayoutGrid;
+                      return (
+                        <IconComponent className={`w-4 h-4 ${
+                          activePage === item
+                            ? 'text-white'
+                            : 'text-gray-600 dark:text-gray-400 group-hover:text-blue-600'
+                        }`} />
+                      );
+                    })()}
                   </div>
-                  {[
-                    'Flights BS',
-                    'Booking',
-                    'Customers',
-                    'Campaign',
-                    'Markup',
-                    'Supplier',
-                    'Reports',
-                    'Sales Person',
-                    'Mapping',
-                    'UI Setup',
-                  ].includes(item) && (
-                    <ChevronDown
-                      className={`w-4 h-4 transform transition-all duration-300 ${
-                        expandedMenu === item ? 'rotate-180' : ''
-                      } ${activePage === item ? 'text-white' : 'text-gray-400'}`}
-                    />
-                  )}
-                </button>
+                  <span className={`font-medium ${
+                    activePage === item
+                      ? 'text-white'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>{item}</span>
+                </div>
+                {['Flights BS', 'Booking', 'Customers', 'Campaign', 'Markup', 'Supplier', 'Reports', 'Sales Person', 'Mapping'].includes(item) && (
+                  <ChevronDown
+                    className={`w-4 h-4 transform transition-all duration-300 ${
+                      expandedMenu === item ? 'rotate-180' : ''
+                    } ${activePage === item ? 'text-white' : 'text-gray-400'}`}
+                  />
+                )}
+              </button>
 
                 {/* --- SUB-MENUS --- */}
 
@@ -1196,41 +1083,8 @@ export default function WholesalerPage() {
                   </div>
                 )}
 
-                {expandedMenu === 'UI Setup' && item === 'UI Setup' && (
-                  <div className="ml-6 mt-2 space-y-1 animate-slide-up">
-                    {['Agency UI', 'Wholesaler UI'].map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => {
-                          setActivePage('UI Setup');
-                          setActiveTab(tab);
-
-                          // Update localStorage and URL
-                          localStorage.setItem(
-                            'wholesaler_activePage',
-                            'UI Setup',
-                          );
-                          localStorage.setItem('wholesaler_activeTab', tab);
-
-                          const params = new URLSearchParams();
-                          params.set('page', 'UI Setup');
-                          params.set('tab', tab);
-                          router.replace(`?${params.toString()}`);
-                        }}
-                        className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 ${
-                          activeTab === tab
-                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-700 dark:hover:text-gray-300'
-                        }`}
-                      >
-                        <div className="w-2 h-2 rounded-full bg-current opacity-60"></div>
-                        <span className="text-sm">{tab}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            </div>
+          ))}
           </nav>
         </div>
 
@@ -1240,13 +1094,21 @@ export default function WholesalerPage() {
             <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mx-auto mb-3 flex items-center justify-center">
               <LayoutGrid className="w-5 h-5 text-white" />
             </div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-              Need Help?
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              Contact our support team
-            </p>
-            <button className="w-full btn-modern bg-gradient-to-r from-blue-50 to-purple-50 text-blue-600 dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900 dark:text-blue-300 text-sm py-2 px-4 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-800 dark:hover:to-purple-800">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Need Help?</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Contact our support team</p>
+            <button 
+              onClick={() => {
+                setActivePage('Get Support');
+                setExpandedMenu(null);
+                setActiveTab(null);
+                localStorage.setItem('wholesaler_activePage', 'Get Support');
+                localStorage.removeItem('wholesaler_activeTab');
+                const params = new URLSearchParams();
+                params.set('page', 'Get Support');
+                router.replace(`?${params.toString()}`);
+              }}
+              className="w-full btn-modern bg-gradient-to-r from-blue-50 to-purple-50 text-blue-600 dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900 dark:text-blue-300 text-sm py-2 px-4 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-800 dark:hover:to-purple-800"
+            >
               Get Support
             </button>
           </div>
@@ -1357,11 +1219,36 @@ export default function WholesalerPage() {
             </div>
           )}
 
-          {/* ✨ NEW: Render Profile Settings Page */}
-          {activePage === 'Profile Settings' && <ProfileSettingsPage />}
+          {/* ✨ NEW: Token-Authorized Pages (not in API menu) */}
+          {activePage === 'Profile Settings' && <ProfileSettingsPageWrapper />}
+            
+          {activePage === 'Preferences' && <PreferencesPageWrapper />}
 
-          {/* ✨ NEW: Render Preferences Page */}
-          {activePage === 'Preferences' && <PreferencesPage />}
+          {activePage === 'Get Support' && (
+            <div className="card-modern p-12 text-center animate-fade-scale">
+              <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900 rounded-full flex items-center justify-center mx-auto mb-6">
+                <MdSupportAgent className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Get Support</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-lg mb-6">
+                Need help? Our support team is here to assist you.
+              </p>
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="card-modern p-4 text-left">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📧 Email Support</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">support@jetxia.com</p>
+                </div>
+                <div className="card-modern p-4 text-left">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">💬 Live Chat</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Available 24/7</p>
+                </div>
+                <div className="card-modern p-4 text-left">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📞 Phone Support</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">+1 (555) 123-4567</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activePage === 'Booking' && (
             <div className="animate-fade-scale">
@@ -1609,26 +1496,7 @@ export default function WholesalerPage() {
           {activePage === 'Users' && <Users />}
 
           {/* ✨ NEW: UI Setup Module */}
-          {activePage === 'UI Setup' && (
-            <div className="animate-fade-scale">
-              {activeTab === 'Agency UI' && <AgencyUITab />}
-              {activeTab === 'Wholesaler UI' && <WholesalerUITab />}
-              {!activeTab && (
-                <div className="card-modern p-12 text-center">
-                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <LayoutGrid className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                    UI Setup
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    Select an option to customize your agency or wholesaler
-                    interface branding.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+          {activePage === 'UI Setup' && <UISetupPage />}
 
           {activePage === 'Reports' && (
             <div className="animate-fade-scale">
