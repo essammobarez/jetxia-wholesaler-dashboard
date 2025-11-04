@@ -3,12 +3,11 @@
  * Provides both server-side and client-side methods to fetch branding data
  */
 
-import { getBaseUrl } from "@/helpers/config/envConfig";
-
 export interface WholesalerBranding {
   name: string;
   logo: string;
   navLogo?: string;
+  siteContent?: string;
 }
 
 /**
@@ -22,7 +21,7 @@ export async function getWholesalerBrandingServer(
     // Extract base domain from hostname
     const domain = extractDomain(hostname);
     
-    const baseUrl = getBaseUrl();
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api/v1';
     const response = await fetch(
       `${baseUrl}/ui-settings/by-domain?domain=${domain}`,
       {
@@ -40,34 +39,29 @@ export async function getWholesalerBrandingServer(
     const json = await response.json();
 
     if (json.success && json.data) {
-      const data = json.data;
+      const { data } = json;
       const brandSettings = data.brandSettings || {};
       
+      // Proper data extraction according to API response structure
       return {
-        name: brandSettings.metaName || brandSettings.brandName || data.name || 'Jetixia System',
+        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || 'Jetixia System',
         logo: brandSettings.brandLogo || data.logo || '/favicon.ico',
-        navLogo: brandSettings.navLogo || data.logo || brandSettings.brandLogo || '/favicon.ico',
+        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '/favicon.ico',
+        siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
       };
     }
 
     // Fallback
-    return {
-      name: 'Jetixia System',
-      logo: '/favicon.ico',
-      navLogo: '/favicon.ico',
-    };
+    return getFallbackBranding();
   } catch (error) {
     console.error('Error fetching wholesaler branding (server):', error);
-    return {
-      name: 'Jetixia System',
-      logo: '/favicon.ico',
-      navLogo: '/favicon.ico',
-    };
+    return getFallbackBranding();
   }
 }
 
 /**
- * Client-side branding fetch with localStorage caching
+ * Client-side branding fetch
+ * Always fetches fresh data from API (no caching)
  * Used in client components
  */
 export async function getWholesalerBranding(
@@ -75,35 +69,19 @@ export async function getWholesalerBranding(
 ): Promise<WholesalerBranding> {
   // Check if running in browser
   if (typeof window === 'undefined') {
-    return {
-      name: 'Jetixia System',
-      logo: '/favicon.ico',
-      navLogo: '/favicon.ico',
-    };
-  }
-
-  // Return cached data if available and not forcing refresh
-  if (!forceRefresh) {
-    const cachedName = localStorage.getItem('wholesalerName');
-    const cachedLogo = localStorage.getItem('wholesalerLogo');
-    const cachedNavLogo = localStorage.getItem('wholesalerNavLogo');
-    
-    if (cachedName && cachedLogo) {
-      return {
-        name: cachedName,
-        logo: cachedLogo,
-        navLogo: cachedNavLogo || cachedLogo,
-      };
-    }
+    return getFallbackBranding();
   }
 
   try {
     const hostname = window.location.hostname;
     const domain = extractDomain(hostname);
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api/v1';
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api/v1';
     const response = await fetch(
-      `${baseUrl}/ui-settings/by-domain?domain=${domain}`
+      `${baseUrl}/ui-settings/by-domain?domain=${domain}`,
+      {
+        cache: 'no-store', // Always fetch fresh data
+      }
     );
 
     if (!response.ok) {
@@ -113,73 +91,66 @@ export async function getWholesalerBranding(
     const json = await response.json();
 
     if (json.success && json.data) {
-      const data = json.data;
+      const { data } = json;
       const brandSettings = data.brandSettings || {};
       
+      console.log("API Response - data:", data);
+      console.log("API Response - brandSettings:", brandSettings);
+      
+      // Proper data extraction according to API response structure
       const branding: WholesalerBranding = {
-        name: brandSettings.metaName || brandSettings.brandName || data.name || 'Jetixia System',
+        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || 'Jetixia System',
         logo: brandSettings.brandLogo || data.logo || '/favicon.ico',
-        navLogo: brandSettings.navLogo || data.logo || brandSettings.brandLogo || '/favicon.ico',
+        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '/favicon.ico',
+        siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
       };
 
-      // Cache in localStorage
-      localStorage.setItem('wholesalerName', branding.name);
-      localStorage.setItem('wholesalerLogo', branding.logo);
-      localStorage.setItem('wholesalerNavLogo', branding.navLogo || branding.logo);
-
+      console.log("Extracted branding:", branding);
       return branding;
     }
 
     // Fallback
-    return {
-      name: 'Jetixia System',
-      logo: '/favicon.ico',
-      navLogo: '/favicon.ico',
-    };
+    return getFallbackBranding();
   } catch (error) {
     console.error('Error fetching wholesaler branding (client):', error);
-    
-    // Try to return cached data even on error
-    const cachedName = localStorage.getItem('wholesalerName');
-    const cachedLogo = localStorage.getItem('wholesalerLogo');
-    const cachedNavLogo = localStorage.getItem('wholesalerNavLogo');
-    
-    if (cachedName && cachedLogo) {
-      return { 
-        name: cachedName, 
-        logo: cachedLogo,
-        navLogo: cachedNavLogo || cachedLogo,
-      };
-    }
-
-    return {
-      name: 'Jetixia System',
-      logo: '/favicon.ico',
-      navLogo: '/favicon.ico',
-    };
+    return getFallbackBranding();
   }
 }
 
 /**
- * Extract base domain from hostname
+ * Fallback branding object
+ * Used when API fails or returns invalid data
+ */
+function getFallbackBranding(): WholesalerBranding {
+  return {
+    name: 'Jetixia System',
+    logo: '/favicon.ico',
+    navLogo: '/favicon.ico',
+    siteContent: 'Your trusted partner in travel technology solutions.',
+  };
+}
+
+/**
+ * Extract base domain from hostname and return only the domain name (without extension)
  * Examples:
- * - localhost -> jetixia (will fetch from API)
- * - admin.bdesktravel.com -> bdesktravel.com
- * - www.example.com -> example.com
+ * - localhost -> jetixia
+ * - admin.bdesktravel.com -> bdesktravel
+ * - www.example.com -> example
+ * - jetixia.com -> jetixia
  */
 function extractDomain(hostname: string): string {
   // Default for localhost - let API handle jetixia domain
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'jetixia.com';
+    return 'jetixia';
   }
 
-  // Extract domain using regex
+  // Extract domain using regex (e.g., "admin.bdesktravel.com" -> "bdesktravel.com")
   const domainMatch = hostname.match(/(?:^|\.)([\w-]+\.\w+)$/);
-  if (domainMatch && domainMatch[1]) {
-    return domainMatch[1];
-  }
-
-  // Fallback: return the whole hostname
-  return hostname;
+  const fullDomain = domainMatch && domainMatch[1] ? domainMatch[1] : hostname;
+  
+  // Extract just the domain name without extension (e.g., "bdesktravel.com" -> "bdesktravel")
+  const domainName = fullDomain.split('.')[0];
+  
+  return domainName;
 }
 

@@ -1,68 +1,64 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
 import Providers from "@/lib/Providers";
-import { generateUnifiedMetadata } from "@/lib/metadataUtils";
+import { Montserrat } from "next/font/google";
 import BrandingMetaUpdater from "@/components/BrandingMetaUpdater";
+import { headers } from "next/headers";
+import { generateUnifiedMetadata } from "@/lib/metadataUtils";
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-montserrat",
+  display: "swap",
+});
 
 /**
- * Helper function for pages to generate metadata with pathname
- * Usage in any page.tsx:
+ * Generate metadata for server components with pathname only.
+ * Hostname is automatically extracted from request headers.
  * 
- * import { generatePageMetadata } from "@/app/layout";
- * export async function generateMetadata() {
- *   return await generatePageMetadata("/your-path");
+ * @param pathname - Page path (e.g., "/hotels-list", "/booking/confirmation")
+ * @returns Metadata object with title, description, and favicon
+ * 
+ * @example
+ * export async function generateMetadata(): Promise<Metadata> {
+ *   return await generatePageMetadata("/hotels-list");
  * }
  */
-export async function generatePageMetadata(
-  pathname: string,
-  options?: {
-    title?: string;
-    description?: string;
-  }
-): Promise<Metadata> {
+export async function generatePageMetadata(pathname: string): Promise<Metadata> {
   const headersList = await headers();
   const hostname = headersList.get("host") || "localhost";
-
-  return await generateUnifiedMetadata({
-    pathname,
-    hostname,
-    title: options?.title,
-    description: options?.description,
-  });
+  
+  return await generateUnifiedMetadata({ pathname, hostname });
 }
 
 /**
- * Factory function for one-line metadata usage
- * Usage in any page.tsx:
+ * Factory function that creates metadata generator (ONE-LINE approach).
+ * Use this for static pages without dynamic params.
  * 
- * import { createMetadata } from "@/app/layout";
- * export const generateMetadata = createMetadata("/your-path");
+ * @param pathname - Page path (e.g., "/hotels-list")
+ * @returns Async function that generates metadata
+ * 
+ * @example
+ * export const generateMetadata = createMetadata("/hotels-list");
  */
-export const createMetadata = (
-  pathname: string,
-  options?: {
-    title?: string;
-    description?: string;
-  }
-) => {
+export const createMetadata = (pathname: string, optional={title: "", description: ""}) => {
   return async (): Promise<Metadata> => {
-    return await generatePageMetadata(pathname, options);
+    return await generatePageMetadata(pathname);
   };
 };
 
 /**
- * Root layout auto-metadata
- * Automatically detects pathname from headers
+ * Root layout metadata - automatically uses current pathname from headers
  */
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
   const pathname = headersList.get("x-invoke-path") || "/";
+  
   return await generatePageMetadata(pathname);
 }
 
-// Force dynamic rendering to access headers
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 
 export default function RootLayout({
   children,
@@ -71,8 +67,16 @@ export default function RootLayout({
 }>) {
   return (
     <Providers>
-      <html lang="en" suppressHydrationWarning>
-        <body className="antialiased">
+      <html lang="en">
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link
+            rel="preconnect"
+            href="https://fonts.gstatic.com"
+            crossOrigin=""
+          />
+        </head>
+        <body className={`${montserrat.variable} font-sans antialiased`}>
           <BrandingMetaUpdater />
           {children}
         </body>

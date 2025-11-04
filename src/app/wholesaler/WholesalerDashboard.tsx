@@ -274,7 +274,7 @@ export default function WholesalerPage() {
         const payloadJson = atob(payloadBase64);
         const payload = JSON.parse(payloadJson);
 
-        console.log('Decoded JWT payload:', payload);
+        // console.log('Decoded JWT payload:', payload);
 
         if (payload.name) {
           setUserName(payload.name);
@@ -340,7 +340,7 @@ export default function WholesalerPage() {
         const result = await response.json();
 
         if (response.ok && result.success && result.data?.menuItems) {
-          console.log('Menu items loaded from API:', result.data.menuItems);
+          // console.log('Menu items loaded from API:', result.data.menuItems);
           setApiMenuItems(result.data.menuItems);
         } else {
           console.warn('Failed to fetch menu items from API, menu will be empty');

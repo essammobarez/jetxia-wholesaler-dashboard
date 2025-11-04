@@ -30,6 +30,7 @@ export const formatPathToTitle = (pathname: string): string => {
 /**
  * Server-side metadata generation
  * Used in generateMetadata functions in pages
+ * Properly sets favicon through Next.js Metadata API
  */
 export async function generateUnifiedMetadata({
   pathname,
@@ -51,7 +52,24 @@ export async function generateUnifiedMetadata({
       description:
         description || `Welcome to ${branding.name} booking platform`,
       icons: {
-        icon: branding.logo,
+        icon: [
+          {
+            url: branding.logo,
+            type: 'image/png',
+          },
+        ],
+        shortcut: [
+          {
+            url: branding.logo,
+            type: 'image/png',
+          },
+        ],
+        apple: [
+          {
+            url: branding.logo,
+            type: 'image/png',
+          },
+        ],
       },
     };
   } catch (error) {
@@ -71,7 +89,8 @@ export async function generateUnifiedMetadata({
 
 /**
  * Client-side metadata updates (for CSR)
- * Updates document.title, meta description, and favicon dynamically
+ * Updates document.title and meta description only
+ * Favicon is handled by Next.js Metadata API
  */
 export async function updateClientMetadata({
   pathname,
@@ -111,19 +130,8 @@ export async function updateClientMetadata({
       );
     }
 
-    // Update favicon safely
-    if (branding.logo) {
-      let icon = document.querySelector('link[rel~="icon"]') as HTMLLinkElement;
-      if (!icon && document.head) {
-        icon = document.createElement("link");
-        icon.setAttribute("rel", "icon");
-        icon.setAttribute("type", "image/x-icon");
-        document.head.appendChild(icon);
-      }
-      if (icon) {
-        icon.setAttribute("href", branding.logo);
-      }
-    }
+    // Note: Favicon is handled by Next.js Metadata API server-side
+    // No client-side DOM manipulation needed
   } catch (error) {
     console.error("Error updating client metadata:", error);
     // Silently fail - don't break the app

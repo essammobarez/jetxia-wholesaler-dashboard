@@ -75,7 +75,7 @@ export default function UISetupPage() {
       
       if (document.head) {
         document.head.appendChild(newFavicon);
-        console.log('Favicon updated to:', logoUrl);
+        // console.log('Favicon updated to:', logoUrl);
       }
     } catch (error) {
       console.error('Error updating favicon:', error);
@@ -119,12 +119,12 @@ export default function UISetupPage() {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('UI Settings API Response:', result);
+        // console.log('UI Settings API Response:', result);
         if (result.success && result.data && result.data.brandSettings) {
           // Extract data from nested brandSettings object
           const brandSettings = result.data.brandSettings;
-          console.log('Extracted brandSettings:', brandSettings);
-          console.log('Wholesaler Site Content:', brandSettings.wholesalerSiteContent);
+          // console.log('Extracted brandSettings:', brandSettings);
+          // console.log('Wholesaler Site Content:', brandSettings.wholesalerSiteContent);
           
           const newFormData = {
             wholesalerDomain: brandSettings.wholesalerDomain || '',
@@ -194,7 +194,7 @@ export default function UISetupPage() {
           if (profileResult.success && profileResult.data) {
             const uiSettingFlag = profileResult.data.uisetting || false;
             setUiSettingEnabled(uiSettingFlag);
-            console.log('UI Setting Enabled:', uiSettingFlag);
+            // console.log('UI Setting Enabled:', uiSettingFlag);
           }
         }
 

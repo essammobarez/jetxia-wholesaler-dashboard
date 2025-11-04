@@ -3,10 +3,7 @@ import React from 'react';
 import { createMetadata } from "../layout";
 
 // Generate dynamic metadata based on wholesaler branding
-export const generateMetadata = createMetadata("/admin-dashboard", {
-  title: "Admin Dashboard",
-  description: "Manage your wholesaler operations and bookings",
-});
+export const generateMetadata = createMetadata("/admin-dashboard");
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
