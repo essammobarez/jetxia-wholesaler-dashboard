@@ -577,6 +577,7 @@ export const countriesWithCities = [
   { country: 'Sri Lanka', cities: ['Colombo', 'Kandy', 'Galle', 'Ella', 'Sigiriya'] },
   { country: 'Indonesia', cities: ['Bali', 'Jakarta', 'Yogyakarta', 'Lombok', 'Bandung'] },
   { country: 'Philippines', cities: ['Manila', 'Cebu', 'Boracay', 'Palawan', 'Davao'] },
+    { country: 'Bangladesh', cities: ['Dhaka', 'Chittagong', 'Khulna'] },
   { country: 'Vietnam', cities: ['Hanoi', 'Ho Chi Minh', 'Da Nang', 'Hoi An', 'Nha Trang'] }
 
 ];

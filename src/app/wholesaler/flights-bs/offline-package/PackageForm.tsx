@@ -100,7 +100,7 @@ const getInitialFormData = (pkg?: ApiPackage) => {
     description: pkg?.description || '',
     highlights: [''], // 'highlights' is not in the API response, default to form's structure
     category: (pkg?.category as 'Budget' | 'Standard' | 'Luxury' | 'Premium') || 'Standard',
-    status: (pkg?.status ? (pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)) : 'Draft') as 'Active' | 'Sold Out' | 'Cancelled' | 'Draft',
+    status: (pkg?.status ? (pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)) : 'Active') as 'Active' | 'Sold Out' | 'Cancelled' | 'Draft',
     
     selectedBlockSeat: initialFlight,
     selectedDateIndex: null, // This doesn't seem to be in the API response

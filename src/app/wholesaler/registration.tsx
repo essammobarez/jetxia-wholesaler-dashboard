@@ -261,8 +261,10 @@ export default function RegistrationForm() {
       ...agency,
       ...user,
       wholesaler: wholesalerId,
-      emailId: userEmail, // Ensure user's email is lowercase
-      email: agencyEmail, // Ensure agency's email is lowercase
+      // **START: Email value swap as requested**
+      emailId: agencyEmail, // Pass Agency's email as the Main User's emailId
+      email: userEmail,     // Pass Main User's email as the Agency's email
+      // **END: Email value swap**
     }
     if (licenseBase64) {
       payload.licenseUrl = licenseBase64
@@ -654,7 +656,7 @@ export default function RegistrationForm() {
               disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
             >
-              {loading ? 'Submitting…' : 'Submit'}
+              {loading ? 'Submitting...' : 'Submit'}
             </button>
           </div>
         </form>
