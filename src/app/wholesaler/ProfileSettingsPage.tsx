@@ -482,7 +482,7 @@ const GlobalStyles = () => (
 // It's good practice to include the styles component in your main app layout.
 // For this self-contained example, we can add it to the main page component.
 // Note: In a real Next.js app, you'd put this in _app.tsx or a layout component.
-export default function PageWithStyles() {
+export default function ProfileSettingsPageWrapper() {
     return (
         <>
             <GlobalStyles />
