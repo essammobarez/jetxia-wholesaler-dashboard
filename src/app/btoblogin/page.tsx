@@ -6,10 +6,13 @@ import Image from 'next/image';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAppSelector } from '@/hooks/useRedux';
+import { getWholesalerBranding, WholesalerBranding } from '@/utils/apiHandler';
 
 // 2FA Imports
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
+
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
 
 // --- MUI Theme (Unchanged) ---
 const muiTheme = createTheme({
@@ -232,9 +235,8 @@ export default function Login() {
   const [countdown, setCountdown] = useState(300);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
-  const [wholesalerLogo, setWholesalerLogo] = useState<string | null>(null);
-  const [wholesalerName, setWholesalerName] = useState<string>('Booking Desk');
-  const [isLoadingLogo, setIsLoadingLogo] = useState(true);
+  const [branding, setBranding] = useState<WholesalerBranding | null>(null);
+  const [isLoadingBranding, setIsLoadingBranding] = useState(true);
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
@@ -276,31 +278,21 @@ export default function Login() {
     }
   }, [isAuthenticated, router]);
 
-  // --- Effect Hook to fetch wholesaler data (logo and name) and save to localStorage ---
+  // --- Effect Hook to fetch wholesaler branding using API handler ---
   useEffect(() => {
     const fetchWholesalerData = async () => {
       try {
-        const website = "http://www.bdesktravel.com";
-        const res = await fetch(`${API_URL}wholesaler/getbywebsite/?website=${website}`);
-        const json = await res.json();
-        if (res.ok && json.success && json.data) {
-          if (json.data.logo) {
-            setWholesalerLogo(json.data.logo);
-            localStorage.setItem('wholesalerLogo', json.data.logo); // Save logo to local storage
-          }
-          if (json.data.name) {
-            setWholesalerName(json.data.name);
-            localStorage.setItem('wholesalerName', json.data.name); // Save name to local storage
-          }
-        }
+        const brandingData = await getWholesalerBranding(true);
+        setBranding(brandingData);
+        console.log('Branding data loaded:', brandingData);
       } catch (err) {
-        console.error('Failed to fetch wholesaler data:', err);
+        console.error('Failed to fetch wholesaler branding:', err);
       } finally {
-        setIsLoadingLogo(false);
+        setIsLoadingBranding(false);
       }
     };
     fetchWholesalerData();
-  }, [API_URL]);
+  }, []);
 
   // --- Helpers & Handlers (UPDATED) ---
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -366,7 +358,7 @@ export default function Login() {
         } else {
           toast.success('Credentials verified. Please set up your 2FA.');
           const newSecret = authenticator.generateSecret();
-          const otpAuthUrl = authenticator.keyuri(lowercasedEmail, wholesalerName, newSecret);
+          const otpAuthUrl = authenticator.keyuri(lowercasedEmail, branding?.name || 'Jetixia Travel', newSecret);
           const qrUrl = await QRCode.toDataURL(otpAuthUrl);
           setSetupSecret(newSecret);
           setQrCodeDataUrl(qrUrl);
@@ -633,10 +625,13 @@ export default function Login() {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  if (isLoadingLogo) {
+  if (isLoadingBranding) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading...</p>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -656,11 +651,13 @@ export default function Login() {
               </div>
               <div className="relative z-10">
                 <h2 className="text-3xl font-semibold text-gray-800 mb-3 leading-tight">
-                  Welcome To <span className="text-blue-600 font-bold">{wholesalerName},</span>
+                  Welcome To <span className="text-blue-600 font-bold">{branding?.name},</span>
                 </h2>
-                <p className="mb-4 text-blue-600">{wholesalerName} helps travel agencies do their business better.</p>
+                <p className="mb-4 text-blue-600">
+                  {branding?.name ? `${branding.name} helps travel agencies do their business better.` : 'Your trusted travel technology partner.'}
+                </p>
                 <p className="text-gray-600 text-sm mb-8 max-w-md">
-                  Welcome to {wholesalerName}, your trusted partner in travel technology solutions. We empower travel agencies and tour operators with a powerful, all-in-one platform that offers seamless access to flights, hotels, transfers, and activities from top global suppliers. Designed for scalability and speed, {wholesalerName} helps you streamline operations, increase margins, and deliver exceptional service to your clients. Whether you’re growing your business or optimizing your current workflow, our technology is built to keep you ahead in the competitive travel market.
+                  {branding?.siteContent || 'Welcome to your travel booking platform, your trusted partner in travel technology solutions.'}
                 </p>
               </div>
             </div>
@@ -674,10 +671,10 @@ export default function Login() {
               <div className="relative bg-white rounded-xl shadow-lg p-8 w-full max-w-sm m-4">
                 {authStep === 'credentials' && (
                   <div className="flex justify-center mb-0">
-                    {wholesalerLogo ? (
-                      <Image src={wholesalerLogo} alt="Wholesaler Logo" width={160} height={55} priority />
+                    {branding?.navLogo ? (
+                      <Image src={branding.navLogo} alt="Company Logo" width={160} height={55} priority />
                     ) : (
-                      null
+                      <div className="h-14 w-40 bg-gray-100 animate-pulse rounded"></div>
                     )}
                   </div>
                 )}

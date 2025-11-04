@@ -52,7 +52,7 @@ const SecuritySettingItem = ({ icon, title, description, id, checked, onChange, 
 
 // --- Main Settings Component ---
 
-export default function App() {
+export default function PreferencesPageWrapper() {
   // State for security settings using a single object
   const [securitySettings, setSecuritySettings] = useState({
     email: true,

@@ -1,67 +1,32 @@
 import React from "react";
 import jsPDF from "jspdf";
 import { createRoot } from "react-dom/client";
-import * as countries from "i18n-iso-countries";
-import en from "i18n-iso-countries/langs/en.json";
+import * as countries from 'i18n-iso-countries';
+import en from 'i18n-iso-countries/langs/en.json';
 
+// Register the English language data for the country code conversion
 countries.registerLocale(en);
 
+// --- RESERVATION INTERFACE (MODIFIED) ---
+// This interface now matches the Reservation object created in BookingsPage.tsx
 export interface Reservation {
-  dbId: string;
-  bookingId: string;
-  sequenceNumber: number;
-  reservationId: number;
-  topStatus: string;
-  createdAt: string;
-  agency: {
+  reservationId?: string | number; // Accept number from allRoomsData
+  bookingId?: string;
+  providerId?: string;
+  checkIn?: string;
+  checkOut?: string;
+  agency?: {
     agencyName?: string;
     address?: string;
     phoneNumber?: string;
-    email?: string;
-    city?: string;
-    country?: string;
-    profileImage?: any;
-    logoUrl?: string;
+    // profileImage is no longer expected from the main response
   };
-  agencyName: string;
-  wholesaler: any;
-  wholesalerName: string;
-  providerId: string;
-  providerName: string;
-  clientRef: string;
-  serviceType: string;
-  initStatus: string;
-  price: number;
-  currency: string;
-  addedTime: string;
-  addedUser: string;
-  paymentType: string;
-  paymentStatus: string;
-  rateDescription: string;
-  priceIssueNet: number;
-  priceIssueCommission: number;
-  priceIssueSelling: number;
-  cancellationDate: string;
-  checkIn: string;
-  checkOut: string;
-  nights: number;
-  destinationCity: string;
-  destinationCountry: string;
-  nationality: string;
-  passengers: {
-    firstName: string;
-    lastName: string;
-    lead?: boolean;
-    nationality?: string;
-  }[];
-  remarks: any[];
-  hotelInfo: {
-    id: string;
-    name: string;
-    stars: number;
-    lastUpdated: string;
-    cityId: string;
-    countryId: string;
+  passengers?: { firstName: string; lastName: string; lead?: boolean; nationality?: string }[];
+  hotelInfo?: {
+    id?: string;
+    name?: string;
+    starRating?: number; // Use 'stars' from hotelInfo, renamed to starRating
+    stars?: number; // Keep stars as it comes from fetchReservations
     address?: {
       fullAddress?: string;
       city?: string;
@@ -72,40 +37,36 @@ export interface Reservation {
     website?: string;
     propertyNotes?: string[];
   };
-  rooms: {
-    id: string;
-    name: string;
-    board: string;
-    boardBasis: string;
-    info: string;
-    passengerIds: number[];
-  }[];
-  freeCancellation: string;
-  priceDetails: any;
-  allRooms: {
-    reservationId: number;
-    status: string;
-    rateDescription: string;
-    priceNet: number;
-    priceCommission: number;
-    cancellationPolicy: any;
-    guests: any[];
-    remarks: any[];
-    roomName: string;
-    board: string;
-    boardBasis: string;
-    info: string;
-    nationality: string;
-    reference: any;
-    confirmationNo: string | null;
-  }[];
-  source: string | null;
+  cancellationPolicy?: {
+    date?: string;
+    policies?: {
+      date: string;
+      charge: { value: number; currency: string };
+    }[];
+    description?: string;
+  };
   geolocation?: {
     latitude: number;
     longitude: number;
   } | null;
+  allRooms?: {
+    roomName?: string;
+    guests: number; // This is a number (guests.length)
+    bedPreferences?: string;
+    board?: string;
+  }[];
+  amenities?: string[];
+  priceDetails?: {
+    roomTotal: number;
+    breakfast: number;
+    cityTax: number;
+    serviceFee: number;
+    currency: string;
+  };
+  specialRequests?: string[]; // This will be populated from fetchReservations
 }
 
+// --- HELPER FUNCTIONS (Unchanged) ---
 const formatDateYYYYMMDD = (dateStr: string | undefined): string => {
   if (!dateStr) return "-";
   try {
@@ -114,6 +75,39 @@ const formatDateYYYYMMDD = (dateStr: string | undefined): string => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  } catch (e) {
+    return dateStr;
+  }
+};
+
+const formatDateDDMMYYYY = (dateStr: string | undefined | Date): string => {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    if (typeof dateStr === 'string') {
+      return dateStr;
+    }
+    return "-";
+  }
+};
+
+const formatDateWithDay = (dateStr: string | undefined): string => {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    // Adjust for timezone to prevent off-by-one day errors
+    const utcDate = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return utcDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   } catch (e) {
     return dateStr;
   }
@@ -141,6 +135,27 @@ const getCountryName = (code: string | undefined): string => {
   }
 };
 
+const bufferToDataUrl = (imageBuffer: any): string | null => {
+  // This function will now likely receive undefined and return null
+  if (!imageBuffer || !imageBuffer.data || !Array.isArray(imageBuffer.data.data) || imageBuffer.data.data.length === 0) {
+    return null;
+  }
+  try {
+    const byteArray = new Uint8Array(imageBuffer.data.data);
+    let binary = '';
+    byteArray.forEach(byte => {
+      binary += String.fromCharCode(byte);
+    });
+    const base64String = window.btoa(binary);
+    return `data:${imageBuffer.contentType};base64,${base64String}`;
+  } catch (error) {
+    console.error("Error converting image buffer to data URL:", error);
+    return null;
+  }
+};
+
+
+// --- STYLES OBJECT (Unchanged) ---
 const styles: { [key: string]: React.CSSProperties } = {
   voucherContainer: {
     all: 'initial',
@@ -163,513 +178,475 @@ const styles: { [key: string]: React.CSSProperties } = {
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     borderBottom: '1px solid #ddd',
-    paddingBottom: '15px',
-    marginBottom: '15px',
+    paddingBottom: '10px',
   },
   headerLeft: {
-    flex: '1',
     display: 'flex',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: '15px'
   },
   headerLogo: {
-    width: '120px',
+    width: '100px',
     height: 'auto',
+    objectFit: 'contain',
+    borderRadius: '4px',
   },
-  headerCenter: {
-    flex: '1',
-    textAlign: 'center',
-    paddingTop: '5px',
-  },
-  headerTitle: {
-    fontSize: '24pt',
-    fontWeight: 'bold',
-    margin: '0 0 3px 0',
-    color: '#000',
-    whiteSpace: 'nowrap',
-  },
-  bookingDate: {
-    fontSize: '10pt',
-    color: '#666',
-    margin: 0,
-  },
-  headerRight: {
-    flex: '1',
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  agencyContainer: {
+  companyInfo: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'flex-end',
-  },
-  agencyLogo: {
-    width: '90px',
-    height: 'auto',
-    marginBottom: '8px',
-  },
-  agencyDetailsContainer: {
-    textAlign: 'right',
-    fontSize: '9pt',
     lineHeight: 1.4,
+  },
+  companyName: {
+    fontWeight: 'bold',
+    fontSize: '16pt',
+    margin: 0,
+    color: '#000',
+  },
+  companyAddress: {
+    fontSize: '9pt',
+    margin: 0,
     color: '#555',
   },
-  agencyDetailItem: {
+  voucherTitle: {
+    fontSize: '18pt',
+    fontWeight: 'bold',
+    color: '#0D6EFD',
     margin: 0,
   },
-  rightAlignedBookingInfoContainer: {
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    padding: '12px',
+  bookingInfoContainer: {
+    backgroundColor: '#dbeafe', // bg-blue-100 equivalent
+    padding: '12px 20px', // MODIFIED: Changed top/bottom padding to 12px
+    borderRadius: '8px',
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '8px',
-    backgroundColor: '#f7f7f7'
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: '15px',
+  },
+  bookingInfoTitle: {
+    fontSize: '14pt',
+    fontWeight: 'bold',
+    color: '#212529',
+    margin: 0,
+    position: 'relative', // MODIFIED
+    top: '-3px', // MODIFIED: Moved up by 3px
+  },
+  bookingInfoDetails: {
+    textAlign: 'right',
+  },
+  bookingInfoLine: {
+    margin: '2px 0',
+    fontSize: '10pt',
+  },
+  bookingInfoLabel: {
+    color: '#6c757d',
+  },
+  bookingInfoValue: {
+    color: '#0D6EFD',
+    fontWeight: 'bold',
+    marginLeft: '5px'
   },
   body: {
     display: 'flex',
-    flexDirection: 'row',
-    gap: '20px',
-    flexGrow: 1,
-    alignItems: 'flex-start',
+    flexDirection: 'column',
+    gap: '15px',
+    marginTop: '15px',
   },
-  leftColumn: {
-    flex: 1,
+  hotelInfoSection: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '15px'
+    gap: '8px',
+    borderBottom: '1px solid #eee',
+    paddingBottom: '15px'
   },
-  rightColumn: {
-    flex: 1.3,
+  hotelName: {
+    fontSize: '22pt',
+    fontWeight: 'bold',
+    margin: 0,
+    color: '#000',
+  },
+  addressLine: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '15px'
+    alignItems: 'center',
+    gap: '8px',
+    color: '#555',
+    fontSize: '10pt',
   },
-  section: {
-    border: '1px solid #ddd',
-    borderRadius: '6px',
+  cityLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
-  sectionHeader: {
-    padding: '8px 12px',
-    backgroundColor: '#f7f7f7',
-    borderBottom: '1px solid #ddd',
-    borderTopLeftRadius: '6px',
-    borderTopRightRadius: '6px',
+  smallIcon: {
+    width: '16px',
+    height: '16px',
+    position: 'relative',
+    top: '7px',
   },
-  sectionTitle: {
+  cityLink: {
+    color: '#0D6EFD',
+    textDecoration: 'none',
+    fontWeight: 'bold',
+    fontSize: '10pt',
+  },
+  roomDetailsSection: {
+    lineHeight: 1.5,
+    borderBottom: '1px solid #eee',
+    paddingBottom: '15px'
+  },
+  roomName: {
     fontSize: '13pt',
     fontWeight: 'bold',
     margin: 0,
-    color: '#007bff',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px'
   },
-  sectionContent: {
-    padding: '12px',
-    fontSize: '12pt',
-    lineHeight: 1.5
+  roomBoard: {
+    fontSize: '10pt',
+    color: '#555',
+    margin: 0,
   },
-  stayDetailsRow: {
+  hotelStars: {
+    fontSize: '10pt',
+    color: '#555',
+    margin: 0,
+  },
+  stayDetailsGrid: {
     display: 'flex',
     justifyContent: 'space-between',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    padding: '10px',
-    backgroundColor: '#f7f7f7',
+    padding: '10px 0',
+    borderBottom: '1px solid #eee',
   },
-  stayDetailItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+  stayDetailColumn: {
     flex: 1,
-    borderRight: '1px solid #eee',
-    paddingRight: '8px',
-    paddingLeft: '8px',
-  },
-  stayDetailItemLast: {
-    borderRight: 'none',
+    padding: '0 10px',
+    textAlign: 'center',
   },
   stayDetailLabel: {
+    fontSize: '12pt',
     fontWeight: 'bold',
-    fontSize: '10pt',
-    marginBottom: '3px',
-    color: '#007bff',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px'
+    margin: '0 0 5px 0',
+    color: '#333'
   },
   stayDetailValue: {
     fontSize: '11pt',
-    fontWeight: 'bold',
-    color: '#333',
+    margin: 0,
+    color: '#000',
   },
-  roomTypeSection: {
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    padding: '12px',
-    backgroundColor: '#f7f7f7',
+  stayDetailTime: {
+    fontSize: '9pt',
+    color: '#777',
+    margin: '3px 0 0 0',
   },
-  roomTypeHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '11pt',
-    fontWeight: 'bold',
-    marginBottom: '6px',
-    color: '#007bff',
-  },
-  roomTypeDetails: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  roomTypeLine: {
-    display: 'flex',
-    gap: '6px',
-    fontSize: '12pt',
-  },
-  roomTypeLabel: {
-    fontWeight: 'bold',
-    minWidth: '80px',
+  mapContainer: {
+    position: 'relative',
+    width: '100%',
+    marginTop: '0px'
   },
   mapImage: {
     width: '100%',
-    height: '180px',
+    height: '240px',
     objectFit: 'cover',
     borderRadius: '6px',
     border: '1px solid #ddd',
+    display: 'block',
   },
-  remarkBox: {
-    backgroundColor: '#fff0f1',
-    border: '1px solid #f9c2c7',
+  mapOverlayCard: {
+    position: 'absolute',
+    top: '12px',
+    left: '12px',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: '6px',
-    padding: '12px 30px',
-    width: '90%',
-    margin: '15px auto 0 auto',
-    boxSizing: 'border-box'
+    padding: '12px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+    maxWidth: '300px',
+    boxSizing: 'border-box',
   },
-  remarkLabel: {
+  mapOverlayHotelName: {
+    fontSize: '11pt',
     fontWeight: 'bold',
-    color: '#d9534f',
-    marginRight: '8px',
-    borderBottom: '1px solid #d9534f',
-    paddingBottom: '5px',
+    color: '#212529',
+    margin: '0 0 5px 0',
   },
-  remarkText: {
-    fontSize: '14pt',
-    lineHeight: '1.6',
-    color: '#333',
+  mapOverlayAddress: {
+    fontSize: '9pt',
+    color: '#555',
     margin: 0,
+    lineHeight: 1.4,
   },
-  footer: {
-    borderTop: '1px solid #ddd',
-    paddingTop: '20px',
-    marginTop: '20px',
-    fontSize: '10pt',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
-  emergencyContacts: {
-    fontFamily: "'Arial Narrow', 'Helvetica Neue', sans-serif",
-    textAlign: 'center',
-    border: '1px solid #000',
-    padding: '10px',
-    margin: '0 auto',
-    width: '60%',
-    boxSizing: 'border-box'
-  },
-  emergencyText: {
-    margin: '3px 0',
-    fontSize: '10pt',
-    fontWeight: 'bold',
-  },
-  notesSection: {
-    fontFamily: "'Courier New', Courier, monospace",
-    lineHeight: 1.5,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: '13pt'
-  },
-  notesLine: {
-    margin: 0,
-  },
-  guestNameSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px'
-  },
-  guestNameHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '12pt',
-    fontWeight: 'bold',
-    marginBottom: '8px',
-    color: '#000',
-  },
-  guestNameItem: {
+  infoRowContainer: {
     display: 'flex',
     flexDirection: 'row',
-    gap: '6px',
-    fontSize: '10pt',
-    paddingLeft: '15px',
+    gap: '15px',
+    width: '100%',
   },
-  guestDetails: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '3px',
+  guestInfoSection: {
+    padding: '12px 20px 12px 0',
+    // border: '1px solid #ddd', // Removed
+    // borderRadius: '6px', // Removed
+    flex: 1,
+    boxSizing: 'border-box',
   },
-  guestNameNumber: {
+  guestInfoTitle: {
+    fontSize: '14pt',
     fontWeight: 'bold',
+    color: '#212529',
+    margin: '0 0 10px 0',
   },
-  guestNameLine: {
-    display: 'flex',
-    gap: '6px',
+  guestNameAndNationality: {
     fontSize: '12pt',
+    color: '#000',
+    margin: '0 0 5px 0',
   },
-  guestNameLabel: {
-    fontWeight: 'bold',
-  },
-  bookingInfoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginTop: '10px',
-    borderTop: '1px dashed #ccc',
-    paddingTop: '8px'
-  },
-  bookingInfoField: {
-    fontSize: '12pt',
-    fontWeight: 'bold',
-    display: 'flex',
-    gap: '4px',
-  },
-  bookingInfoValue: {
-    fontSize: '12pt',
-    fontWeight: 'normal',
-  },
-  hotelInfoContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px'
-  },
-  hotelAddressWithIcon: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '6px',
-    fontSize: '12pt',
-  },
-  hotelPhoneWithIcon: {
+  guestCountLine: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '8px',
+    color: '#555',
     fontSize: '10pt',
   },
-  icon: {
-    height: '16px',
-    width: '16px',
-    position: 'relative',
-    top: '10px',
+  specialRequestsSection: {
+    padding: '12px 20px',
+    // border: '1px solid #ddd', // Removed
+    // borderRadius: '6px', // Removed
+    flex: 1,
+    boxSizing: 'border-box',
+  },
+  specialRequestsTitle: {
+    fontSize: '14pt',
+    fontWeight: 'bold',
+    color: '#212529',
+    margin: '0 0 10px 0',
+  },
+  specialRequestsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '8px',
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+  },
+  specialRequestsGridItem: {
+    backgroundColor: '#e7f3ff',
+    color: '#0d6efd',
+    paddingTop: '0px',
+    paddingBottom: '12px',
+    paddingLeft: '10px',
+    paddingRight: '10px',
+    borderRadius: '5px',
+    fontSize: '10pt',
+    fontWeight: 500,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+  },
+  helpSection: {
+    backgroundColor: '#f8f9fa',
+    padding: '10px 20px',
+    borderRadius: '8px',
+    marginTop: '0px',
+  },
+  helpTitle: {
+    fontSize: '13pt',
+    fontWeight: 'bold',
+    margin: '0 0 5px 0',
+  },
+  helpText: {
+    fontSize: '10pt',
+    color: '#555',
+    margin: 0,
+  },
+  footerNotes: {
+    borderTop: '1px solid #ddd',
+    paddingTop: '15px',
+    marginTop: '15px',
+    width: '100%',
+  },
+  footerImage: {
+    width: '100%',
+    display: 'block',
+    objectFit: 'contain',
   }
 };
 
+// --- VOUCHER REACT COMPONENT (MODIFIED) ---
+// Removed `agencyProfile` prop, as this data now comes from `reservation.agency`
 export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reservation }) => {
-  const { hotelInfo, checkIn, checkOut, bookingId, reservationId, passengers, allRooms, agency } = reservation;
-  const nights = calculateNights(checkIn, checkOut);
+  const hotel = reservation.hotelInfo;
+  const nights = calculateNights(reservation.checkIn, reservation.checkOut);
+
+  // --- MODIFICATION: Read agency data directly from the reservation object ---
+  const agencyData = reservation.agency || {};
+
+  // `agencyData.profileImage` will be undefined, so `bufferToDataUrl` will return null
+  const logoSrc = bufferToDataUrl(null); // No profile image in new response
+  const fallbackLogo = "https://i.imgur.com/1Y2v4Yy.png";
+
+  const agencyName = agencyData.agencyName || "Booking Desk Travel";
+
+  // Use only the address field as city/country are not in the new agency object
+  const agencyAddress = agencyData.address || "123 Travel Lane, Suite 100, Dubai, UAE";
+  const agencyPhone = agencyData.phoneNumber || "+971 506942880";
+
   const mapImageSrc = reservation.geolocation
-    ? `https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${reservation.geolocation.longitude},${reservation.geolocation.latitude}&z=15&l=map&size=600,180&pt=${reservation.geolocation.longitude},${reservation.geolocation.latitude},pm2rdl`
+    ? `https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${reservation.geolocation.longitude},${reservation.geolocation.latitude}&z=15&l=map&size=600,300&pt=${reservation.geolocation.longitude},${reservation.geolocation.latitude},pm2rdl`
     : "https://i.imgur.com/8cAquNo.png";
 
   const today = new Date();
-  const bookingDate = today.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
 
-  const agencyLogoSrc = agency?.logoUrl || "/images/agency-logo.png";
+  const leadPassenger = (reservation.passengers && reservation.passengers.length > 0)
+    ? reservation.passengers[0]
+    : { firstName: 'N/A', lastName: 'N/A', nationality: 'N/A' };
+
+  const totalGuests = reservation.passengers?.length || 0;
+
+  // This logic remains the same and will now work because `reservation.specialRequests` is populated
+  const hasSpecialRequests = reservation.specialRequests && reservation.specialRequests.length > 0;
+
+  // Use hotelInfo.stars, which is passed from fetchReservations
+  const hotelStarRating = reservation.hotelInfo?.stars || reservation.hotelInfo?.starRating || 0;
 
   return (
     <div style={styles.voucherContainer}>
       <div id="voucher-content" style={styles.page}>
+
         <header style={styles.header}>
           <div style={styles.headerLeft}>
-            <img src="/images/new-logo.jpeg" alt="Booking Desk Travel" style={styles.headerLogo} crossOrigin="anonymous" />
-          </div>
-          <div style={styles.headerCenter}>
-            <h1 style={styles.headerTitle}>Hotel Voucher</h1>
-            <p style={styles.bookingDate}>Booking date: {bookingDate}</p>
-          </div>
-          <div style={styles.headerRight}>
-            <div style={styles.agencyContainer}>
-              <img src={agencyLogoSrc} alt="Agency Logo" style={styles.agencyLogo} crossOrigin="anonymous" />
-              <div style={styles.agencyDetailsContainer}>
-                {agency ? (
-                  <>
-                    <p style={styles.agencyDetailItem}>{agency.agencyName || 'N/A'}</p>
-                    <p style={styles.agencyDetailItem}>{agency.phoneNumber || 'N/A'}</p>
-                    <p style={styles.agencyDetailItem}>{agency.email || 'N/A'}</p>
-                    <p style={styles.agencyDetailItem}>{agency.address || 'N/A'}</p>
-                  </>
-                ) : (
-                  <p style={styles.agencyDetailItem}>Agency details not available.</p>
-                )}
-              </div>
+            <img
+              src={logoSrc || fallbackLogo} // Will use fallbackLogo
+              alt={agencyName}
+              style={styles.headerLogo}
+              crossOrigin="anonymous"
+            />
+            <div style={styles.companyInfo}>
+              <p style={styles.companyName}>{agencyName}</p>
+              <p style={styles.companyAddress}>{agencyAddress}</p>
+              <p style={styles.companyAddress}>{agencyPhone}</p>
             </div>
+          </div>
+          <div>
+            <h1 style={styles.voucherTitle}>HOTEL VOUCHER</h1>
           </div>
         </header>
 
+        <div style={styles.bookingInfoContainer}>
+          <h2 style={styles.bookingInfoTitle}>Booking Information</h2>
+          <div style={styles.bookingInfoDetails}>
+            <p style={styles.bookingInfoLine}>
+              <span style={styles.bookingInfoLabel}>Booking ID: </span>
+              <span style={styles.bookingInfoValue}>{reservation.bookingId || 'N/A'}</span>
+            </p>
+            <p style={styles.bookingInfoLine}>
+              <span style={styles.bookingInfoLabel}>Reference: </span>
+              <span style={styles.bookingInfoValue}>{String(reservation.reservationId || 'N/A')}</span>
+            </p>
+            <p style={styles.bookingInfoLine}>
+              <span style={styles.bookingInfoLabel}>Booking date: </span>
+              <span style={styles.bookingInfoValue}>{formatDateDDMMYYYY(today.toISOString())}</span>
+            </p>
+          </div>
+        </div>
+
         <main style={styles.body}>
-          <div style={styles.leftColumn}>
-            <section style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>
-                  <img src="/images/icons/hotel-line.png" alt="Hotel" style={styles.icon} />
-                  {hotelInfo?.name || 'Hotel Name Not Available'}
-                </h2>
+          <div style={styles.hotelInfoSection}>
+            <h2 style={styles.hotelName}>{hotel?.name || 'N/A'}</h2>
+            <div style={styles.addressLine}>
+              <img src="/images/icons/map-pin-line.png" alt="address" style={styles.smallIcon} />
+              <span>{hotel?.address?.fullAddress || 'N/A'}</span>
+            </div>
+            <div style={styles.cityLine}>
+              <a href="#" style={styles.cityLink}>{hotel?.address?.city || 'N/A'}</a>
+            </div>
+          </div>
+
+          <div style={styles.roomDetailsSection}>
+            <p style={styles.roomName}>Room 1: {reservation.allRooms?.[0]?.roomName || 'N/A'}</p>
+            <p style={styles.roomBoard}>({reservation.allRooms?.[0]?.board || 'N/A'})</p>
+            {hotelStarRating > 0 && (
+              <p style={styles.hotelStars}>
+                {hotelStarRating} Star Hotel
+              </p>
+            )}
+          </div>
+
+          <div style={styles.stayDetailsGrid}>
+            <div style={styles.stayDetailColumn}>
+              <p style={styles.stayDetailLabel}>Check-In</p>
+              <p style={styles.stayDetailValue}>{formatDateWithDay(reservation.checkIn) || 'N/A'}</p>
+              <p style={styles.stayDetailTime}>(15:00 - 19:00)</p>
+            </div>
+            <div style={styles.stayDetailColumn}>
+              <p style={styles.stayDetailLabel}>Check-Out</p>
+              <p style={styles.stayDetailValue}>{formatDateWithDay(reservation.checkOut) || 'N/A'}</p>
+              <p style={styles.stayDetailTime}>(15:00 - 19:00)</p>
+            </div>
+            <div style={styles.stayDetailColumn}>
+              <p style={styles.stayDetailLabel}>Room & Nights</p>
+              <p style={styles.stayDetailValue}>{reservation.allRooms?.length || 0} room / {nights || 0} nights</p>
+            </div>
+          </div>
+
+          <div style={styles.mapContainer}>
+            <img src={mapImageSrc} alt="Hotel Location" style={styles.mapImage} crossOrigin="anonymous" />
+            <div style={styles.mapOverlayCard}>
+              <p style={styles.mapOverlayHotelName}>{hotel?.name || 'N/A'}</p>
+              <p style={styles.mapOverlayAddress}>{hotel?.address?.fullAddress || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div style={styles.infoRowContainer}>
+            <div
+              style={{
+                ...styles.guestInfoSection,
+                flex: hasSpecialRequests ? 1 : '100%',
+              }}
+            >
+              <h3 style={styles.guestInfoTitle}>Guest Information</h3>
+              <p style={styles.guestNameAndNationality}>
+                {leadPassenger.firstName} {leadPassenger.lastName} ({getCountryName(leadPassenger.nationality) || 'N/A'})
+              </p>
+              <div style={styles.guestCountLine}>
+                <img src="/images/icons/user-3-line.png" alt="guests" style={styles.smallIcon} />
+                <span>{totalGuests} Guests ({totalGuests} Adults)</span>
               </div>
-              <div style={styles.sectionContent}>
-                <div style={styles.hotelInfoContainer}>
-                  <div style={styles.hotelAddressWithIcon}>
-                    <img src="/images/icons/map-pin-line.png" alt="Address" style={styles.icon} />
-                    <span>{hotelInfo?.address?.fullAddress || 'Address not available.'}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <section style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <div style={{...styles.sectionTitle, color: '#333'}}>
-                  <img src="/images/icons/user-3-line.png" alt="Guest" style={styles.icon} />
-                  <span>Guest Name</span>
-                </div>
-              </div>
-              <div style={styles.sectionContent}>
-                <div style={styles.guestNameSection}>
-                  {(passengers && passengers.length > 0 ? passengers : []).map((p, index) => (
-                    <div key={index} style={styles.guestNameItem}>
-                      <span style={styles.guestNameNumber}>{index + 1}.</span>
-                      <div style={styles.guestDetails}>
-                        <div style={styles.guestNameLine}>
-                          <span style={styles.guestNameLabel}>Name:</span>
-                          <span>{p.firstName} {p.lastName}</span>
-                        </div>
-                        <div style={styles.guestNameLine}>
-                          <span style={styles.guestNameLabel}>Nationality:</span>
-                          <span>{getCountryName(p.nationality)}</span>
-                        </div>
-                      </div>
+            </div>
+
+            {hasSpecialRequests && (
+              <div style={styles.specialRequestsSection}>
+                <h3 style={styles.specialRequestsTitle}>Special Requests</h3>
+                <div style={styles.specialRequestsGrid}>
+                  {reservation.specialRequests.map((request, index) => (
+                    <div key={index} style={styles.specialRequestsGridItem}>
+                      {request}
                     </div>
                   ))}
                 </div>
               </div>
-            </section>
-
-            <section style={styles.roomTypeSection}>
-                <div style={styles.sectionHeader}>
-                    <div style={{...styles.sectionTitle, color: '#333'}}>
-                        <img src="/images/icons/hotel-bed-line.png" alt="Room Type" style={styles.icon} />
-                        <span>Room Type</span>
-                    </div>
-                </div>
-              <div style={styles.sectionContent}>
-                <div style={styles.roomTypeDetails}>
-                  <div style={styles.roomTypeLine}>
-                    <span style={styles.roomTypeLabel}>Room Name:</span>
-                    <span>{allRooms?.[0]?.roomName || 'N/A'}</span>
-                  </div>
-                  <div style={styles.roomTypeLine}>
-                    <span style={styles.roomTypeLabel}>Board:</span>
-                    <span>{allRooms?.[0]?.board || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
+            )}
           </div>
-          <div style={styles.rightColumn}>
-            <div style={styles.rightAlignedBookingInfoContainer}>
-              <div style={styles.bookingInfoField}>
-                <span>Booking ID:</span>
-                <span style={{ ...styles.bookingInfoValue, color: '#007bff', fontWeight: 'bold' }}>
-                  {bookingId || 'N/A'}
-                </span>
-              </div>
-              <div style={styles.bookingInfoField}>
-                <span>Reference:</span>
-                <span style={{ ...styles.bookingInfoValue, color: '#007bff', fontWeight: 'bold' }}>
-                  {reservationId || 'N/A'}
-                </span>
-              </div>
-            </div>
 
-            <img src={mapImageSrc} alt="Hotel Location" style={styles.mapImage} crossOrigin="anonymous" />
-
-            <div style={styles.stayDetailsRow}>
-              <div style={styles.stayDetailItem}>
-                <div style={styles.stayDetailLabel}>
-                  <img src="/images/icons/calendar-check-line.png" alt="Check In" style={styles.icon} />
-                  <span>Check In</span>
-                </div>
-                <span style={styles.stayDetailValue}>{formatDateYYYYMMDD(checkIn)}</span>
-              </div>
-              <div style={styles.stayDetailItem}>
-                <div style={styles.stayDetailLabel}>
-                  <img src="/images/icons/calendar-check-line.png" alt="Check Out" style={styles.icon} />
-                  <span>Check Out</span>
-                </div>
-                <span style={styles.stayDetailValue}>{formatDateYYYYMMDD(checkOut)}</span>
-              </div>
-              <div style={{ ...styles.stayDetailItem, ...styles.stayDetailItemLast }}>
-                <div style={styles.stayDetailLabel}>
-                  <img src="/images/icons/moon-line.png" alt="Nights" style={styles.icon} />
-                  <span>Room & Nights</span>
-                </div>
-                <span style={styles.stayDetailValue}>{allRooms?.length || 0} room / {nights || 0} nights</span>
-              </div>
-            </div>
-          </div>
         </main>
 
-        <div style={styles.remarkBox}>
-          <p style={styles.remarkText}>
-            <span style={styles.remarkLabel}>Remark:</span>
-            For any complaint during your hotel stay, please report immediately before you check out, else no complaints will be accepted.
-          </p>
+        <div style={styles.helpSection}>
+          <h3 style={styles.helpTitle}>Need Help?</h3>
+          <p style={styles.helpText}>For assistance with this booking, please contact our support team.</p>
         </div>
 
-        <footer style={styles.footer}>
-          <div style={styles.emergencyContacts}>
-            <p style={{...styles.emergencyText, fontWeight: 'normal', fontSize: '12pt'}}>If you cannot allocate this booking please call:</p>
-            <p style={styles.emergencyText}>
-              EMERGENCY PHONES MBL: {agency?.phoneNumber || 'N/A'}
-            </p>
-          </div>
-          <div style={styles.notesSection}>
-            <p style={styles.notesLine}>
-              <strong>N.B:</strong> IN CASE YOU ARE ACCOMMODATED LESS OVERNIGHTS, PLEASE MAKE SURE
-            </p>
-            <p style={styles.notesLine}>
-              THAT HOTELIER HAS PROPERLY SIGNED AND ACCEPTED THIS MODIFICATION.
-            </p>
-            <p style={styles.notesLine}>
-              WE CONFIRM THE AMENDMENT AND WILL INVOICE AS FOLLOWS:
-            </p>
-            <p style={styles.notesLine}>
-              NUMBER OF NIGHTS _________ TO BE REFUNDED.
-            </p>
-            <p style={{...styles.notesLine, marginTop: '15px'}}>
-              THE HOTEL (STAMP & SIGNATURE)
-            </p>
-          </div>
+        {/* --- FOOTER MODIFIED --- */}
+        <footer style={styles.footerNotes}>
+          <img
+            src="/images/nb.png"
+            alt="Important Notes"
+            style={styles.footerImage}
+          />
         </footer>
+
       </div>
     </div>
   );
 };
 
+// --- PDF GENERATION FUNCTION (MODIFIED) ---
 export async function generateVoucherPDF(reservation: Reservation) {
   const container = document.createElement("div");
   container.style.position = "absolute";
@@ -677,20 +654,24 @@ export async function generateVoucherPDF(reservation: Reservation) {
   container.style.top = "0";
   document.body.appendChild(container);
 
-  // *** FIXED BUILD ERROR: Simplified and corrected token extraction ***
-  const match = document.cookie.match(/(?:^|;)\s*authToken=([^;]*)/);
+  // 1. Get Auth Token
+  const match = document.cookie.match(/(?:^|; )authToken=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
 
+  // --- STEP 2: REMOVED ---
+  // The API call to /auth/profile has been removed as requested.
+  // Agency data will be read from the `reservation.agency` object.
+
+  // 3. Fetch Hotel Details (For Geolocation, etc.)
   let geolocationData: { latitude: number; longitude: number } | null = null;
   let updatedHotelInfo = { ...reservation.hotelInfo };
-
   if (reservation.providerId && reservation.hotelInfo?.id) {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL!;
       const wholesalerId = localStorage.getItem('wholesalerId');
 
       const response = await fetch(
-        `${apiUrl}hotel/${reservation.providerId}/${reservation.hotelInfo.id}`,
+        `${apiUrl}/hotel/${reservation.providerId}/${reservation.hotelInfo.id}`,
         {
           method: 'POST',
           headers: {
@@ -720,14 +701,17 @@ export async function generateVoucherPDF(reservation: Reservation) {
     geolocation: geolocationData,
   };
 
+  // 4. Render component with all data
   const root = createRoot(container);
   await new Promise<void>((resolve) => {
+    // --- MODIFICATION: Removed `agencyProfile` prop ---
     root.render(<VoucherTemplate reservation={reservationWithFullDetails} />);
     setTimeout(resolve, 200);
   });
 
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
+  // 5. Generate PDF (existing logic)
   const content = container.querySelector("#voucher-content") as HTMLElement;
   if (!content) {
     console.error("Voucher content element not found!");

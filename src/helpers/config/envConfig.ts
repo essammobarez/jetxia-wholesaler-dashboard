@@ -1,7 +1,6 @@
 export const getBaseUrl = (): string => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1";
+  return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000/api/v1";
 };
 
-
-
-// http://localhost:5000/api/v1
+// Note: Use NEXT_PUBLIC_BACKEND_URL environment variable
+// Default: http://localhost:5000/api/v1

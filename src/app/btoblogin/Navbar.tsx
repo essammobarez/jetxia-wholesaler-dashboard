@@ -1,13 +1,35 @@
-import React, { useState, Fragment } from 'react';
+'use client';
+
+import React, { useState, Fragment, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Menu, Transition } from '@headlessui/react';
 import { ChevronDown, Building, MapPin, Briefcase, Plane, ArrowRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { getWholesalerBranding } from '@/utils/apiHandler';
 
 export default function Navbar() {
   const [language, setLanguage] = useState('en');
   const pathname = usePathname() || '/';
+  const [navLogo, setNavLogo] = useState<string>('');
+  const [isLoadingLogo, setIsLoadingLogo] = useState(true);
+
+  // Fetch branding for navbar logo
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        const branding = await getWholesalerBranding(true);
+        if (branding.navLogo) {
+          setNavLogo(branding.navLogo);
+        }
+      } catch (err) {
+        console.error('Failed to fetch navbar branding:', err);
+      } finally {
+        setIsLoadingLogo(false);
+      }
+    };
+    fetchBranding();
+  }, []);
 
   const navigation = [
     { name: 'Home', href: '/' },
@@ -57,13 +79,17 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center ml-44">
-              <Image
-                src="/images/bdesk.jpg"
-                alt="JETIXIA Logo"
-                width={90}
-                height={10}
-                className="object-contain mt-3"
-              />
+              {navLogo ? (
+                <Image
+                  src={navLogo}
+                  alt="Company Logo"
+                  width={90}
+                  height={40}
+                  className="object-contain mt-3"
+                />
+              ) : (
+                <div className="w-20 h-10 bg-gray-200 animate-pulse rounded mt-3"></div>
+              )}
             </Link>
           </div>
 

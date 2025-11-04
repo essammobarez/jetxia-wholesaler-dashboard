@@ -487,7 +487,7 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                 }
                 
                 const response = await fetch(`${process.env.NEXT_PUBLIC_FLIGHT_URL}block-seats/${seatId}`, {
-                    method: 'PATCH',
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(patchPayload),
                 });

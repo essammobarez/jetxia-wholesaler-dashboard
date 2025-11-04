@@ -1,6 +1,13 @@
 // app/promotion/page.tsx
 import React, { Suspense } from 'react';
 import ManagePromotionValue from './PromotionClient';
+import { createMetadata } from "../layout";
+
+// Generate dynamic metadata based on wholesaler branding
+export const generateMetadata = createMetadata("/promotion", {
+  title: "Promotion",
+  description: "Manage your promotions and special offers",
+});
 
 export default function PromotionPage() {
   return (

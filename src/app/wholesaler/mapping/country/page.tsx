@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Globe, Search, Plus, Eye, Edit, Trash2, Download, Upload, RefreshCw, Check, X, AlertCircle, Map, Home } from 'lucide-react';
 
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
+
 interface CountryData {
   id: string;
   supplierId: string;

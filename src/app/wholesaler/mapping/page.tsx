@@ -7,6 +7,8 @@ import { Users, Globe, MapPin, Building2, ArrowRight, Home, BarChart3, Activity,
 import DashboardTab from './DashboardTab';
 import HotelContentTab from './HotelContentTab';
 
+// Note: Metadata is handled by BrandingMetaUpdater component in root layout for client pages
+
 const MappingDashboard = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>('dashboard');

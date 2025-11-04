@@ -5,17 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { BiTransferAlt } from "react-icons/bi";
 import {
-  FaBan,
   FaBuilding,
   FaCarSide,
   FaCheckCircle,
-  FaChevronDown,
   FaCommentAlt,
-  FaCreditCard,
-  FaEye,
-  FaFileInvoiceDollar,
-  FaPlus,
-  FaTicketAlt,
   FaTimesCircle,
   FaTrain,
 } from "react-icons/fa";
@@ -24,13 +17,18 @@ import { RiPlaneLine } from "react-icons/ri";
 import React from "react";
 
 import AddConfirmationModal from "./AddConfirmationModal";
+import BookingCard from "./BookingCard";
+import BookingFilter from "./BookingFilter";
 import { BookingModal, Reservation } from "./BookingModal";
 import EditPriceModal from "./EditPriceModal";
 import { generateInvoicePDF } from "./InvoiceGenerator";
 import PercentageLoaderModal from "./LoadingModal";
 import RoomCancellationModal from "./RoomCancellationModal";
 import PayOptionsModal from "./payoptionsmodal";
-import { generateVoucherPDF } from "./voucher";
+import {
+  generateVoucherPDF,
+  Reservation as VoucherReservationData,
+} from "./voucher";
 
 const statusMap = {
   upcoming: { icon: FaCommentAlt, color: "text-yellow-500", label: "Upcoming" },
@@ -177,8 +175,11 @@ const BookingsPage: NextPage = () => {
             const sequenceNumber = Number(item.sequenceNumber ?? 0);
             const topStatus = String(item.status ?? "").toLowerCase();
             const createdAt = String(item.createdAt ?? "");
+
+            // --- MODIFICATION: Get agency object directly from response ---
             const agency = item.agency;
             const agencyName = item.agency?.agencyName ?? "N/A";
+
             const wholesaler = item.wholesaler;
             const wholesalerName = "N/A";
             const clientRef = String(item.clientReference ?? "");
@@ -193,6 +194,12 @@ const BookingsPage: NextPage = () => {
             const destinationCountry = item.hotel?.country ?? "";
             const priceDetails = item.priceDetails;
             const topLevelHotelInfo = item.hotel;
+
+            // --- MODIFICATION: Get special requests from first room ---
+            const firstRawRoom = item.rooms?.[0] || {};
+            const specialRequests = (firstRawRoom.specialRequests || []).map(
+              (req: any) => String(req.request ?? "")
+            );
 
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
@@ -243,7 +250,7 @@ const BookingsPage: NextPage = () => {
 
             const allPassengers = allRoomsData.flatMap((r) => r.guests);
             const firstRoomData = allRoomsData[0] || {};
-            const firstRawRoom = item.rooms?.[0] || {};
+            // const firstRawRoom = item.rooms?.[0] || {}; // Already defined above
             const firstDetailedService =
               firstRawRoom.bookingData?.detailedInfo?.service || {};
 
@@ -277,7 +284,7 @@ const BookingsPage: NextPage = () => {
               reservationId: firstRoomData.reservationId ?? 0,
               topStatus,
               createdAt,
-              agency,
+              agency, // --- MODIFICATION: Pass the full agency object ---
               agencyName,
               wholesaler,
               wholesalerName,
@@ -324,6 +331,7 @@ const BookingsPage: NextPage = () => {
               priceDetails,
               allRooms: allRoomsData,
               source: null,
+              specialRequests, // --- MODIFICATION: Add special requests to reservation object ---
             };
           });
           setReservations(mapped);
@@ -525,7 +533,10 @@ const BookingsPage: NextPage = () => {
     setLoaderMessage("Generating Voucher...");
     const generationTask = async () => {
       try {
-        await generateVoucherPDF(reservation);
+        // --- MODIFICATION: Pass the entire reservation object ---
+        // The reservation object now contains .agency and .specialRequests
+        // as defined in the Reservation interface in voucher.tsx
+        await generateVoucherPDF(reservation as VoucherReservationData);
         toast.success("Voucher generated!");
       } catch (e) {
         toast.error("Failed to generate voucher");
@@ -624,84 +635,26 @@ const BookingsPage: NextPage = () => {
     );
   }
 
-  const baseButtonStyles =
-    "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm border transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
-  const defaultButtonStyles =
-    "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600";
-  const cancelButtonStyles =
-    "bg-red-500 hover:bg-red-600 text-white border-red-600";
-  const payButtonStyles =
-    "bg-green-500 hover:bg-green-600 text-white border-green-600";
-  const viewButtonStyles =
-    "bg-blue-500 hover:bg-blue-600 text-white border-blue-600";
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 font-sans">
       <main className="px-6 py-8">
-        <div className="mb-8 p-6 bg-white/70 dark:bg-gray-800/70 rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-              Search & Filter
-            </h3>
-            <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg">
-              {reservations.length} Bookings
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <input
-              type="text"
-              placeholder="Search by Hotel Name"
-              value={searchHotelName}
-              onChange={(e) => setSearchHotelName(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <input
-              type="text"
-              placeholder="Search by Booking ID"
-              value={searchBookingId}
-              onChange={(e) => setSearchBookingId(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <input
-              type="date"
-              placeholder="Check-in Date"
-              value={searchCheckInDate}
-              onChange={(e) => setSearchCheckInDate(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <input
-              type="date"
-              placeholder="Check-out Date"
-              value={searchCheckOutDate}
-              onChange={(e) => setSearchCheckOutDate(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <input
-              type="text"
-              placeholder="Search by Guest Name"
-              value={searchGuestName}
-              onChange={(e) => setSearchGuestName(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <input
-              type="text"
-              placeholder="Search by Agency Name"
-              value={searchAgencyName}
-              onChange={(e) => setSearchAgencyName(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <select
-              value={searchStatus}
-              onChange={(e) => setSearchStatus(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-200 border-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors"
-            >
-              <option value="">All Statuses</option>
-              <option value="PAYLATER">PAYLATER</option>
-              <option value="Credit">Credit</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-        </div>
+        <BookingFilter
+          reservationsCount={reservations.length}
+          searchHotelName={searchHotelName}
+          setSearchHotelName={setSearchHotelName}
+          searchBookingId={searchBookingId}
+          setSearchBookingId={setSearchBookingId}
+          searchCheckInDate={searchCheckInDate}
+          setSearchCheckInDate={setSearchCheckInDate}
+          searchCheckOutDate={searchCheckOutDate}
+          setSearchCheckOutDate={setSearchCheckOutDate}
+          searchGuestName={searchGuestName}
+          setSearchGuestName={setSearchGuestName}
+          searchAgencyName={searchAgencyName}
+          setSearchAgencyName={setSearchAgencyName}
+          searchStatus={searchStatus}
+          setSearchStatus={setSearchStatus}
+        />
 
         {filteredReservations.length === 0 && (
           <div className="text-center py-16">
@@ -723,474 +676,52 @@ const BookingsPage: NextPage = () => {
           </div>
         )}
         {filteredReservations.map((r) => {
-          const isExpanded = expandedCardId === r.bookingId;
-          const isAnyRoomCancelled = r.allRooms.some(
-            (room) => room.status.toLowerCase() === "cancelled"
-          );
-          const overallStatusKey = isAnyRoomCancelled
-            ? "cancelled"
-            : r.topStatus.toLowerCase();
-          const statusKey = overallStatusKey as keyof typeof statusMap;
-          const isCancelled = overallStatusKey === "cancelled";
-          const statusDetails = statusMap[statusKey] || statusMap.pending;
-          const IconStatus = statusDetails.icon;
-          const leadPassenger =
-            r.passengers.find((p) => p.lead) || r.passengers[0];
-          const guestName = leadPassenger
-            ? `${leadPassenger.firstName} ${leadPassenger.lastName}`
-            : "N/A";
-
-          const firstRoomNeedingConfirmation = r.allRooms.find(
-            (room) =>
-              room.reference?.confirmation === null &&
-              room.status.toLowerCase() !== "cancelled"
-          );
-
-          let S, C, M, D, NP, SP;
-          if (isCancelled) {
-            S = C = M = D = NP = SP = 0;
-          } else {
-            S = r.priceDetails?.originalPrice?.value ?? r.priceIssueNet;
-            C = r.priceIssueCommission;
-            const SP_from_api =
-              r.priceDetails?.price?.value ?? r.priceIssueSelling;
-            M = 0;
-            if (r.priceDetails?.markupApplied) {
-              if (r.priceDetails.markupApplied.type === "percentage") {
-                M = S * (r.priceDetails.markupApplied.value / 100);
-              } else {
-                M = r.priceDetails.markupApplied.value;
-              }
-            } else {
-              M = SP_from_api - S + C;
-            }
-            D = 0.0;
-            NP = S + M;
-            SP = NP - C - D;
-          }
-
-          const reservationForModals = isCancelled
-            ? {
-                ...r,
-                price: 0,
-                priceIssueNet: 0,
-                priceIssueCommission: 0,
-                priceIssueSelling: 0,
-                priceDetails: {
-                  ...(r.priceDetails ?? {}),
-                  originalPrice: {
-                    ...(r.priceDetails?.originalPrice ?? {}),
-                    value: 0,
-                  },
-                  price: { ...(r.priceDetails?.price ?? {}), value: 0 },
-                  markupApplied: {
-                    ...(r.priceDetails?.markupApplied ?? {}),
-                    value: 0,
-                  },
-                },
-                allRooms: r.allRooms.map((room) => ({
-                  ...room,
-                  status: "cancelled",
-                  priceNet: 0,
-                  priceCommission: 0,
-                })),
-              }
-            : r;
-
-          const isGenerating = generatingDocFor === r.bookingId;
+          // --- START: ADDED UPDATE ---
+          // Check if the booking is considered 'cancelled'
+          const isCancelled =
+            r.topStatus.toLowerCase() === "cancelled" ||
+            r.allRooms.some((room) => room.status.toLowerCase() === "cancelled");
+          // --- END: ADDED UPDATE ---
 
           return (
-            <div
+            <BookingCard
               key={r.bookingId}
-              className="bg-white dark:bg-gray-800 rounded-lg mb-4 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
-            >
-              {/* MODIFIED STRUCTURE STARTS HERE */}
-              <div className="p-4">
-                {/* Row 1: Hotel Name and Status */}
-                <div className="flex items-start justify-between">
-                  <div
-                    className="flex items-center space-x-3 min-w-0 cursor-pointer lg:cursor-default"
-                    onClick={() =>
-                      window.innerWidth < 1024 &&
-                      setExpandedCardId((prev) =>
-                        prev === r.bookingId ? null : r.bookingId
+              reservation={r}
+              statusMap={statusMap}
+              expandedCardId={expandedCardId}
+              setExpandedCardId={setExpandedCardId}
+              generatingDocFor={generatingDocFor}
+              updatingBookingId={updatingBookingId}
+              isLoaderVisible={isLoaderVisible}
+              formatDate={formatDate}
+              formatDateTime={formatDateTime}
+              // --- START: MODIFIED PROPS ---
+              // Conditionally pass props based on isCancelled status
+              onOnRequestStatusChange={
+                isCancelled ? undefined : handleOnRequestStatusChange
+              }
+              onAddServiceClick={
+                isCancelled
+                  ? undefined
+                  : () =>
+                      router.push(
+                        "/wholesaler?page=Booking&tab=ManualReservationsOnline"
                       )
-                    }
-                  >
-                    <IconStatus
-                      className={`${statusDetails.color} mt-1 flex-shrink-0`}
-                      size={18}
-                    />
-                    <div className="min-w-0">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
-                        {r.hotelInfo.name?.split("(")[0].trim() ||
-                          "Hotel details not available"}
-                        <span className="text-gray-400 dark:text-gray-500 text-sm font-normal ml-2">
-                          ({statusDetails.label})
-                        </span>
-                      </h3>
-                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Booking ID:{" "}
-                        <span className="font-medium text-gray-800 dark:text-gray-200">
-                          {r.bookingId || "-"}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedCardId((prev) =>
-                        prev === r.bookingId ? null : r.bookingId
-                      );
-                    }}
-                    className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
-                    aria-label="Toggle details"
-                  >
-                    <FaChevronDown
-                      className={`transform transition-transform duration-300 ${
-                        isExpanded ? "rotate-180" : "rotate-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Row 2: Action Buttons */}
-                <div className="flex items-center flex-wrap gap-2 mt-4">
-                  {r.topStatus.toLowerCase() === "onrequest" ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          handleOnRequestStatusChange(r.dbId, "confirmed")
-                        }
-                        disabled={updatingBookingId === r.dbId}
-                        className={`${baseButtonStyles} ${payButtonStyles}`}
-                      >
-                        <FaCheckCircle />
-                        <span>
-                          {updatingBookingId === r.dbId
-                            ? "Accepting..."
-                            : "Accept"}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleOnRequestStatusChange(r.dbId, "cancelled")
-                        }
-                        disabled={updatingBookingId === r.dbId}
-                        className={`${baseButtonStyles} ${cancelButtonStyles}`}
-                      >
-                        <FaBan />
-                        <span>
-                          {updatingBookingId === r.dbId
-                            ? "Rejecting..."
-                            : "Reject"}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setViewModalRes(reservationForModals)}
-                        disabled={updatingBookingId === r.dbId}
-                        className={`${baseButtonStyles} ${viewButtonStyles}`}
-                      >
-                        <FaEye />
-                        <span>View</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() =>
-                          router.push(
-                            "/wholesaler?page=Booking&tab=ManualReservationsOnline"
-                          )
-                        }
-                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                      >
-                        <FaPlus />
-                        <span>Add Service</span>
-                      </button>
-                      <button
-                        onClick={() => handleCancelClick(reservationForModals)}
-                        disabled={overallStatusKey === "cancelled"}
-                        className={`${baseButtonStyles} ${cancelButtonStyles}`}
-                      >
-                        <FaBan />
-                        <span>Cancel</span>
-                      </button>
-
-                      {r.paymentType.toLowerCase() === "paylater" && (
-                        <button
-                          onClick={() => setPayModalRes(reservationForModals)}
-                          disabled={overallStatusKey === "cancelled"}
-                          className={`${baseButtonStyles} ${payButtonStyles}`}
-                        >
-                          <FaCreditCard />
-                          <span>PayNow</span>
-                        </button>
-                      )}
-
-                      {firstRoomNeedingConfirmation && !isCancelled && (
-                        <button
-                          onClick={() =>
-                            handleAddConfirmationClick(
-                              r,
-                              firstRoomNeedingConfirmation.reservationId
-                            )
-                          }
-                          className={`${baseButtonStyles} bg-purple-500 hover:bg-purple-600 text-white border-purple-600`}
-                        >
-                          <FaCheckCircle />
-                          <span>Add Confirmation</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() =>
-                          handleGenerateVoucher(reservationForModals)
-                        }
-                        disabled={isGenerating || isLoaderVisible}
-                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                      >
-                        <FaTicketAlt />
-                        <span>Voucher</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleGenerateInvoice(reservationForModals)
-                        }
-                        disabled={isGenerating || isLoaderVisible}
-                        className={`${baseButtonStyles} ${defaultButtonStyles}`}
-                      >
-                        <FaFileInvoiceDollar />
-                        <span>Invoice</span>
-                      </button>
-                      <button
-                        onClick={() => setViewModalRes(reservationForModals)}
-                        className={`${baseButtonStyles} ${viewButtonStyles}`}
-                      >
-                        <FaEye />
-                        <span>View</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-              {/* MODIFIED STRUCTURE ENDS HERE */}
-
-              <div
-                className={`
-                  transition-all duration-500 ease-in-out
-                  ${
-                    isExpanded
-                      ? "max-h-[1500px] opacity-100"
-                      : "max-h-0 opacity-0"
-                  }
-                  overflow-hidden
-                  lg:max-h-full lg:opacity-100
-                `}
-              >
-                <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
-                  <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-x-8">
-                    <div className="lg:col-span-3 space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Guest
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {guestName}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Agency
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.agencyName}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Created On
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {formatDate(r.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div className="md:col-span-1">
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">
-                            Price ({r.currency})
-                          </p>
-                          <div className="space-y-1 text-sm dark:text-gray-100">
-                            <div className="flex justify-between">
-                              <span>S (Suppl.):</span>{" "}
-                              <span>{S.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>M (Markup):</span>{" "}
-                              <span>{M.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-600 pt-1">
-                              <span>NP (Net):</span> <span>{NP.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-red-500">
-                              <span>C (Comm.):</span> <span>{C.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-red-500">
-                              <span>D (Disc.):</span> <span>{D.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-indigo-600 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1">
-                              <span>SP (Sell):</span>{" "}
-                              <span>{SP.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:col-span-2">
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Check In
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {formatDate(r.checkIn)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Check Out
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {formatDate(r.checkOut)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Nights
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {r.nights || "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                              Payment
-                            </p>
-                            <p className="text-gray-800 dark:text-gray-200">
-                              {r.paymentType || "-"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Destination
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.destinationCity && r.destinationCountry
-                              ? `${r.destinationCity}, ${r.destinationCountry}`
-                              : "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Nationality
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.nationality || "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                            Provider
-                          </p>
-                          <p className="text-gray-800 dark:text-gray-200">
-                            {r.providerName}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="lg:col-span-1 mt-6 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 lg:pl-8 lg:border-l border-gray-200 dark:border-gray-700">
-                      <div className="text-sm">
-                        <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                          Rooms
-                        </p>
-                        <div className="mt-1">
-                          {reservationForModals.allRooms.map((room, index) => {
-                            let cancellationDateString = null;
-                            if (
-                              Array.isArray(room.cancellationPolicy?.policies) &&
-                              room.cancellationPolicy.policies.length > 0 &&
-                              room.cancellationPolicy.policies[0].date
-                            ) {
-                              cancellationDateString =
-                                room.cancellationPolicy.policies[0].date;
-                            } else if (room.cancellationPolicy?.date) {
-                              cancellationDateString =
-                                room.cancellationPolicy.date;
-                            }
-                            return (
-                              <React.Fragment key={room.reservationId || index}>
-                                <div className="py-2">
-                                  <p
-                                    className="font-semibold text-sm text-gray-900 dark:text-gray-100"
-                                    title={`${room.roomName} (${room.status})`}
-                                  >
-                                    {room.roomName}
-                                    <span
-                                      className={`ml-2 capitalize font-medium ${
-                                        room.status === "cancelled"
-                                          ? "text-red-500"
-                                          : room.status === "pending"
-                                          ? "text-yellow-500"
-                                          : "text-green-600"
-                                      }`}
-                                    >
-                                      (
-                                      {room.status === "pending"
-                                        ? "Payment Pending"
-                                        : room.status === "confirmed"
-                                        ? "Paid"
-                                        : room.status}
-                                      )
-                                    </span>
-                                  </p>
-                                  {cancellationDateString && (
-                                    <p className="text-sm font-medium mt-0.5">
-                                      <span className="text-red-600 dark:text-red-500">
-                                        Auto cancellation by---{" "}
-                                      </span>
-                                      <span className="text-red-600 dark:text-red-500">
-                                        {formatDateTime(cancellationDateString)}
-                                      </span>
-                                    </p>
-                                  )}
-                                  {room.confirmationNo && (
-                                    <p className="text-sm font-medium mt-5">
-                                      <span className="text-gray-800 dark:text-gray-200">
-                                        Confirmation No:{" "}
-                                      </span>
-                                      <span className="font-bold text-blue-600 dark:text-blue-400">
-                                        {room.confirmationNo}
-                                      </span>
-                                    </p>
-                                  )}
-                                </div>
-                                {index < r.allRooms.length - 1 && (
-                                  <hr className="border-gray-200 dark:border-gray-600" />
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              }
+              onCancelClick={handleCancelClick} // Always show
+              onPayNowClick={isCancelled ? undefined : setPayModalRes}
+              onAddConfirmationClick={
+                isCancelled ? undefined : handleAddConfirmationClick
+              }
+              onGenerateVoucherClick={
+                isCancelled ? undefined : handleGenerateVoucher
+              }
+              onGenerateInvoiceClick={
+                isCancelled ? undefined : handleGenerateInvoice
+              }
+              onViewClick={setViewModalRes} // Always show
+              // --- END: MODIFIED PROPS ---
+            />
           );
         })}
       </main>

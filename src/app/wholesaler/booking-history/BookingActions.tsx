@@ -1,123 +1,218 @@
-// components/BookingActions.tsx
-import React, { useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import React from "react";
 import {
+  FaBan,
   FaCheckCircle,
   FaCreditCard,
-  FaEdit,
   FaEye,
   FaFileInvoiceDollar,
-  FaHashtag,
-  FaLink,
-  FaPercentage,
-  FaReceipt,
+  FaPlus,
   FaTicketAlt,
-  FaTimes,
 } from "react-icons/fa";
+
 import { Reservation } from "./BookingModal";
-import { generateInvoiceNumber, generateInvoicePDF } from "./InvoiceGenerator";
-import { generateVoucherPDF } from "./voucher";
 
-interface Props {
+type RoomNeedingConfirmation = {
+  reservationId: number;
+  reference?: {
+    confirmation: string | null;
+  } | null;
+  status: string;
+  // Add other properties if needed, or use 'any' if type is complex
+  [key: string]: any;
+};
+
+type BookingActionsProps = {
   reservation: Reservation;
-  onViewDetails: () => void;
-  onEditPrice: (res: Reservation) => void;
-  onCancel: (res: Reservation) => void;
-}
+  reservationForModals: Reservation;
+  overallStatusKey: string;
+  isCancelled: boolean;
+  isGenerating: boolean;
+  isLoaderVisible: boolean;
+  updatingBookingId: string | null;
+  firstRoomNeedingConfirmation?: RoomNeedingConfirmation;
+  onOnRequestStatusChange: (
+    bookingId: string,
+    newStatus: "confirmed" | "cancelled"
+  ) => void;
+  onAddServiceClick: () => void;
+  onCancelClick: (reservation: Reservation) => void;
+  onPayNowClick: (reservation: Reservation) => void;
+  onAddConfirmationClick: (
+    reservation: Reservation,
+    reservationId: number
+  ) => void;
+  onGenerateVoucherClick: (reservation: Reservation) => void;
+  onGenerateInvoiceClick: (reservation: Reservation) => void;
+  onViewClick: (reservation: Reservation) => void;
+};
 
-const BookingActions: React.FC<Props> = ({
+const BookingActions: React.FC<BookingActionsProps> = ({
   reservation,
-  onViewDetails,
-  onEditPrice,
-  onCancel,
+  reservationForModals,
+  overallStatusKey,
+  isCancelled,
+  isGenerating,
+  isLoaderVisible,
+  updatingBookingId,
+  firstRoomNeedingConfirmation,
+  onOnRequestStatusChange,
+  onAddServiceClick,
+  onCancelClick,
+  onPayNowClick,
+  onAddConfirmationClick,
+  onGenerateVoucherClick,
+  onGenerateInvoiceClick,
+  onViewClick,
 }) => {
-  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const router = useRouter();
 
-  const handleGenerateInvoice = async () => {
-    setIsGeneratingInvoice(true);
-    try {
-      const invoiceNumber = generateInvoiceNumber();
-      const invoiceDate = new Date().toLocaleDateString();
-      const dueDate = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toLocaleDateString(); // 30 days from now
-
-      await generateInvoicePDF({
-        invoiceNumber,
-        invoiceDate,
-        dueDate,
-        reservation,
-      });
-
-      toast.success("Invoice generated successfully!");
-    } catch (error) {
-      console.error("Error generating invoice:", error);
-      toast.error("Failed to generate invoice. Please try again.");
-    } finally {
-      setIsGeneratingInvoice(false);
-    }
-  };
+  const baseButtonStyles =
+    "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm border transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+  const defaultButtonStyles =
+    "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600";
+  const cancelButtonStyles =
+    "bg-red-500 hover:bg-red-600 text-white border-red-600";
+  const payButtonStyles =
+    "bg-green-500 hover:bg-green-600 text-white border-green-600";
+  const viewButtonStyles =
+    "bg-blue-500 hover:bg-blue-600 text-white border-blue-600";
 
   return (
-    <aside className="w-full sm:col-span-1 bg-gray-50 dark:bg-gray-800 p-4 border-l border-gray-100 dark:border-gray-700">
-      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 mt-3">
-        Actions
-      </h4>
-
-      <div className="grid grid-cols-5 gap-x-12 sm:grid-cols-4 sm:gap-x-4 gap-y-6 mt-3 text-[#1a7ef7]">
-        <FaTimes
-          title="Cancel"
-          className="cursor-pointer text-3xl"
-          onClick={() => onCancel(reservation)}
-        />
-        <FaEdit
-          title="Edit Price"
-          className="cursor-pointer text-3xl"
-          onClick={() => onEditPrice(reservation)}
-        />
-        <FaFileInvoiceDollar
-          title="Invoice"
-          className={`cursor-pointer text-3xl ${
-            isGeneratingInvoice ? "opacity-50" : ""
-          }`}
-          onClick={isGeneratingInvoice ? undefined : handleGenerateInvoice}
-        />
-        <FaTicketAlt
-          title="Voucher"
-          className="cursor-pointer text-3xl"
-          onClick={async () => {
-            try {
-              await generateVoucherPDF(reservation);
-              toast.success("Voucher generated!");
-            } catch (e) {
-              toast.error("Failed to generate voucher");
+    <div className="flex items-center flex-wrap gap-2 mt-4">
+      {reservation.topStatus.toLowerCase() === "onrequest" ? (
+        <>
+          <button
+            onClick={() =>
+              onOnRequestStatusChange(reservation.dbId, "confirmed")
             }
-          }}
-        />
-        <FaCreditCard title="Payment" className="cursor-pointer text-3xl" />
-        <FaLink title="Pay Link" className="cursor-pointer text-3xl" />
-        <FaPercentage title="Markup" className="cursor-pointer text-3xl" />
-        <FaEye
-          title="View"
-          className="cursor-pointer text-3xl"
-          onClick={onViewDetails}
-        />
-        <FaHashtag title="Confirmation #" className="cursor-pointer text-3xl" />
-        <FaReceipt title="View Payment" className="cursor-pointer text-3xl" />
-        <FaCheckCircle title="Status" className="cursor-pointer text-3xl" />
-        {/* Empty slots auto-fill */}
-      </div>
+            disabled={updatingBookingId === reservation.dbId}
+            className={`${baseButtonStyles} ${payButtonStyles}`}
+          >
+            <FaCheckCircle />
+            <span>
+              {updatingBookingId === reservation.dbId
+                ? "Accepting..."
+                : "Accept"}
+            </span>
+          </button>
+          <button
+            onClick={() =>
+              onOnRequestStatusChange(reservation.dbId, "cancelled")
+            }
+            disabled={updatingBookingId === reservation.dbId}
+            className={`${baseButtonStyles} ${cancelButtonStyles}`}
+          >
+            <FaBan />
+            <span>
+              {updatingBookingId === reservation.dbId
+                ? "Rejecting..."
+                : "Reject"}
+            </span>
+          </button>
+          <button
+            onClick={() => onViewClick(reservationForModals)}
+            disabled={updatingBookingId === reservation.dbId}
+            className={`${baseButtonStyles} ${viewButtonStyles}`}
+          >
+            <FaEye />
+            <span>View</span>
+          </button>
+        </>
+      ) : (
+        <>
+          {isCancelled ? (
+            <>
+              {/* Show only Cancel and View for cancelled bookings */}
+              <button
+                onClick={() => onCancelClick(reservationForModals)}
+                disabled={overallStatusKey === "cancelled"}
+                className={`${baseButtonStyles} ${cancelButtonStyles}`}
+              >
+                <FaBan />
+                <span>Cancel</span>
+              </button>
+              <button
+                onClick={() => onViewClick(reservationForModals)}
+                className={`${baseButtonStyles} ${viewButtonStyles}`}
+              >
+                <FaEye />
+                <span>View</span>
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Original buttons for non-cancelled bookings */}
+              <button
+                onClick={onAddServiceClick}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaPlus />
+                <span>Add Service</span>
+              </button>
+              <button
+                onClick={() => onCancelClick(reservationForModals)}
+                disabled={overallStatusKey === "cancelled"}
+                className={`${baseButtonStyles} ${cancelButtonStyles}`}
+              >
+                <FaBan />
+                <span>Cancel</span>
+              </button>
 
-      {/* Loading indicator for invoice generation */}
-      {isGeneratingInvoice && (
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center space-x-2 text-sm text-blue-600">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span>Generating invoice...</span>
-          </div>
-        </div>
+              {reservation.paymentType.toLowerCase() === "paylater" && (
+                <button
+                  onClick={() => onPayNowClick(reservationForModals)}
+                  disabled={overallStatusKey === "cancelled"}
+                  className={`${baseButtonStyles} ${payButtonStyles}`}
+                >
+                  <FaCreditCard />
+                  <span>PayNow</span>
+                </button>
+              )}
+
+              {firstRoomNeedingConfirmation && !isCancelled && (
+                <button
+                  onClick={() =>
+                    onAddConfirmationClick(
+                      reservation,
+                      firstRoomNeedingConfirmation.reservationId
+                    )
+                  }
+                  className={`${baseButtonStyles} bg-purple-500 hover:bg-purple-600 text-white border-purple-600`}
+                >
+                  <FaCheckCircle />
+                  <span>Add Confirmation</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => onGenerateVoucherClick(reservationForModals)}
+                disabled={isGenerating || isLoaderVisible}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaTicketAlt />
+                <span>Voucher</span>
+              </button>
+              <button
+                onClick={() => onGenerateInvoiceClick(reservationForModals)}
+                disabled={isGenerating || isLoaderVisible}
+                className={`${baseButtonStyles} ${defaultButtonStyles}`}
+              >
+                <FaFileInvoiceDollar />
+                <span>Invoice</span>
+              </button>
+              <button
+                onClick={() => onViewClick(reservationForModals)}
+                className={`${baseButtonStyles} ${viewButtonStyles}`}
+              >
+                <FaEye />
+                <span>View</span>
+              </button>
+            </>
+          )}
+        </>
       )}
-    </aside>
+    </div>
   );
 };
 
