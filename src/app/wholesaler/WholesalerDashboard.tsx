@@ -38,12 +38,12 @@ import { getWholesalerBranding } from '@/utils/apiHandler'; // ✨ ADDED: Import
 
 // Page imports
 import OverviewTab from './booking-history/OverviewTab';
-import CompanyDetailsTab from './CompanyDetailsTab';
+// import CompanyDetailsTab from './CompanyDetailsTab';
 import DashboardPage from './DashboardPage';
 import HistoryTab from './HistoryTab';
 import ManualReservationsTab from './ManualReservationsTab';
 // NEW: Import the Manual Reservations Offline page
-import ManageRequestPage from './admin-approve';
+// import ManageRequestPage from './admin-approve';
 import CreateAgent from './agency-panel';
 import APIManagement from './APIManagement';
 import ManualReservationsOfflineTab from './ManualReservationsOfflineTab';
@@ -756,7 +756,7 @@ export default function WholesalerPage() {
                     {[
                       'Overview',
                       'History',
-                      'Company',
+                      // 'Company',
                       'ManualReservationsOnline',
                       'ManualReservationsOffline',
                     ].map((tab) => (
@@ -788,7 +788,7 @@ export default function WholesalerPage() {
                         <span className="text-sm">
                           {tab === 'Overview' && 'Overview'}
                           {tab === 'History' && 'History'}
-                          {tab === 'Company' && 'Company Details'}
+                          {/* {tab === 'Company' && 'Company Details'} */}
                           {tab === 'ManualReservationsOnline' &&
                             'Manual Reservation Online'}
                           {tab === 'ManualReservationsOffline' &&
@@ -806,9 +806,9 @@ export default function WholesalerPage() {
                           'SalesAgency',
                           'GetSalesAgency',
                           'ManageAgent',
-                          'ManageRequest',
+                          // 'ManageRequest',
                         ]
-                      : ['CreateAgent', 'ManageAgent', 'ManageRequest']
+                      : ['CreateAgent', 'ManageAgent']
                     ).map((tab) => (
                       <button
                         key={tab}
@@ -840,7 +840,7 @@ export default function WholesalerPage() {
                           {tab === 'SalesAgency' && 'Sales Agency'}
                           {tab === 'GetSalesAgency' && 'Get Sales Agency'}
                           {tab === 'ManageAgent' && 'Manage Agency'}
-                          {tab === 'ManageRequest' && 'Manage Request'}
+                          {/* {tab === 'ManageRequest' && 'Manage Request'} */}
                         </span>
                       </button>
                     ))}
@@ -1269,7 +1269,7 @@ export default function WholesalerPage() {
             <div className="animate-fade-scale">
               {activeTab === 'Overview' && <OverviewTab />}
               {activeTab === 'History' && <HistoryTab />}
-              {activeTab === 'Company' && <CompanyDetailsTab />}
+              {/* {activeTab === 'Company' && <CompanyDetailsTab />} */}
               {activeTab === 'ManualReservationsOnline' && (
                 <ManualReservationsTab />
               )}
@@ -1298,7 +1298,7 @@ export default function WholesalerPage() {
               {activeTab === 'GetSalesAgency' && <GetSalesAgencyPage />}
               {activeTab === 'CreateAgent' && <ManageAgentPage />}
               {activeTab === 'ManageAgent' && <CreateAgent />}
-              {activeTab === 'ManageRequest' && <ManageRequestPage />}
+              {/* {activeTab === 'ManageRequest' && <ManageRequestPage />} */}
               {!activeTab && (
                 <div className="card-modern p-12 text-center">
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -413,7 +413,7 @@ const FlightsBSPage = ({ onModuleSelect }: FlightsBSPageProps = {}) => {
           {/* --- END: New Card Row --- */}
         </div>
 
-        Recent Activity (Still static as per original code)
+        {/* Recent Activity (Still static as per original code)
         <div className="card-modern p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Recent Activity</h3>
           <div className="space-y-4">
@@ -450,7 +450,7 @@ const FlightsBSPage = ({ onModuleSelect }: FlightsBSPageProps = {}) => {
               <span className="text-sm text-gray-500 dark:text-gray-400">1 day ago</span>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     );
   };
