@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
   FiX, 
   FiChevronDown, 
-  FiBuilding, 
+  FiHome, // <-- FIX: Changed FiBuilding to FiHome
   FiCalendar, 
   FiMoon, 
   FiUsers, 
@@ -351,7 +351,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
             
             {/* LEFT COLUMN: BOOKING OVERVIEW */}
             <div className="lg:col-span-1 space-y-6">
-              <Section title="Hotel & Stay" icon={FiBuilding}>
+              {/* --- FIX: Changed icon from FiBuilding to FiHome --- */}
+              <Section title="Hotel & Stay" icon={FiHome}>
                 <h4 className="font-bold text-lg text-gray-900 dark:text-white">{r.hotelInfo.name}</h4>
                 <DetailItem label="Check-in" value={formatDate(r.checkIn)} icon={FiCalendar}/>
                 <DetailItem label="Check-out" value={formatDate(r.checkOut)} icon={FiCalendar}/>

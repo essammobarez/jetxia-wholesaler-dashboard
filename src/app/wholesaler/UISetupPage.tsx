@@ -62,21 +62,21 @@ export default function UISetupPage() {
 
     try {
       // Remove existing favicon safely
-      const existingFavicon = document.querySelector('link[rel~="icon"]');
-      if (existingFavicon && existingFavicon.parentNode) {
-        existingFavicon.parentNode.removeChild(existingFavicon);
-      }
+      // const existingFavicon = document.querySelector('link[rel~="icon"]');
+      // if (existingFavicon && existingFavicon.parentNode) {
+      //   // existingFavicon.parentNode.removeChild(existingFavicon);
+      // }
 
       // Create and add new favicon
-      const newFavicon = document.createElement('link');
-      newFavicon.rel = 'icon';
-      newFavicon.href = logoUrl;
-      newFavicon.type = 'image/x-icon';
+      // const newFavicon = document.createElement('link');
+      // newFavicon.rel = 'icon';
+      // newFavicon.href = logoUrl;
+      // newFavicon.type = 'image/x-icon';
       
-      if (document.head) {
-        document.head.appendChild(newFavicon);
-        // console.log('Favicon updated to:', logoUrl);
-      }
+      // if (document.head) {
+      //   document.head.appendChild(newFavicon);
+      //   // console.log('Favicon updated to:', logoUrl);
+      // }
     } catch (error) {
       console.error('Error updating favicon:', error);
       // Silently fail - don't break the app
