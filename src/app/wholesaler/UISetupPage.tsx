@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, RefreshCw, AlertCircle, CheckCircle, Edit, Eye, Plus } from 'lucide-react';
+import { Save, RefreshCw, AlertCircle, CheckCircle, Edit, Eye, Plus, Upload, X } from 'lucide-react';
 
 interface UISettings {
   wholesalerDomain: string;
@@ -219,6 +219,48 @@ export default function UISetupPage() {
     // Clear messages when user starts typing
     setError(null);
     setSuccess(null);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'navLogo' | 'brandLogo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please upload a valid image file (JPG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setError('Image size should be less than 5MB');
+      return;
+    }
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: base64String
+      }));
+      setError(null);
+      setSuccess(null);
+    };
+    reader.onerror = () => {
+      setError('Failed to read the image file');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = (fieldName: 'navLogo' | 'brandLogo') => {
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: ''
+    }));
   };
 
   const handleSave = async () => {
@@ -568,37 +610,55 @@ export default function UISetupPage() {
               Logo Configuration
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Upload or set URLs for your logos
+              Upload your logo images (converted to base64)
             </p>
           </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Navigation Logo */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Navigation Logo URL <span className="text-red-500">*</span>
+              Navigation Logo <span className="text-red-500">*</span>
             </label>
-            <input
-              type="url"
-              name="navLogo"
-              value={formData.navLogo}
-              onChange={handleInputChange}
-              placeholder="https://cdn.bdesktravel.com/nav-logo.png"
-              className="input-modern w-full px-4 py-3 text-sm border border-gray-200 focus:ring-0 focus:border-gray-200 focus:outline-none"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              Logo displayed in the navigation bar
-            </p>
-            {formData.navLogo && (
-              <div className="mt-3 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Live Preview:</p>
-                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[60px]">
+            
+            {!formData.navLogo ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => handleImageUpload(e, 'navLogo')}
+                  className="hidden"
+                  id="navLogoInput"
+                />
+                <label
+                  htmlFor="navLogoInput"
+                  className="flex flex-col items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                >
+                  <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-3" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Click to upload image
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    JPG, PNG, GIF or WebP (Max 5MB)
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="relative p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage('navLogo')}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  title="Remove image"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
                   <img
                     src={formData.navLogo}
                     alt="Navigation logo preview"
-                    className="max-h-12 object-contain"
+                    className="max-h-20 max-w-full object-contain"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -606,34 +666,59 @@ export default function UISetupPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Brand Logo URL <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="url"
-              name="brandLogo"
-              value={formData.brandLogo}
-              onChange={handleInputChange}
-              placeholder="https://cdn.bdesktravel.com/brand-logo.png"
-              className="input-modern w-full px-4 py-3 text-sm border border-gray-200 focus:ring-0 focus:border-gray-200 focus:outline-none"
-            />
+            
             <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1 a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              Primary brand logo URL
+              Logo displayed in the navigation bar
             </p>
-            {formData.brandLogo && (
-              <div className="mt-3 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Live Preview:</p>
-                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[60px]">
+          </div>
+
+          {/* Brand Logo */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Brand Logo <span className="text-red-500">*</span>
+            </label>
+            
+            {!formData.brandLogo ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => handleImageUpload(e, 'brandLogo')}
+                  className="hidden"
+                  id="brandLogoInput"
+                />
+                <label
+                  htmlFor="brandLogoInput"
+                  className="flex flex-col items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                >
+                  <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-3" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Click to upload image
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    JPG, PNG, GIF or WebP (Max 5MB)
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="relative p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage('brandLogo')}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  title="Remove image"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
                   <img
                     src={formData.brandLogo}
                     alt="Brand logo preview"
-                    className="max-h-12 object-contain"
+                    className="max-h-20 max-w-full object-contain"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -641,6 +726,13 @@ export default function UISetupPage() {
                 </div>
               </div>
             )}
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1 a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Primary brand logo (used as favicon)
+            </p>
           </div>
         </div>
       </div>
@@ -707,7 +799,11 @@ export default function UISetupPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">✓</span>
-                <span>Logo images should be in PNG or JPG format</span>
+                <span>Logo images should be in JPG, PNG, GIF, or WebP format (Max 5MB)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-0.5">✓</span>
+                <span>Uploaded images are automatically converted to base64 format</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">✓</span>
