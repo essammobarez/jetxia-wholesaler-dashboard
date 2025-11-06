@@ -1,5 +1,3 @@
-// src/components/FlightSelection.tsx
-
 import React from 'react';
 import { Plane, Info } from 'lucide-react';
 
@@ -154,15 +152,15 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
       {showBlockSeatSelector && (
         <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Available Flights {formData.destination.country && `from ${formData.destination.country}`}:
+            Available Flights {formData.destination.country && `to ${formData.destination.country}`}:
           </p>
           {!formData.destination.country ? (
-             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
-               <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 flex items-center">
-                 <Info className="w-4 h-4 mr-2" />
-                 Please select a country first to see available flights.
-               </p>
-             </div>
+               <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
+                 <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 flex items-center">
+                   <Info className="w-4 h-4 mr-2" />
+                   Please select a country first to see available flights.
+                 </p>
+               </div>
           ) : isLoadingFlights ? (
             <div className="text-center py-4 text-gray-600 dark:text-gray-400">
               Loading flights...

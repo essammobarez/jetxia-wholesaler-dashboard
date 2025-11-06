@@ -237,6 +237,7 @@ export default function Login() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [branding, setBranding] = useState<WholesalerBranding | null>(null);
   const [isLoadingBranding, setIsLoadingBranding] = useState(true);
+  document.title = `Login | ${branding?.name}`;
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
@@ -477,11 +478,10 @@ export default function Login() {
 
   // --- Render logic for different authentication steps ---
   const renderAuthStep = () => {
-    const buttonClassName = `w-full py-3 rounded-lg text-white font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${
-      isLoading
-        ? 'bg-blue-400 cursor-not-allowed'
-        : 'bg-blue-600 hover:bg-blue-700'
-    }`;
+    const buttonClassName = `w-full py-3 rounded-lg text-white font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out ${isLoading
+      ? 'bg-blue-400 cursor-not-allowed'
+      : 'bg-blue-600 hover:bg-blue-700'
+      }`;
 
     switch (authStep) {
       case 'credentials':
@@ -512,22 +512,20 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setVerificationMethod('email')}
-                  className={`py-2 px-4 rounded-lg text-sm font-semibold transition-colors duration-200  ${
-                    verificationMethod === 'email'
-                      ? 'bg-blue-600 text-white ring-blue-500'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  className={`py-2 px-4 rounded-lg text-sm font-semibold transition-colors duration-200  ${verificationMethod === 'email'
+                    ? 'bg-blue-600 text-white ring-blue-500'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
                 >
                   Email Verify
                 </button>
                 <button
                   type="button"
                   onClick={() => setVerificationMethod('google')}
-                  className={`py-2 px-4 rounded-lg text-sm font-semibold transition-colors duration-200  ${
-                    verificationMethod === 'google'
-                      ? 'bg-blue-600 text-white ring-blue-500'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  className={`py-2 px-4 rounded-lg text-sm font-semibold transition-colors duration-200  ${verificationMethod === 'google'
+                    ? 'bg-blue-600 text-white ring-blue-500'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
                 >
                   G-Authenticator
                 </button>
@@ -649,16 +647,28 @@ export default function Login() {
               <div className="absolute -top-5 left-12 w-[320px] h-[90px]">
                 <Image src="/images/Vector.svg" alt="Decorative dashed plane path" width={320} height={90} priority />
               </div>
+
+
               <div className="relative z-10">
-                <h2 className="text-3xl font-semibold text-gray-800 mb-3 leading-tight">
-                  Welcome To <span className="text-blue-600 font-bold">{branding?.name},</span>
-                </h2>
-                <p className="mb-4 text-blue-600">
-                  {branding?.name ? `${branding.name} helps travel agencies do their business better.` : 'Your trusted travel technology partner.'}
-                </p>
-                <p className="text-gray-600 text-sm mb-8 max-w-md">
-                  {branding?.siteContent || 'Welcome to your travel booking platform, your trusted partner in travel technology solutions.'}
-                </p>
+                <div className="relative bg-white rounded-xl  p-8 w-full max-w-sm m-4">
+                  {authStep === 'credentials' && (
+                    <div className="flex justify-center mb-8">
+                      {branding?.logo ? (
+                        <Image src={branding.logo} alt="Company Logo" width={160} height={55} priority />
+                      ) : (
+                        <div className="h-14 w-40 bg-gray-100 animate-pulse rounded"></div>
+                      )}
+                    </div>
+                  )}
+
+                  {message && (
+                    <div className={`w-full p-2 rounded text-center mb-4 text-sm ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {message}
+                    </div>
+                  )}
+
+                  {renderAuthStep()}
+                </div>
               </div>
             </div>
 
@@ -666,27 +676,21 @@ export default function Login() {
             <div className="relative flex items-center justify-center">
               <div className="absolute inset-0 w-full h-full">
                 <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
+                {/* Semi-transparent overlay covering entire image */}
+                <div className="absolute inset-0 bg-gray-900/15"></div>
+              </div>
+              <div className="relative z-10 px-8 py-6">
+                <h2 className="text-3xl font-semibold text-white mb-3 leading-tight">
+                  Welcome To <span className="text-white font-bold">{branding?.name}</span>
+                </h2>
+                 {/* <p className="mb-4 text-white">
+                  {branding?.name ? `${branding.name} helps travel agencies do their business better.` : 'Your trusted travel technology partner.'}
+                </p> 
+                <p className="text-white text-sm mb-8 max-w-md">
+                  {branding?.siteContent || 'Welcome to your travel booking platform, your trusted partner in travel technology solutions.'}
+                </p> */}
               </div>
 
-              <div className="relative bg-white rounded-xl shadow-lg p-8 w-full max-w-sm m-4">
-                {authStep === 'credentials' && (
-                  <div className="flex justify-center mb-8">
-                    {branding?.logo ? (
-                      <Image src={branding.logo} alt="Company Logo" width={160} height={55} priority />
-                    ) : (
-                      <div className="h-14 w-40 bg-gray-100 animate-pulse rounded"></div>
-                    )}
-                  </div>
-                )}
-
-                {message && (
-                  <div className={`w-full p-2 rounded text-center mb-4 text-sm ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {message}
-                  </div>
-                )}
-
-                {renderAuthStep()}
-              </div>
 
             </div>
           </div>

@@ -645,11 +645,11 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                         getSelectedCurrencySymbol={getSelectedCurrencySymbol}
                     />
 
-                    <Commission
+                    {/* <Commission
                         formData={formData}
                         setFormData={setFormData}
                         getSelectedCurrencySymbol={getSelectedCurrencySymbol}
-                    />
+                    /> */}
 
                     <AvailabilityBookings
                         formData={formData}

@@ -9,9 +9,15 @@ interface AvailableFlightDatesProps {
         route: {
             departure: string;
             return: string;
+            deadline: string; // NEW: Added deadline
             isRoundTrip: boolean;
         };
-        availableDates: { departure: string; return: string; id: string }[];
+        availableDates: {
+            departure: string;
+            return: string;
+            deadline: string; // NEW: Added deadline
+            id: string
+        }[];
     };
     setFormData: React.Dispatch<React.SetStateAction<any>>;
     errors: { [key: string]: string };
@@ -21,25 +27,50 @@ interface AvailableFlightDatesProps {
 const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, setFormData, errors }) => {
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    /**
+     * Helper function to format a Date object to an ISO string
+     */
+    const formatDateToISO = (date: Date | null): string => {
+        if (!date) return '';
+        return date.toISOString();
+    };
+
+    /**
+     * Helper function to parse an ISO string into a local Date object
+     */
+    const parseISOToDate = (dateString: string): Date | null => {
+        if (!dateString) return null;
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+        return date;
+    };
+
+
     return (
         <div className="mt-8 pt-8 border-t-2 border-green-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
                 <h4 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                    📅 Available Flight Dates
+                    {/* Calendar emoji removed as requested */}
+                    Available Flight Dates
                 </h4>
                 <button
                     type="button"
                     onClick={() => {
-                        if (showDatePicker && formData.route.departure && (!formData.route.isRoundTrip || formData.route.return)) {
+                        // UPDATED: Added check for formData.route.deadline
+                        if (showDatePicker && formData.route.departure && formData.route.deadline && (!formData.route.isRoundTrip || formData.route.return)) {
                             const newDate = {
                                 id: Date.now().toString(),
                                 departure: formData.route.departure,
+                                deadline: formData.route.deadline, // NEW: Save deadline
                                 return: formData.route.isRoundTrip ? formData.route.return : ''
                             };
                             setFormData(prev => ({
                                 ...prev,
                                 availableDates: [...prev.availableDates, newDate],
-                                route: { ...prev.route, departure: '', return: '' }
+                                // UPDATED: Clear deadline on save
+                                route: { ...prev.route, departure: '', return: '', deadline: '' }
                             }));
                             setShowDatePicker(false);
                         } else {
@@ -51,7 +82,8 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                     {showDatePicker ? (
                         <>
                             <CheckCircle className="w-4 h-4 mr-2" />
-                            {formData.route.departure && (!formData.route.isRoundTrip || formData.route.return) ? 'Save Date' : 'Close'}
+                            {/* UPDATED: Added check for formData.route.deadline */}
+                            {formData.route.departure && formData.route.deadline && (!formData.route.isRoundTrip || formData.route.return) ? 'Save Date' : 'Close'}
                         </>
                     ) : (
                         <>
@@ -63,7 +95,7 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 {showDatePicker
-                    ? 'Select departure and return dates below, then click "Save Date" to add them to the list.'
+                    ? 'Select departure, deadline, and return dates/times below, then click "Save Date" to add them to the list.'
                     : 'Click "Add Date" button to add new available flight dates. Only these dates will be available for booking.'
                 }
             </p>
@@ -77,59 +109,115 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                 <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border-2 border-green-200 dark:border-green-800">
                     <h5 className="text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center">
                         <Calendar className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
-                        Select Flight Dates
+                        Select Flight Dates & Times
                     </h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* UPDATED: Grid layout changed to 3 columns for md screens */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label className="flex items-center text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
                                 <Calendar className="w-4 h-4 mr-2 text-gray-600 dark:text-gray-400" />
-                                Departure Date *
+                                Departure Date & Time *
                             </label>
                             <div className="relative">
                                 <DatePicker
-                                    selected={formData.route.departure ? new Date(formData.route.departure) : null}
-                                    onChange={(date) => {
-                                        const dateString = date ? date.toISOString().split('T')[0] : '';
-                                        setFormData(prev => ({ ...prev, route: { ...prev.route, departure: dateString } }));
+                                    selected={parseISOToDate(formData.route.departure)}
+                                    onChange={(date: Date | null) => {
+                                        const dateString = formatDateToISO(date);
+                                        // --- LOGIC UPDATE ---
+                                        const currentDeadline = parseISOToDate(formData.route.deadline);
+                                        // If departure changes, clear deadline if it's after the new departure
+                                        if (currentDeadline && date && currentDeadline > date) {
+                                            setFormData(prev => ({ ...prev, route: { ...prev.route, departure: dateString, deadline: '' } }));
+                                        } else {
+                                            setFormData(prev => ({ ...prev, route: { ...prev.route, departure: dateString } }));
+                                        }
                                     }}
                                     minDate={new Date()}
-                                    dateFormat="MMMM d, yyyy"
-                                    placeholderText="Select departure date"
+                                    dateFormat="MMMM d, yyyy h:mm aa" // This format is for the picker input
+                                    placeholderText="Select departure date & time"
                                     className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm cursor-pointer border-gray-300 dark:border-gray-600"
                                     wrapperClassName="w-full"
                                     showPopperArrow={false}
                                     showMonthDropdown
                                     showYearDropdown
                                     dropdownMode="select"
+                                    // --- NEW: Added Time Selection ---
+                                    showTimeSelect
+                                    timeFormat="HH:mm" // This format is for the time picker list
+                                    timeIntervals={15}
                                 />
                             </div>
                         </div>
+                        
+                        {/* --- MOVED: RETURN DATEPICKER (now second) --- */}
                         {formData.route.isRoundTrip && (
                             <div>
                                 <label className="flex items-center text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
                                     <Calendar className="w-4 h-4 mr-2 text-gray-600 dark:text-gray-400" />
-                                    Return Date *
+                                    Return Date & Time *
                                 </label>
                                 <div className="relative">
                                     <DatePicker
-                                        selected={formData.route.return ? new Date(formData.route.return) : null}
-                                        onChange={(date) => {
-                                            const dateString = date ? date.toISOString().split('T')[0] : '';
+                                        selected={parseISOToDate(formData.route.return)}
+                                        onChange={(date: Date | null) => {
+                                            const dateString = formatDateToISO(date);
                                             setFormData(prev => ({ ...prev, route: { ...prev.route, return: dateString } }));
                                         }}
-                                        minDate={formData.route.departure ? new Date(formData.route.departure) : new Date()}
-                                        dateFormat="MMMM d, yyyy"
-                                        placeholderText="Select return date"
+                                        // UPDATED: minDate is based on departure date/time
+                                        minDate={parseISOToDate(formData.route.departure) || new Date()}
+                                        dateFormat="MMMM d, yyyy h:mm aa" // This format is for the picker input
+                                        placeholderText="Select return date & time"
+                                        // UPDATED: disabled if departure is not selected
+                                        disabled={!formData.route.departure}
                                         className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm cursor-pointer border-gray-300 dark:border-gray-600"
                                         wrapperClassName="w-full"
                                         showPopperArrow={false}
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
+                                        // --- NEW: Added Time Selection ---
+                                        showTimeSelect
+                                        timeFormat="HH:mm" // This format is for the time picker list
+                                        timeIntervals={15}
                                     />
                                 </div>
                             </div>
                         )}
+                        
+                        {/* --- MOVED: DEADLINE DATEPICKER (now third) --- */}
+                        <div>
+                            <label className="flex items-center text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                <Calendar className="w-4 h-4 mr-2 text-gray-600 dark:text-gray-400" />
+                                Deadline Date & Time *
+                            </label>
+                            <div className="relative">
+                                <DatePicker
+                                    selected={parseISOToDate(formData.route.deadline)}
+                                    onChange={(date: Date | null) => {
+                                        const dateString = formatDateToISO(date);
+                                        setFormData(prev => ({ ...prev, route: { ...prev.route, deadline: dateString } }));
+                                    }}
+                                    // --- LOGIC UPDATED ---
+                                    minDate={new Date()} // Can select from today
+                                    maxDate={parseISOToDate(formData.route.departure)} // Can only select UP TO departure date/time
+                                    dateFormat="MMMM d, yyyy h:mm aa" // This format is for the picker input
+                                    placeholderText="Select deadline date & time"
+                                    disabled={!formData.route.departure} // Disabled until departure is set
+                                    // --- END LOGIC UPDATE ---
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm cursor-pointer border-gray-300 dark:border-gray-600"
+                                    wrapperClassName="w-full"
+                                    showPopperArrow={false}
+                                    showMonthDropdown
+                                    showYearDropdown
+                                    dropdownMode="select"
+                                    // --- NEW: Added Time Selection ---
+                                    showTimeSelect
+                                    timeFormat="HH:mm" // This format is for the time picker list
+                                    timeIntervals={15}
+                                />
+                            </div>
+                        </div>
+                        {/* --- END: DEADLINE DATEPICKER --- */}
                     </div>
                 </div>
             )}
@@ -140,32 +228,67 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                             key={dateItem.id}
                             className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-xl border-2 border-green-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-all"
                         >
-                            <div className="flex items-center space-x-6">
+                            <div className="flex items-center space-x-4 md:space-x-6">
                                 <span className="text-2xl font-bold text-green-600 dark:text-green-400">
                                     #{index + 1}
                                 </span>
-                                <div className="flex items-center space-x-4">
+                                <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-4">
+                                    {/* Departure */}
                                     <div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Departure</p>
                                         <p className="text-base font-bold text-gray-900 dark:text-white">
-                                            {new Date(dateItem.departure).toLocaleDateString('en-US', {
+                                            {/* UPDATED: To show 24-hour time */}
+                                            {parseISOToDate(dateItem.departure)?.toLocaleString('en-US', {
                                                 weekday: 'short',
                                                 year: 'numeric',
                                                 month: 'short',
-                                                day: 'numeric'
-                                            })}
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false // Set to false for 24-hour format
+                                            }) || 'Invalid Date'}
                                         </p>
                                     </div>
-                                    <ArrowRight className="w-5 h-5 text-gray-400" />
+                                    
+                                    {/* --- MOVED: Return Display (now second) --- */}
+                                    {dateItem.return && (
+                                        <>
+                                            <ArrowRight className="w-5 h-5 text-gray-400 hidden md:block" />
+                                            <div>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Return</p>
+                                                <p className="text-base font-bold text-gray-900 dark:text-white">
+                                                    {/* UPDATED: To show 24-hour time */}
+                                                    {parseISOToDate(dateItem.return)?.toLocaleString('en-US', {
+                                                        weekday: 'short',
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: false // Set to false for 24-hour format
+                                                    }) || 'N/A'}
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <ArrowRight className="w-5 h-5 text-gray-400 hidden md:block" />
+
+                                    {/* --- MOVED: Deadline Display (now third) --- */}
                                     <div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Return</p>
-                                        <p className="text-base font-bold text-gray-900 dark:text-white">
-                                            {new Date(dateItem.return).toLocaleDateString('en-US', {
+                                        {/* --- UPDATED: Added red text classes --- */}
+                                        <p className="text-xs text-red-600 dark:text-red-400 mb-1">Deadline</p>
+                                        <p className="text-base font-bold text-red-600 dark:text-red-400">
+                                            {/* UPDATED: To show 24-hour time */}
+                                            {parseISOToDate(dateItem.deadline)?.toLocaleString('en-US', {
                                                 weekday: 'short',
                                                 year: 'numeric',
                                                 month: 'short',
-                                                day: 'numeric'
-                                            })}
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false // Set to false for 24-hour format
+                                            }) || 'Invalid Date'}
                                         </p>
                                     </div>
                                 </div>
@@ -178,7 +301,7 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                                         availableDates: prev.availableDates.filter(d => d.id !== dateItem.id)
                                     }));
                                 }}
-                                className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all"
+                                className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/5Code text-red-600 dark:text-red-400 rounded-lg transition-all"
                                 title="Remove this date"
                             >
                                 <Trash2 className="w-5 h-5" />
@@ -202,7 +325,7 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                     <p className="text-sm text-blue-700 dark:text-blue-400 font-medium flex items-center">
                         <Info className="w-4 h-4 mr-2" />
                         Total available flight dates: <span className="font-bold ml-1">{formData.availableDates.length}</span>
-                    </p>
+                    </p> {/* --- FIX: Changed </Message> to </p> --- */}
                 </div>
             )}
         </div>

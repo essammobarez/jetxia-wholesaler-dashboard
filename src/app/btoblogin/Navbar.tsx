@@ -11,7 +11,7 @@ import { getWholesalerBranding } from '@/utils/apiHandler';
 export default function Navbar() {
   const [language, setLanguage] = useState('en');
   const pathname = usePathname() || '/';
-  const [navLogo, setNavLogo] = useState<string>('');
+  const [logo, setlogo] = useState<string>('');
   const [isLoadingLogo, setIsLoadingLogo] = useState(true);
 
   // Fetch branding for navbar logo
@@ -19,8 +19,8 @@ export default function Navbar() {
     const fetchBranding = async () => {
       try {
         const branding = await getWholesalerBranding(true);
-        if (branding.navLogo) {
-          setNavLogo(branding.navLogo);
+        if (branding.logo) {
+          setlogo(branding.logo);
         }
       } catch (err) {
         console.error('Failed to fetch navbar branding:', err);
@@ -79,9 +79,9 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center ml-44">
-              {navLogo ? (
+              {logo ? (
                 <Image
-                  src={navLogo}
+                  src={logo}
                   alt="Company Logo"
                   width={90}
                   height={40}

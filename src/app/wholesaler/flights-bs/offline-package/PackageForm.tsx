@@ -16,7 +16,8 @@ import Pricing from './components/Pricing';
 import Commission from './components/Commission';
 import Dates from './components/Dates';
 
-import { countriesWithCities } from './mockData'; // Keep this for the country/city dropdowns
+// --- FIX ---: Removed unused mock data import
+// import { countriesWithCities } from './mockData'; 
 import { ApiPackage } from './OfflinePackageModule'; // Import the correct package type
 
 interface PackageFormProps {
@@ -134,7 +135,7 @@ const getInitialFormData = (pkg?: ApiPackage) => {
     selectedInclusions: {
       // 'inclusions' is not in the API response
       meals: [] as string[],
-      activities: [] as string[],
+      activities: [] as any[], // --- FIX ---: Changed to any[] to support {name, price}
       extras: [] as string[]
     }
   };
@@ -176,7 +177,9 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
   
   // Initialize selectedCountry from the (cleaned) package data
   const [selectedCountry, setSelectedCountry] = useState(cleanString(pkg?.country || ''));
-  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  
+  // --- FIX ---: Removed unused availableCities state
+  // const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   const availableMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
   const availableActivities = [
@@ -309,6 +312,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     setShowHotelSelector(!showHotelSelector);
   };
 
+  // --- FIX ---: Changed dependency to be more specific and avoid extra re-renders
   useEffect(() => {
     if (formData.selectedHotel && formData.selectedHotel.roomTypes?.length > 0) {
       const hotel = formData.selectedHotel;
@@ -329,38 +333,35 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         }
       }));
     }
-  }, [formData.selectedHotel]);
+  }, [formData.selectedHotel?.roomTypes]); // --- FIX ---: Correct dependency
 
+  // --- FIX ---: Removed useEffect that populated availableCities
+  // This logic is now inside BasicInformation.tsx
+
+  // --- FIX ---: This useEffect now handles ALL side effects of changing the country
   useEffect(() => {
-    // Populate cities when country changes
-    if (selectedCountry) {
-        const selected = countriesWithCities.find(c => c.country === selectedCountry);
-        setAvailableCities(selected ? selected.cities : []);
-    } else {
-      setAvailableCities([]);
-    }
-  }, [selectedCountry, countriesWithCities]);
-  
-  // Sync form state if selectedCountry changes
-  useEffect(() => {
-    // On mount, this just syncs the country from state, but keeps the city from getInitialFormData
+    // 1. Sync country with formData
     setFormData(prev => ({
       ...prev,
       destination: { ...prev.destination, country: selectedCountry },
     }));
-
-     // Only reset selections AND CITY if the country is *actually* changed by the user
-     if (pkg && selectedCountry !== cleanString(pkg.country)) {
+  
+    // 2. If country is *different* from original, reset city & selections
+    // This applies to both 'create' (original is '') and 'edit' (original is pkg.country)
+    const originalCountry = cleanString(pkg?.country || '');
+    if (selectedCountry !== originalCountry) {
       setFormData(prev => ({
         ...prev,
-        destination: { ...prev.destination, city: '' }, // Reset city here
+        destination: { ...prev.destination, country: selectedCountry, city: '' }, // Reset city here
         selectedBlockSeat: null,
         selectedDateIndex: null,
         selectedHotel: null,
+        selectedRoomType: null,
+        selectedHotelRooms: [], 
       }));
       setErrors(prev => ({...prev, city: '', blockSeat: '', hotel: ''}));
     }
-  }, [selectedCountry, pkg]);
+  }, [selectedCountry, pkg]); // pkg dependency is correct
 
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -430,9 +431,9 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
       ...prev,
       selectedInclusions: {
         ...prev.selectedInclusions,
-        [type]: prev.selectedInclusions[type].includes(item)
-          ? prev.selectedInclusions[type].filter(i => i !== item)
-          : [...prev.selectedInclusions[type], item]
+        [type]: (prev.selectedInclusions[type] as string[]).includes(item)
+          ? (prev.selectedInclusions[type] as string[]).filter(i => i !== item)
+          : [...(prev.selectedInclusions[type] as string[]), item]
       }
     }));
   };
@@ -451,17 +452,10 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     }));
   };
 
+  // --- FIX ---: This handler now *only* sets the country.
+  // The useEffect (line 464) handles all side effects.
   const handleCountryChange = (country: string) => {
     setSelectedCountry(country);
-    // Reset city and selections
-    setFormData(prev => ({
-      ...prev,
-      destination: { ...prev.destination, country, city: '' },
-      selectedBlockSeat: null,
-      selectedDateIndex: null,
-      selectedHotel: null,
-    }));
-    setErrors(prev => ({...prev, city: '', blockSeat: '', hotel: ''}));
   };
 
   const handleAddHighlight = () => {
@@ -495,10 +489,13 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
       return []; // Return empty array if no country is selected
     }
     // Print the target value to the console
-    console.log("Filtering flights for target country:", selectedCountry);
+    console.log("Filtering flights for target country (in 'To'):", selectedCountry); // Updated console log for clarity
 
     return blockSeatsData.filter(seat =>
-      seat.route.from[0]?.country?.toLowerCase() === selectedCountry.toLowerCase()
+      // --- MODIFIED ---
+      // Show flights where the TO country matches the selected country
+      seat.route.to[0]?.country?.toLowerCase() === selectedCountry.toLowerCase()
+      // --- END MODIFIED ---
     );
   }, [blockSeatsData, selectedCountry]);
 
@@ -715,8 +712,9 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               errors={errors}
               selectedCountry={selectedCountry}
               handleCountryChange={handleCountryChange}
-              availableCities={availableCities}
-              countriesWithCities={countriesWithCities}
+              // --- FIX ---: Removed props that are no longer needed
+              // availableCities={availableCities}
+              // countriesWithCities={countriesWithCities}
             />
             <FlightSelection
               formData={formData}
@@ -759,7 +757,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               setShowDayForm={setShowDayForm}
               handleAddDay={handleAddDay}
               handleRemoveDay={handleRemoveDay}
-    
+  
               handleToggleMeal={handleToggleMeal}
               handleToggleActivity={handleToggleActivity}
               availableMeals={availableMeals}
@@ -767,6 +765,8 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
             />
             <PackageInclusions
               formData={formData}
+              // --- FIX ---: This prop is required for the "Add Exclusion" button to work
+              setFormData={setFormData} 
               toggleSection={toggleSection}
               expandedSections={expandedSections}
               handleToggleInclusion={handleToggleInclusion}

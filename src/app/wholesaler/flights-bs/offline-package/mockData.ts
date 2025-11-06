@@ -219,7 +219,7 @@ export const mockBlockSeats = [
     id: '1',
     airline: { name: 'EgyptAir', code: 'MS', logo: 'https://images.kiwi.com/airlines/64/MS.png' },
     flightNumber: 'MS980',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'DXB', city: 'Dubai', country: 'UAE', flag: '🇦🇪' }]
     },
@@ -237,7 +237,7 @@ export const mockBlockSeats = [
     id: '2',
     airline: { name: 'Emirates', code: 'EK', logo: 'https://images.kiwi.com/airlines/64/EK.png' },
     flightNumber: 'EK924',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'JFK', city: 'New York', country: 'USA', flag: '🇺🇸' }]
     },
@@ -255,7 +255,7 @@ export const mockBlockSeats = [
     id: '3',
     airline: { name: 'EgyptAir', code: 'MS', logo: 'https://images.kiwi.com/airlines/64/MS.png' },
     flightNumber: 'MS980',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'DXB', city: 'Dubai', country: 'UAE', flag: '🇦🇪' }]
     },
@@ -273,7 +273,7 @@ export const mockBlockSeats = [
     id: '4',
     airline: { name: 'Turkish Airlines', code: 'TK', logo: 'https://images.kiwi.com/airlines/64/TK.png' },
     flightNumber: 'TK690',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'IST', city: 'Istanbul', country: 'Turkey', flag: '🇹🇷' }]
     },
@@ -291,7 +291,7 @@ export const mockBlockSeats = [
     id: '5',
     airline: { name: 'Qatar Airways', code: 'QR', logo: 'https://images.kiwi.com/airlines/64/QR.png' },
     flightNumber: 'QR1302',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'BKK', city: 'Bangkok', country: 'Thailand', flag: '🇹🇭' }]
     },
@@ -310,7 +310,7 @@ export const mockBlockSeats = [
     id: '6',
     airline: { name: 'Emirates', code: 'EK', logo: 'https://images.kiwi.com/airlines/64/EK.png' },
     flightNumber: 'EK924',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'JFK', city: 'New York', country: 'USA', flag: '🇺🇸' }]
     },
@@ -328,7 +328,7 @@ export const mockBlockSeats = [
     id: '7',
     airline: { name: 'Etihad', code: 'EY', logo: 'https://images.kiwi.com/airlines/64/EY.png' },
     flightNumber: 'EY654',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'CDG', city: 'Paris', country: 'France', flag: '🇫🇷' }]
     },
@@ -346,7 +346,7 @@ export const mockBlockSeats = [
     id: '8',
     airline: { name: 'Saudia', code: 'SV', logo: 'https://images.kiwi.com/airlines/64/SV.png' },
     flightNumber: 'SV378',
-    route: { 
+    route: {
       from: [{ code: 'RUH', city: 'Riyadh', country: 'Saudi Arabia', flag: '🇸🇦' }],
       to: [{ code: 'BCN', city: 'Barcelona', country: 'Spain', flag: '🇪🇸' }]
     },
@@ -364,7 +364,7 @@ export const mockBlockSeats = [
     id: '9',
     airline: { name: 'Turkish Airlines', code: 'TK', logo: 'https://images.kiwi.com/airlines/64/TK.png' },
     flightNumber: 'TK690',
-    route: { 
+    route: {
       from: [{ code: 'CAI', city: 'Cairo', country: 'Egypt', flag: '🇪🇬' }],
       to: [{ code: 'IST', city: 'Istanbul', country: 'Turkey', flag: '🇹🇷' }]
     },
@@ -382,7 +382,7 @@ export const mockBlockSeats = [
     id: '10',
     airline: { name: 'Air France', code: 'AF', logo: 'https://images.kiwi.com/airlines/64/AF.png' },
     flightNumber: 'AF778',
-    route: { 
+    route: {
       from: [{ code: 'CDG', city: 'Paris', country: 'France', flag: '🇫🇷' }],
       to: [{ code: 'NRT', city: 'Tokyo', country: 'Japan', flag: '🇯🇵' }]
     },
@@ -400,7 +400,7 @@ export const mockBlockSeats = [
     id: '11',
     airline: { name: 'Lufthansa', code: 'LH', logo: 'https://images.kiwi.com/airlines/64/LH.png' },
     flightNumber: 'LH582',
-    route: { 
+    route: {
       from: [{ code: 'FRA', city: 'Frankfurt', country: 'Germany', flag: '🇩🇪' }],
       to: [{ code: 'JTR', city: 'Santorini', country: 'Greece', flag: '🇬🇷' }]
     },
@@ -528,56 +528,104 @@ export const mockHotels = [
     amenities: ['Wifi', 'Spa', 'Fine Dining', 'Central Park View', 'Butler Service']
   }
 ];
-export const countriesWithCities = [
-  { country: 'Egypt', cities: ['Cairo', 'Alexandria', 'Luxor', 'Aswan', 'Hurghada', 'Sharm El Sheikh', 'Dahab'] },
-  { country: 'United Arab Emirates', cities: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah'] },
-  { country: 'Saudi Arabia', cities: ['Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dammam', 'Taif'] },
-  { country: 'Turkey', cities: ['Istanbul', 'Ankara', 'Antalya', 'Bodrum', 'Cappadocia', 'Izmir'] },
-  { country: 'United Kingdom', cities: ['London', 'Manchester', 'Edinburgh', 'Birmingham', 'Liverpool'] },
-  { country: 'United States', cities: ['New York', 'Los Angeles', 'Miami', 'Las Vegas', 'Chicago', 'Orlando'] },
-  { country: 'France', cities: ['Paris', 'Nice', 'Lyon', 'Marseille', 'Cannes', 'Bordeaux'] },
-  { country: 'Italy', cities: ['Rome', 'Milan', 'Venice', 'Florence', 'Naples', 'Pisa'] },
-  { country: 'Spain', cities: ['Barcelona', 'Madrid', 'Valencia', 'Seville', 'Malaga', 'Ibiza'] },
-  { country: 'Greece', cities: ['Athens', 'Santorini', 'Mykonos', 'Crete', 'Rhodes', 'Thessaloniki'] },
-  { country: 'Thailand', cities: ['Bangkok', 'Phuket', 'Pattaya', 'Chiang Mai', 'Krabi', 'Koh Samui'] },
-  { country: 'Malaysia', cities: ['Kuala Lumpur', 'Penang', 'Langkawi', 'Malacca', 'Johor Bahru'] },
-  { country: 'Singapore', cities: ['Singapore', 'Sentosa'] },
-  { country: 'India', cities: ['Delhi', 'Mumbai', 'Goa', 'Jaipur', 'Agra', 'Bangalore'] },
-  { country: 'China', cities: ['Beijing', 'Shanghai', 'Hong Kong', 'Guangzhou', 'Shenzhen'] },
-  { country: 'Japan', cities: ['Tokyo', 'Osaka', 'Kyoto', 'Hiroshima', 'Nara', 'Fukuoka'] },
-  { country: 'Australia', cities: ['Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Gold Coast'] },
-  { country: 'New Zealand', cities: ['Auckland', 'Wellington', 'Queenstown', 'Christchurch'] },
-  { country: 'South Africa', cities: ['Cape Town', 'Johannesburg', 'Durban', 'Port Elizabeth'] },
-  { country: 'Morocco', cities: ['Marrakech', 'Casablanca', 'Fes', 'Rabat', 'Tangier'] },
-  { country: 'Jordan', cities: ['Amman', 'Petra', 'Aqaba', 'Dead Sea', 'Wadi Rum'] },
-  { country: 'Lebanon', cities: ['Beirut', 'Byblos', 'Baalbek', 'Tripoli', 'Sidon'] },
-  { country: 'Qatar', cities: ['Doha', 'Al Wakrah', 'Al Khor'] },
-  { country: 'Kuwait', cities: ['Kuwait City', 'Hawalli', 'Salmiya'] },
-  { country: 'Bahrain', cities: ['Manama', 'Riffa', 'Muharraq'] },
-  { country: 'Oman', cities: ['Muscat', 'Salalah', 'Nizwa', 'Sur'] },
-  { country: 'Germany', cities: ['Berlin', 'Munich', 'Frankfurt', 'Hamburg', 'Cologne'] },
-  { country: 'Switzerland', cities: ['Zurich', 'Geneva', 'Lucerne', 'Interlaken', 'Bern'] },
-  { country: 'Austria', cities: ['Vienna', 'Salzburg', 'Innsbruck', 'Graz'] },
-  { country: 'Netherlands', cities: ['Amsterdam', 'Rotterdam', 'The Hague', 'Utrecht'] },
-  { country: 'Belgium', cities: ['Brussels', 'Bruges', 'Antwerp', 'Ghent'] },
-  { country: 'Portugal', cities: ['Lisbon', 'Porto', 'Faro', 'Algarve', 'Madeira'] },
-  { country: 'Sweden', cities: ['Stockholm', 'Gothenburg', 'Malmo'] },
-  { country: 'Norway', cities: ['Oslo', 'Bergen', 'Stavanger', 'Tromso'] },
-  { country: 'Denmark', cities: ['Copenhagen', 'Aarhus', 'Odense'] },
-  { country: 'Poland', cities: ['Warsaw', 'Krakow', 'Gdansk', 'Wroclaw'] },
-  { country: 'Czech Republic', cities: ['Prague', 'Brno', 'Cesky Krumlov'] },
-  { country: 'Russia', cities: ['Moscow', 'Saint Petersburg', 'Sochi', 'Kazan'] },
-  { country: 'Brazil', cities: ['Rio de Janeiro', 'Sao Paulo', 'Salvador', 'Brasilia'] },
-  { country: 'Argentina', cities: ['Buenos Aires', 'Mendoza', 'Bariloche', 'Cordoba'] },
-  { country: 'Mexico', cities: ['Cancun', 'Mexico City', 'Playa del Carmen', 'Tulum', 'Cabo'] },
-  { country: 'Canada', cities: ['Toronto', 'Vancouver', 'Montreal', 'Quebec City', 'Calgary'] },
-  { country: 'Maldives', cities: ['Male', 'Hulhumale', 'Maafushi', 'Addu City'] },
-  { country: 'Seychelles', cities: ['Victoria', 'Mahe', 'Praslin', 'La Digue'] },
-  { country: 'Mauritius', cities: ['Port Louis', 'Grand Baie', 'Flic en Flac'] },
-  { country: 'Sri Lanka', cities: ['Colombo', 'Kandy', 'Galle', 'Ella', 'Sigiriya'] },
-  { country: 'Indonesia', cities: ['Bali', 'Jakarta', 'Yogyakarta', 'Lombok', 'Bandung'] },
-  { country: 'Philippines', cities: ['Manila', 'Cebu', 'Boracay', 'Palawan', 'Davao'] },
-    { country: 'Bangladesh', cities: ['Dhaka', 'Chittagong', 'Khulna'] },
-  { country: 'Vietnam', cities: ['Hanoi', 'Ho Chi Minh', 'Da Nang', 'Hoi An', 'Nha Trang'] }
 
+// Expanded List of Countries and Cities
+export const countriesWithCities = [
+  // Middle East & North Africa
+  { country: 'Egypt', cities: ['Cairo', 'Alexandria', 'Luxor', 'Aswan', 'Hurghada', 'Sharm El Sheikh', 'Dahab'] },
+  { country: 'United Arab Emirates', cities: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah'] },
+  { country: 'Saudi Arabia', cities: ['Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dammam', 'Taif', 'AlUla'] },
+  { country: 'Morocco', cities: ['Marrakech', 'Casablanca', 'Fes', 'Rabat', 'Tangier', 'Agadir'] },
+  { country: 'Turkey', cities: ['Istanbul', 'Ankara', 'Antalya', 'Bodrum', 'Cappadocia', 'Izmir', 'Fethiye'] },
+  { country: 'Jordan', cities: ['Amman', 'Petra', 'Aqaba', 'Dead Sea', 'Wadi Rum', 'Jerash'] },
+  { country: 'Qatar', cities: ['Doha', 'Al Wakrah', 'Al Khor', 'Lusail'] },
+  { country: 'Oman', cities: ['Muscat', 'Salalah', 'Nizwa', 'Sur', 'Musandam'] },
+  { country: 'Lebanon', cities: ['Beirut', 'Byblos', 'Baalbek', 'Tripoli', 'Sidon'] },
+  { country: 'Bahrain', cities: ['Manama', 'Riffa', 'Muharraq'] },
+  { country: 'Kuwait', cities: ['Kuwait City', 'Hawalli', 'Salmiya'] },
+  { country: 'Israel', cities: ['Tel Aviv', 'Jerusalem', 'Haifa', 'Eilat'] },
+  { country: 'Tunisia', cities: ['Tunis', 'Sousse', 'Hammamet', 'Djerba'] },
+  { country: 'Algeria', cities: ['Algiers', 'Oran', 'Constantine'] },
+
+  // Europe
+  { country: 'United Kingdom', cities: ['London', 'Manchester', 'Edinburgh', 'Birmingham', 'Liverpool', 'Glasgow', 'Bristol'] },
+  { country: 'France', cities: ['Paris', 'Nice', 'Lyon', 'Marseille', 'Cannes', 'Bordeaux', 'Strasbourg'] },
+  { country: 'Italy', cities: ['Rome', 'Milan', 'Venice', 'Florence', 'Naples', 'Pisa', 'Amalfi Coast'] },
+  { country: 'Spain', cities: ['Barcelona', 'Madrid', 'Valencia', 'Seville', 'Malaga', 'Ibiza', 'Palma de Mallorca'] },
+  { country: 'Germany', cities: ['Berlin', 'Munich', 'Frankfurt', 'Hamburg', 'Cologne', 'Düsseldorf'] },
+  { country: 'Greece', cities: ['Athens', 'Santorini', 'Mykonos', 'Crete', 'Rhodes', 'Thessaloniki', 'Corfu'] },
+  { country: 'Portugal', cities: ['Lisbon', 'Porto', 'Faro', 'Algarve', 'Madeira', 'Azores'] },
+  { country: 'Netherlands', cities: ['Amsterdam', 'Rotterdam', 'The Hague', 'Utrecht'] },
+  { country: 'Switzerland', cities: ['Zurich', 'Geneva', 'Lucerne', 'Interlaken', 'Bern', 'Zermatt'] },
+  { country: 'Austria', cities: ['Vienna', 'Salzburg', 'Innsbruck', 'Graz', 'Hallstatt'] },
+  { country: 'Belgium', cities: ['Brussels', 'Bruges', 'Antwerp', 'Ghent'] },
+  { country: 'Ireland', cities: ['Dublin', 'Galway', 'Cork', 'Limerick'] },
+  { country: 'Czech Republic', cities: ['Prague', 'Brno', 'Cesky Krumlov', 'Karlovy Vary'] },
+  { country: 'Hungary', cities: ['Budapest', 'Debrecen', 'Szeged'] },
+  { country: 'Poland', cities: ['Warsaw', 'Krakow', 'Gdansk', 'Wroclaw'] },
+  { country: 'Sweden', cities: ['Stockholm', 'Gothenburg', 'Malmo'] },
+  { country: 'Norway', cities: ['Oslo', 'Bergen', 'Stavanger', 'Tromso', 'Trondheim'] },
+  { country: 'Denmark', cities: ['Copenhagen', 'Aarhus', 'Odense'] },
+  { country: 'Finland', cities: ['Helsinki', 'Rovaniemi', 'Turku'] },
+  { country: 'Russia', cities: ['Moscow', 'Saint Petersburg', 'Sochi', 'Kazan'] },
+  { country: 'Croatia', cities: ['Dubrovnik', 'Split', 'Zagreb', 'Hvar', 'Zadar'] },
+  { country: 'Cyprus', cities: ['Larnaca', 'Paphos', 'Limassol', 'Nicosia'] },
+  { country: 'Malta', cities: ['Valletta', 'St. Julian\'s', 'Sliema'] },
+
+  // Americas
+  { country: 'United States', cities: ['New York', 'Los Angeles', 'Miami', 'Las Vegas', 'Chicago', 'Orlando', 'San Francisco', 'Washington D.C.'] },
+  { country: 'Canada', cities: ['Toronto', 'Vancouver', 'Montreal', 'Quebec City', 'Calgary', 'Banff', 'Ottawa'] },
+  { country: 'Mexico', cities: ['Cancun', 'Mexico City', 'Playa del Carmen', 'Tulum', 'Cabo', 'Guadalajara'] },
+  { country: 'Brazil', cities: ['Rio de Janeiro', 'Sao Paulo', 'Salvador', 'Brasilia', 'Iguazu Falls'] },
+  { country: 'Argentina', cities: ['Buenos Aires', 'Mendoza', 'Bariloche', 'Ushuaia', 'El Calafate'] },
+  { country: 'Peru', cities: ['Lima', 'Cusco', 'Machu Picchu', 'Arequipa'] },
+  { country: 'Colombia', cities: ['Bogota', 'Medellin', 'Cartagena', 'Cali'] },
+  { country: 'Chile', cities: ['Santiago', 'Valparaiso', 'San Pedro de Atacama', 'Puerto Natales'] },
+  { country: 'Costa Rica', cities: ['San Jose', 'La Fortuna', 'Monteverde', 'Tamarindo'] },
+  { country: 'Cuba', cities: ['Havana', 'Varadero', 'Trinidad'] },
+  { country: 'Dominican Republic', cities: ['Punta Cana', 'Santo Domingo', 'Puerto Plata'] },
+  { country: 'Jamaica', cities: ['Montego Bay', 'Negril', 'Ocho Rios', 'Kingston'] },
+
+  // Asia
+  { country: 'Thailand', cities: ['Bangkok', 'Phuket', 'Pattaya', 'Chiang Mai', 'Krabi', 'Koh Samui'] },
+  { country: 'Japan', cities: ['Tokyo', 'Osaka', 'Kyoto', 'Hiroshima', 'Nara', 'Fukuoka', 'Sapporo'] },
+  { country: 'China', cities: ['Beijing', 'Shanghai', 'Hong Kong', 'Guangzhou', 'Shenzhen', 'Xi\'an'] },
+  { country: 'India', cities: ['Delhi', 'Mumbai', 'Goa', 'Jaipur', 'Agra', 'Bangalore', 'Kerala'] },
+  { country: 'Indonesia', cities: ['Bali', 'Jakarta', 'Yogyakarta', 'Lombok', 'Bandung'] },
+  { country: 'Malaysia', cities: ['Kuala Lumpur', 'Penang', 'Langkawi', 'Malacca', 'Johor Bahru'] },
+  { country: 'Vietnam', cities: ['Hanoi', 'Ho Chi Minh', 'Da Nang', 'Hoi An', 'Nha Trang', 'Ha Long Bay'] },
+  { country: 'Singapore', cities: ['Singapore', 'Sentosa'] },
+  { country: 'South Korea', cities: ['Seoul', 'Busan', 'Jeju Island', 'Incheon'] },
+  { country: 'Philippines', cities: ['Manila', 'Cebu', 'Boracay', 'Palawan', 'Davao'] },
+  { country: 'Maldives', cities: ['Male', 'Hulhumale', 'Maafushi', 'Addu City'] },
+  { country: 'Sri Lanka', cities: ['Colombo', 'Kandy', 'Galle', 'Ella', 'Sigiriya', 'Nuwara Eliya'] },
+  { country: 'Nepal', cities: ['Kathmandu', 'Pokhara', 'Chitwan'] },
+  { country: 'Bangladesh', cities: ['Dhaka', 'Chittagong', 'Cox\'s Bazar', 'Sylhet', 'Khulna'] },
+  { country: 'Pakistan', cities: ['Karachi', 'Lahore', 'Islamabad', 'Hunza'] },
+  { country: 'Taiwan', cities: ['Taipei', 'Kaohsiung', 'Taichung'] },
+  { country: 'Cambodia', cities: ['Phnom Penh', 'Siem Reap', 'Sihanoukville'] },
+  { country: 'Uzbekistan', cities: ['Tashkent', 'Samarkand', 'Bukhara', 'Khiva'] },
+  { country: 'Kazakhstan', cities: ['Almaty', 'Nur-Sultan (Astana)', 'Shymkent'] },
+  { country: 'Georgia', cities: ['Tbilisi', 'Batumi', 'Kutaisi'] },
+  { country: 'Armenia', cities: ['Yerevan', 'Gyumri', 'Dilijan'] },
+  { country: 'Azerbaijan', cities: ['Baku', 'Ganja', 'Gabala'] },
+
+  // Africa (Sub-Saharan)
+  { country: 'South Africa', cities: ['Cape Town', 'Johannesburg', 'Durban', 'Port Elizabeth', 'Kruger National Park'] },
+  { country: 'Kenya', cities: ['Nairobi', 'Mombasa', 'Maasai Mara', 'Kisumu'] },
+  { country: 'Tanzania', cities: ['Dar es Salaam', 'Zanzibar', 'Arusha', 'Serengeti'] },
+  { country: 'Nigeria', cities: ['Lagos', 'Abuja', 'Kano'] },
+  { country: 'Ghana', cities: ['Accra', 'Kumasi', 'Cape Coast'] },
+  { country: 'Ethiopia', cities: ['Addis Ababa', 'Gondar', 'Lalibela'] },
+  { country: 'Mauritius', cities: ['Port Louis', 'Grand Baie', 'Flic en Flac', 'Mahebourg'] },
+  { country: 'Seychelles', cities: ['Victoria', 'Mahe', 'Praslin', 'La Digue'] },
+  { country: 'Madagascar', cities: ['Antananarivo', 'Nosy Be', 'Antsiranana'] },
+  { country: 'Senegal', cities: ['Dakar', 'Saint-Louis', 'Touba'] },
+  { country: 'Rwanda', cities: ['Kigali', 'Gisenyi', 'Ruhengeri'] },
+
+  // Oceania
+  { country: 'Australia', cities: ['Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Gold Coast', 'Cairns', 'Adelaide'] },
+  { country: 'New Zealand', cities: ['Auckland', 'Wellington', 'Queenstown', 'Christchurch', 'Rotorua'] },
+  { country: 'Fiji', cities: ['Nadi', 'Suva', 'Denarau'] },
+  { country: 'French Polynesia', cities: ['Papeete (Tahiti)', 'Bora Bora', 'Moorea'] }
 ];
