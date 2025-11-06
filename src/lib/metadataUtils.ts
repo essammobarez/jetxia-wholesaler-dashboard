@@ -30,7 +30,7 @@ export const formatPathToTitle = (pathname: string): string => {
 /**
  * Server-side metadata generation
  * Used in generateMetadata functions in pages
- * Properly sets favicon through Next.js Metadata API
+ * Properly sets favicon through Next.js Metadata API using dynamic API route
  */
 export async function generateUnifiedMetadata({
   pathname,
@@ -46,44 +46,34 @@ export async function generateUnifiedMetadata({
   try {
     const branding = await getWholesalerBrandingServer(hostname);
 
-    console.log("Branding:", branding);
+    console.log("✓ Branding loaded:", { name: branding.name, hostname });
     const pageTitle = title || formatPathToTitle(pathname);
+
+    // Use dynamic favicon API route instead of direct logo URL
+    // The /api/favicon route properly handles:
+    // - Base64 image conversion to binary
+    // - Domain-based branding detection
+    // - Fallback to static favicon.ico
+    const faviconUrl = '/api/favicon';
 
     return {
       title: `${pageTitle} | ${branding.name}`,
       description:
         description || `Welcome to ${branding.name} booking platform`,
       icons: {
-        icon: [
-          {
-            url: branding.logo,
-            type: 'image/png',
-          },
-        ],
-        shortcut: [
-          {
-            url: branding.logo,
-            type: 'image/png',
-          },
-        ],
-        apple: [
-          {
-            url: branding.logo,
-            type: 'image/png',
-          },
-        ],
+        icon: faviconUrl,
       },
     };
   } catch (error) {
-    console.error("Error generating metadata:", error);
-    
-    // Fallback metadata
+    console.error("✗ Error generating metadata:", error);
+
+    // Fallback metadata with static favicon
     const pageTitle = title || formatPathToTitle(pathname);
     return {
       title: `${pageTitle} | Jetixia System`,
       description: description || "Welcome to Jetixia booking platform",
       icons: {
-        icon: "/favicon.ico",
+        icon: "/favicon.ico", // Static fallback from public folder
       },
     };
   }
@@ -91,8 +81,8 @@ export async function generateUnifiedMetadata({
 
 /**
  * Client-side metadata updates (for CSR)
- * Updates document.title and meta description only
- * Favicon is handled by Next.js Metadata API
+ * Updates document.title, meta description, and favicon dynamically
+ * Called by BrandingMetaUpdater on route changes
  */
 export async function updateClientMetadata({
   pathname,
@@ -113,6 +103,8 @@ export async function updateClientMetadata({
     const branding = await getWholesalerBranding(forceRefresh);
     const pageTitle = title || formatPathToTitle(pathname);
 
+    console.log("✓ Updating client metadata:", { pathname, brandName: branding.name });
+
     // Update document title
     if (document.title !== undefined) {
       document.title = `${pageTitle} | ${branding.name}`;
@@ -132,11 +124,46 @@ export async function updateClientMetadata({
       );
     }
 
-    // Note: Favicon is handled by Next.js Metadata API server-side
-    // No client-side DOM manipulation needed
+    // Update favicon dynamically using API route
+    // This ensures the favicon reflects current branding on route changes
+    updateFaviconLink();
   } catch (error) {
-    console.error("Error updating client metadata:", error);
-    // Silently fail - don't break the app
+    console.error("✗ Error updating client metadata:", error);
+    // Silently fail - don't break the app, fallback favicon will be used
   }
 }
 
+/**
+ * Update favicon link to use dynamic API route
+ * This ensures the favicon refreshes when branding changes
+ * Uses cache-busting timestamp to force browser to fetch updated favicon
+ */
+function updateFaviconLink(): void {
+  if (typeof window === "undefined") return;
+  if (!document || !document.head) return;
+
+  try {
+    // Find existing favicon link or create new one
+    let faviconLink = document.querySelector('link[rel*="icon"]') as HTMLLinkElement;
+    
+    if (faviconLink) {
+      // Update existing favicon by reassigning href with cache-busting timestamp
+      faviconLink.href = `/api/favicon?t=${Date.now()}`;
+    } else {
+      // Create new favicon link if none exists
+      faviconLink = document.createElement("link");
+      faviconLink.rel = "icon";
+      faviconLink.type = "image/x-icon";
+      faviconLink.href = `/api/favicon?t=${Date.now()}`;
+      
+      if (document.head) {
+        document.head.appendChild(faviconLink);
+      }
+    }
+
+    console.log("Favicon link updated successfully");
+  } catch (error) {
+    console.error("Error updating favicon link:", error);
+    // Silently fail - don't break the app, use fallback favicon
+  }
+}
