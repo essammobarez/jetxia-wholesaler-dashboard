@@ -21,6 +21,41 @@ interface AvailableFlightDatesProps {
 const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, setFormData, errors }) => {
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    /**
+     * Helper function to format a Date object to 'YYYY-MM-DD' string
+     * This avoids timezone conversions from .toISOString()
+     */
+    const formatDateToYYYYMMDD = (date: Date | null): string => {
+        if (!date) return '';
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    /**
+     * Helper function to parse 'YYYY-MM-DD' string as a local date
+     * This avoids new Date('YYYY-MM-DD') interpreting the string as UTC
+     */
+    const parseYYYYMMDD = (dateString: string): Date | null => {
+        if (!dateString) return null;
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+            const day = parseInt(parts[2], 10);
+            return new Date(year, month, day);
+        }
+        // Fallback for safety, though should not be needed if format is correct
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+        // Adjust for potential timezone shift from UTC parsing
+        return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    };
+
+
     return (
         <div className="mt-8 pt-8 border-t-2 border-green-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
@@ -87,9 +122,9 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                             </label>
                             <div className="relative">
                                 <DatePicker
-                                    selected={formData.route.departure ? new Date(formData.route.departure) : null}
+                                    selected={parseYYYYMMDD(formData.route.departure)}
                                     onChange={(date) => {
-                                        const dateString = date ? date.toISOString().split('T')[0] : '';
+                                        const dateString = formatDateToYYYYMMDD(date);
                                         setFormData(prev => ({ ...prev, route: { ...prev.route, departure: dateString } }));
                                     }}
                                     minDate={new Date()}
@@ -112,12 +147,12 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                                 </label>
                                 <div className="relative">
                                     <DatePicker
-                                        selected={formData.route.return ? new Date(formData.route.return) : null}
+                                        selected={parseYYYYMMDD(formData.route.return)}
                                         onChange={(date) => {
-                                            const dateString = date ? date.toISOString().split('T')[0] : '';
+                                            const dateString = formatDateToYYYYMMDD(date);
                                             setFormData(prev => ({ ...prev, route: { ...prev.route, return: dateString } }));
                                         }}
-                                        minDate={formData.route.departure ? new Date(formData.route.departure) : new Date()}
+                                        minDate={parseYYYYMMDD(formData.route.departure) || new Date()}
                                         dateFormat="MMMM d, yyyy"
                                         placeholderText="Select return date"
                                         className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm cursor-pointer border-gray-300 dark:border-gray-600"
@@ -148,24 +183,24 @@ const AvailableFlightDates: React.FC<AvailableFlightDatesProps> = ({ formData, s
                                     <div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Departure</p>
                                         <p className="text-base font-bold text-gray-900 dark:text-white">
-                                            {new Date(dateItem.departure).toLocaleDateString('en-US', {
+                                            {parseYYYYMMDD(dateItem.departure)?.toLocaleDateString('en-US', {
                                                 weekday: 'short',
                                                 year: 'numeric',
                                                 month: 'short',
                                                 day: 'numeric'
-                                            })}
+                                            }) || 'Invalid Date'}
                                         </p>
                                     </div>
                                     <ArrowRight className="w-5 h-5 text-gray-400" />
                                     <div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Return</p>
                                         <p className="text-base font-bold text-gray-900 dark:text-white">
-                                            {new Date(dateItem.return).toLocaleDateString('en-US', {
+                                            {parseYYYYMMDD(dateItem.return)?.toLocaleDateString('en-US', {
                                                 weekday: 'short',
                                                 year: 'numeric',
                                                 month: 'short',
                                                 day: 'numeric'
-                                            })}
+                                            }) || 'N/A'}
                                         </p>
                                     </div>
                                 </div>
