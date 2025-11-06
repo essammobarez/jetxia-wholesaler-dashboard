@@ -1,12 +1,16 @@
 // RouteInformation.tsx
-import React, { useState, useEffect } from 'react'; // Import useEffect
-import { MapPin, ArrowLeftRight, ArrowRight, Info, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react'; // Import useEffect and useRef
+// --- UPDATED: Added Ticket icon ---
+import { MapPin, ArrowLeftRight, ArrowRight, Info, CheckCircle, X, Ticket } from 'lucide-react'; 
 import { countriesAndAirports } from '../countriesAndAirports'; // Assuming this file exists in the same directory
 
 interface RouteInformationProps {
     formData: {
         route: {
             isRoundTrip: boolean;
+            // --- UPDATED: Split flightNumber ---
+            departureFlightNumber: string; 
+            destinationFlightNumber: string; 
         };
     };
     handleTripTypeChange: (isRoundTrip: boolean) => void;
@@ -20,7 +24,9 @@ interface RouteInformationProps {
     setFromCountry: (country: string) => void;
     toCountry: string;
     setToCountry: (country: string) => void;
-    // --- END NEW PROPS ---
+    // --- UPDATED: Split flight number handlers ---
+    handleDepartureFlightNumberChange: (flightNumber: string) => void;
+    handleDestinationFlightNumberChange: (flightNumber: string) => void;
 }
 
 const RouteInformation: React.FC<RouteInformationProps> = ({
@@ -36,11 +42,12 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
     setFromCountry,
     toCountry,
     setToCountry,
+    // --- DESTRUCTURE Flight Number Props ---
+    handleDepartureFlightNumberChange,
+    handleDestinationFlightNumberChange,
 }) => {
     
     // --- MOVED CONSOLE LOGS INTO useEffect ---
-    // This hook runs once when the props are first passed in,
-    // and again only if these specific props change.
     useEffect(() => {
         // --- CONSOLE LOG 2 (FILE 2) ---
         console.log(`--- DEBUG (RouteInformation): Received FROM Country: [${fromCountry}], IATA: [${selectedFromAirports}]`);
@@ -50,15 +57,46 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
 
 
     // --- REMOVED internal state for fromCountry and toCountry ---
-    // const [fromCountry, setFromCountry] = useState('');
-    // const [toCountry, setToCountry] = useState('');
 
-    const [fromCountrySearch, setFromCountrySearch] = useState('');
-    const [toCountrySearch, setToCountrySearch] = useState('');
+    // --- UPDATED to initialize with prop value ---
+    const [fromCountrySearch, setFromCountrySearch] = useState(fromCountry || '');
+    const [toCountrySearch, setToCountrySearch] = useState(toCountry || '');
+    
+    // --- NEW State for dropdown visibility ---
+    const [isFromDropdownOpen, setIsFromDropdownOpen] = useState(false);
+    const [isToDropdownOpen, setIsToDropdownOpen] = useState(false);
+
+    // --- NEW Refs for click-outside detection ---
+    const fromRef = useRef<HTMLDivElement>(null);
+    const toRef = useRef<HTMLDivElement>(null);
+
+    // --- NEW useEffect for click-outside ---
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            // Check for From dropdown
+            if (fromRef.current && !fromRef.current.contains(event.target as Node)) {
+                setIsFromDropdownOpen(false);
+                setFromCountrySearch(fromCountry); // Reset search to match selected country
+            }
+            // Check for To dropdown
+            if (toRef.current && !toRef.current.contains(event.target as Node)) {
+                setIsToDropdownOpen(false);
+                setToCountrySearch(toCountry); // Reset search to match selected country
+            }
+        }
+        // Bind the event listener
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            // Unbind the event listener on clean-up
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [fromRef, toRef, fromCountry, toCountry, setFromCountrySearch, setToCountrySearch]);
+
 
     const filteredFromCountries = countriesAndAirports.filter(c =>
         c.country.toLowerCase().includes(fromCountrySearch.toLowerCase())
     );
+    // --- FIX: Corrected typo from countriesAndAirAiroprts to countriesAndAirports ---
     const filteredToCountries = countriesAndAirports.filter(c =>
         c.country.toLowerCase().includes(toCountrySearch.toLowerCase())
     );
@@ -131,29 +169,67 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+                
+                {/* === FROM (DEPARTURE) SECTION - UPDATED === */}
+                <div className="space-y-4" ref={fromRef}> {/* Add ref */}
                     <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
                         From (Departure) * {fromCountry && countriesAndAirports.find(c => c.country === fromCountry)?.flag}
                     </label>
-                    <input
-                        type="text"
-                        placeholder="Search country..."
-                        value={fromCountrySearch}
-                        onChange={(e) => setFromCountrySearch(e.target.value)}
-                        className="w-full px-4 py-2 mb-2 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm"
-                    />
-                    <select
-                        value={fromCountry} // Now uses prop
-                        onChange={(e) => handleFromCountryChange(e.target.value)} // Now calls updated handler
-                        className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                    >
-                        <option value="">Select departure country...</option>
-                        {filteredFromCountries.map((country) => (
-                            <option key={country.country} value={country.country}>
-                                {country.flag} {country.country}
-                            </option>
-                        ))}
-                    </select>
+
+                    {/* Wrapper for input and custom dropdown */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search country..."
+                            value={fromCountrySearch}
+                            onChange={(e) => {
+                                setFromCountrySearch(e.target.value);
+                                if (!isFromDropdownOpen) setIsFromDropdownOpen(true); // Open on type
+                            }}
+                            onFocus={() => setIsFromDropdownOpen(true)} // Open on click/focus
+                            // --- ADDED PADDING-RIGHT (pr-10) ---
+                            className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                        />
+                        {/* --- NEW: CLOSE BUTTON --- */}
+                        {fromCountrySearch && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFromCountrySearch(''); // Clear search
+                                    handleFromCountryChange(''); // Clear parent state
+                                    setIsFromDropdownOpen(true); // Keep dropdown open
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        )}
+                        {/* --- END: CLOSE BUTTON --- */}
+
+                        {isFromDropdownOpen && (
+                            <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
+                                {filteredFromCountries.length > 0 ? (
+                                    filteredFromCountries.map((country) => (
+                                        <div
+                                            key={country.country}
+                                            className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
+                                            onClick={() => {
+                                                handleFromCountryChange(country.country); // Set parent state
+                                                setFromCountrySearch(country.country); // Set local input state
+                                                setIsFromDropdownOpen(false); // Close dropdown
+                                            }}
+                                        >
+                                            <span className="mr-2">{country.flag}</span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                                        
                     {fromCountry && (
                         <div className="space-y-2">
                             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airports:</p>
@@ -205,29 +281,67 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                         <p className="text-red-500 text-sm font-medium">{errors.from}</p>
                     )}
                 </div>
-                <div className="space-y-4">
+
+                {/* === TO (DESTINATION) SECTION - UPDATED === */}
+                <div className="space-y-4" ref={toRef}> {/* Add ref */}
                     <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
                         To (Destination) * {toCountry && countriesAndAirports.find(c => c.country === toCountry)?.flag}
                     </label>
-                    <input
-                        type="text"
-                        placeholder="Search country..."
-                        value={toCountrySearch}
-                        onChange={(e) => setToCountrySearch(e.target.value)}
-                        className="w-full px-4 py-2 mb-2 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-sm"
-                    />
-                    <select
-                        value={toCountry} // Now uses prop
-                        onChange={(e) => handleToCountryChange(e.target.value)} // Now calls updated handler
-                        className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                    >
-                        <option value="">Select destination country...</option>
-                        {filteredToCountries.map((country) => (
-                            <option key={country.country} value={country.country}>
-                                {country.flag} {country.country}
-                            </option>
-                        ))}
-                    </select>
+
+                    {/* Wrapper for input and custom dropdown */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search country..."
+                            value={toCountrySearch}
+                            onChange={(e) => {
+                                setToCountrySearch(e.target.value);
+                                if (!isToDropdownOpen) setIsToDropdownOpen(true); // Open on type
+                            }}
+                            onFocus={() => setIsToDropdownOpen(true)} // Open on click/focus
+                            // --- ADDED PADDING-RIGHT (pr-10) ---
+                            className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                        />
+                        {/* --- NEW: CLOSE BUTTON --- */}
+                        {toCountrySearch && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setToCountrySearch(''); // Clear search
+                                    handleToCountryChange(''); // Clear parent state
+                                    setIsToDropdownOpen(true); // Keep dropdown open
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        )}
+                        {/* --- END: CLOSE BUTTON --- */}
+
+                        {isToDropdownOpen && (
+                            <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
+                                {filteredToCountries.length > 0 ? (
+                                    filteredToCountries.map((country) => (
+                                        <div
+                                            key={country.country}
+                                            className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
+                                            onClick={() => {
+                                                handleToCountryChange(country.country); // Set parent state
+                                                setToCountrySearch(country.country); // Set local input state
+                                                setIsToDropdownOpen(false); // Close dropdown
+                                            }}
+                                        >
+                                            <span className="mr-2">{country.flag}</span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    
                     {toCountry && (
                         <div className="space-y-2">
                             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airports:</p>
@@ -280,6 +394,53 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* --- UPDATED: Flight Number Inputs (Split) --- */}
+            {(fromCountry && toCountry) && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Departure Flight Number */}
+                    <div>
+                        <label htmlFor="departureFlightNumber" className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                            <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
+                            Departure Flight Number
+                        </label>
+                        <input
+                            type="text"
+                            id="departureFlightNumber"
+                            placeholder="e.g., EK201"
+                            value={formData.route.departureFlightNumber}
+                            onChange={(e) => handleDepartureFlightNumberChange(e.target.value)}
+                            className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                        />
+                    </div>
+
+                    {/* Destination Flight Number */}
+                    <div>
+                        <label htmlFor="destinationFlightNumber" className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                            <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
+                            Destination Flight Number
+                        </label>
+                        <input
+                            type="text"
+                            id="destinationFlightNumber"
+                            placeholder="e.g., EK202"
+                            value={formData.route.destinationFlightNumber}
+                            onChange={(e) => handleDestinationFlightNumberChange(e.target.value)}
+                            className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                        />
+                    </div>
+
+                    {/* Info Text */}
+                    <div className="md:col-span-2">
+                         <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center -mt-2">
+                            <Info className="w-3 h-3 mr-1" />
+                            Optional: Specify flight numbers for this route.
+                        </p>
+                    </div>
+                </div>
+            )}
+            {/* --- END: Flight Number Inputs --- */}
+
         </div>
     );
 };

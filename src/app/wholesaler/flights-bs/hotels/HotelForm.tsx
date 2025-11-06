@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import {
@@ -84,6 +84,13 @@ const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
     const [availableCities, setAvailableCities] = useState<ICity[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    // --- START: Added state for new Country dropdown ---
+    const [countrySearch, setCountrySearch] = useState(formData.location.country || '');
+    const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+    const countryDropdownRef = useRef<HTMLDivElement>(null);
+    // --- END: Added state for new Country dropdown ---
+
+
     /**
      * Helper function to format a Date object to 'YYYY-MM-DD' string
      * This avoids timezone conversions from .toISOString()
@@ -121,6 +128,24 @@ const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
     useEffect(() => {
         setAllCountries(Country.getAllCountries());
     }, []);
+
+    // --- START: Added useEffect for Country click-outside handler ---
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
+                setIsCountryDropdownOpen(false);
+                // If dropdown closes and search text doesn't match selected country, reset text
+                if (countrySearch !== formData.location.country) {
+                    setCountrySearch(formData.location.country || '');
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [countrySearch, formData.location.country]);
+    // --- END: Added useEffect for Country click-outside handler ---
 
 
     useEffect(() => {
@@ -423,6 +448,11 @@ const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
         }
     };
 
+    // --- START: Added logic for filtering countries ---
+    const filteredCountries = allCountries.filter(country =>
+        country.name.toLowerCase().includes(countrySearch.toLowerCase())
+    );
+    // --- END: Added logic for filtering countries ---
 
     return (
         <div className="w-full">
@@ -520,24 +550,69 @@ const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
                                 </select>
                             </div>
 
-                            {/* Country */}
-                            <div>
+                            {/* --- START: Modified Country Field --- */}
+                            <div ref={countryDropdownRef} className="relative">
                                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
                                     <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
                                     Country *
                                 </label>
-                                <select
-                                    value={formData.location.country}
-                                    onChange={(e) => handleCountryChange(e.target.value)}
-                                    className="w-full px-5 py-4 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-purple-500 dark:focus:border-purple-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold"
-                                >
-                                    <option value="">Select Country</option>
-                                    {allCountries.map((country) => (
-                                        <option key={country.isoCode} value={country.name}>
-                                            {country.name}
-                                        </option>
-                                    ))}
-                                </select>
+
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={countrySearch}
+                                        onChange={(e) => {
+                                            setCountrySearch(e.target.value);
+                                            setIsCountryDropdownOpen(true);
+                                            if (formData.location.country && e.target.value !== formData.location.country) {
+                                                handleCountryChange(''); // Clear selection if user types something different
+                                            }
+                                        }}
+                                        onFocus={() => setIsCountryDropdownOpen(true)}
+                                        placeholder="Select or type to search..."
+                                        className={`w-full px-5 py-4 text-base border-2 rounded-xl transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-4 focus:outline-none shadow-sm hover:shadow-md font-semibold ${errors.country ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} focus:border-purple-500 dark:focus:border-purple-400 focus:ring-purple-100 dark:focus:ring-purple-900/30`}
+                                    />
+
+                                    {formData.location.country && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                handleCountryChange('');
+                                                setCountrySearch('');
+                                                setIsCountryDropdownOpen(false);
+                                            }}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                                            aria-label="Clear country selection"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {isCountryDropdownOpen && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                                        {filteredCountries.length > 0 ? (
+                                            filteredCountries.map((country) => (
+                                                <div
+                                                    key={country.isoCode}
+                                                    onClick={() => {
+                                                        handleCountryChange(country.name);
+                                                        setCountrySearch(country.name);
+                                                        setIsCountryDropdownOpen(false);
+                                                    }}
+                                                    className="px-5 py-3 hover:bg-purple-50 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white font-medium"
+                                                >
+                                                    {country.name}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="px-5 py-3 text-gray-500 italic">
+                                                No countries found.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {errors.country && (
                                     <p className="text-red-500 text-sm mt-2 font-medium flex items-center">
                                         <AlertTriangle className="w-4 h-4 mr-1" />
@@ -545,6 +620,7 @@ const HotelForm = ({ hotel, onSave, onClose }: HotelFormProps) => {
                                     </p>
                                 )}
                             </div>
+                            {/* --- END: Modified Country Field --- */}
 
                             {/* City */}
                             <div>
