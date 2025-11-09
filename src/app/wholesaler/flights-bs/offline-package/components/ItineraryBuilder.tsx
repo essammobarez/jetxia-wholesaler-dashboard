@@ -53,44 +53,74 @@ const ItineraryBuilder: React.FC<ItineraryBuilderProps> = ({
         <div className="space-y-4">
           {formData.itinerary.map((day: any) => (
             <div key={day.day} className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border-2 border-orange-200 dark:border-orange-800">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
+              <div className="flex items-start justify-between">
+                
+                {/* --- UPDATE --- */}
+                {/* Updated this section to display details separately with labels */}
+                <div className="flex-1 space-y-2.5">
+                  
+                  {/* Title */}
+                  <div className="flex items-center space-x-2">
                     <span className="px-3 py-1 bg-orange-500 text-white rounded-full text-xs font-bold">
                       Day {day.day}
                     </span>
                     <h4 className="font-semibold text-gray-900 dark:text-white">{day.title}</h4>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{day.description}</p>
+                  
+                  {/* Description */}
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{day.description}</p>
+                  
+                  {/* Meals */}
                   {day.meals.length > 0 && (
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Utensils className="w-3 h-3 text-orange-600" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {day.meals.join(', ')}
-                      </span>
-                    </div>
-                  )}
-                  {day.activities.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {day.activities.map((activity: string, idx: number) => (
-                        <span key={idx} className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded text-xs">
-                          {activity}
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <Utensils className="w-3.5 h-3.5 text-orange-600" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Meals Included:
                         </span>
-                      ))}
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {day.meals.join(', ')}
+                        </span>
+                      </div>
                     </div>
                   )}
+                  
+                  {/* Activities */}
+                  {day.activities.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Activities:
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {day.activities.map((activity: string, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded text-xs">
+                            {activity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Accommodation */}
                   {day.accommodation && (
-                    <div className="flex items-center space-x-2">
-                      <Bed className="w-3 h-3 text-orange-600" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {day.accommodation}
-                      </span>
+                    <div>
+                       <div className="flex items-center space-x-2">
+                         <Bed className="w-3.5 h-3.5 text-orange-600" />
+                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                           Accommodation:
+                         </span>
+                         <span className="text-sm text-gray-600 dark:text-gray-400">
+                           {day.accommodation}
+                         </span>
+                       </div>
                     </div>
                   )}
                 </div>
+                {/* --- END UPDATE --- */}
+
                 <button
                   onClick={() => handleRemoveDay(day.day)}
-                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg ml-2" // Added ml-2 for spacing
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -123,13 +153,13 @@ const ItineraryBuilder: React.FC<ItineraryBuilderProps> = ({
                   type="text"
                   value={currentDay.title}
                   onChange={(e) => setCurrentDay(prev => ({ ...prev, title: e.target.value }))}
-                  className="input-modern"
+                  className="py-2 px-3 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent sm:text-sm transition-colors"
                   placeholder="Day title (e.g., Arrival in Cairo)"
                 />
                 <textarea
                   value={currentDay.description}
                   onChange={(e) => setCurrentDay(prev => ({ ...prev, description: e.target.value }))}
-                  className="input-modern"
+                  className="py-2 px-3 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent sm:text-sm transition-colors"
                   rows={2}
                   placeholder="Day description..."
                 />
@@ -177,7 +207,7 @@ const ItineraryBuilder: React.FC<ItineraryBuilderProps> = ({
                   type="text"
                   value={currentDay.accommodation}
                   onChange={(e) => setCurrentDay(prev => ({ ...prev, accommodation: e.target.value }))}
-                  className="input-modern"
+                  className="py-2 px-3 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent sm:text-sm transition-colors"
                   placeholder="Accommodation (optional)"
                 />
                 <button

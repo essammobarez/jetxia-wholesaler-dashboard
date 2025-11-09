@@ -33,7 +33,11 @@ const PackageHighlights: React.FC<PackageHighlightsProps> = ({
               type="text"
               value={highlight}
               onChange={(e) => handleHighlightChange(index, e.target.value)}
-              className="input-modern flex-1"
+              // --- UPDATE ---
+              // Replaced 'input-modern' with a more detailed Tailwind CSS implementation
+              // for a better input field design, including dark mode and focus states.
+              className="flex-1 py-2 px-3 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent sm:text-sm transition-colors"
+              // --- END UPDATE ---
               placeholder="e.g., Visit the Pyramids of Giza"
             />
             <button
