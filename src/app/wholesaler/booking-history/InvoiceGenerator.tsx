@@ -89,23 +89,36 @@ const locationIcon = await getIconDataUrl(FaMapMarkerAlt, { color: 'black', size
     const logoW = 40;
     const logoH = 40;
 
+    // --- START: MODIFIED LOGO SECTION (FIX FOR CORS) ---
     // Logo
     try {
-        const response = await fetch("/images/bdesk.jpg");
+        const originalLogoUrl = reservation.wholesaler?.logo; // Get dynamic logo URL
+        if (!originalLogoUrl) {
+            throw new Error("Wholesaler logo URL is missing");
+        }
+
+        // Create the proxied URL to bypass CORS
+        // We fetch the image via our own API proxy
+        const proxiedLogoUrl = `/api/proxy?url=${encodeURIComponent(originalLogoUrl)}`;
+
+        const response = await fetch(proxiedLogoUrl); 
+        
         if (response.ok) {
             const imgBlob = await response.blob();
             const reader = new FileReader();
             await new Promise<void>((resolve, reject) => {
                 reader.onload = (e) => {
                     const logoBase64 = e.target?.result as string;
-                    pdf.addImage(logoBase64, "JPEG", logoX, logoY, logoW, logoH);
+                    // Guess format based on URL (png, jpg) or default to JPEG
+                    const format = originalLogoUrl.endsWith(".png") ? "PNG" : "JPEG";
+                    pdf.addImage(logoBase64, format, logoX, logoY, logoW, logoH);
                     resolve();
                 };
                 reader.onerror = reject;
                 reader.readAsDataURL(imgBlob);
             });
         } else {
-             throw new Error('Image fetch failed');
+             throw new Error('Image fetch failed via proxy');
         }
     } catch (error) {
         console.error("Error loading logo image:", error);
@@ -116,17 +129,20 @@ const locationIcon = await getIconDataUrl(FaMapMarkerAlt, { color: 'black', size
         pdf.setFontSize(10);
         pdf.text("Logo", logoX + logoW / 2, logoY + logoH / 2, { align: 'center' });
     }
+    // --- END: MODIFIED LOGO SECTION ---
 
+    // --- START: MODIFIED COMPANY NAME ---
     // Company Name & Blue Line
-const textX = logoX + logoW + 5;
-const textY = logoY + 8 + 8; // Added 8px margin top to the textY position
-const companyNameText = "Booking Desk";
+    const textX = logoX + logoW + 5;
+    const textY = logoY + 8 + 8; // Added 8px margin top to the textY position
+    const companyNameText = reservation.wholesaler?.wholesalerName || "Wholesaler Name"; // Dynamic name
 
-pdf.setFont("helvetica", "bold");
-pdf.setFontSize(22);
-pdf.setTextColor(30, 30, 30);
-pdf.text(companyNameText, textX, textY);
-pdf.text("Travel", textX, textY + 10);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(22);
+    pdf.setTextColor(30, 30, 30);
+    pdf.text(companyNameText, textX, textY);
+    // pdf.text("Travel", textX, textY + 10); // Static text removed as requested
+    // --- END: MODIFIED COMPANY NAME ---
 
 
     // Blue line to the right of "Booking Desk" - now a slanted bar
@@ -144,8 +160,8 @@ pdf.text("Travel", textX, textY + 10);
 
     // Triangle part for the slant on the left
     pdf.triangle(
-        barStartX, barY + barHeight,         // bottom-left point of the slant
-        barStartX + slantWidth, barY,         // top-left point of the slant
+        barStartX, barY + barHeight,        // bottom-left point of the slant
+        barStartX + slantWidth, barY,        // top-left point of the slant
         barStartX + slantWidth, barY + barHeight, // bottom-right point of the slant
         "F"
     );
@@ -160,7 +176,7 @@ pdf.setLineWidth(1.5);
 pdf.line(margin, contactSectionY - 2, margin, contactSectionY + 19.5); // Reduced height by 3px here
 
 
-// --- FIXED CONTACT SECTION START ---
+// --- START: MODIFIED CONTACT SECTION ---
 const iconX = margin + 1.5 + 2;  // 2px left margin added to the icon position
 const contactTextX = iconX + 6;
 let currentContactY = contactSectionY + 1.5;
@@ -175,19 +191,34 @@ pdf.setTextColor(30, 30, 30);
 
 // 📞 Phone Icon & Text
 pdf.addImage(phoneIcon, 'PNG', iconX, currentContactY - (iconSize / 2) + iconYOffset, iconSize, iconSize);
-pdf.text('+971506942880', contactTextX, currentContactY);
+pdf.text(reservation.wholesaler?.phoneNumber || "No Phone", contactTextX, currentContactY);
 currentContactY += 7;
 
 // 📧 Email Icon & Text
 pdf.addImage(emailIcon, 'PNG', iconX, currentContactY - (iconSize / 2) + iconYOffset, iconSize, iconSize);
-pdf.text('ops@bookingdesk.travel', contactTextX, currentContactY);
+pdf.text(reservation.wholesaler?.email || "No Email", contactTextX, currentContactY);
 currentContactY += 7;
 
 // 📍 Location Icon & Text
 pdf.addImage(locationIcon, 'PNG', iconX, currentContactY - (iconSize / 2) + iconYOffset, iconSize, iconSize);
-pdf.text('Zayed The First St, Al Hisn, 604 Abu Dhabi, 20037', contactTextX, currentContactY);
-pdf.text('United Arab Emirates', contactTextX, currentContactY + 4);
-// --- FIXED CONTACT SECTION END ---
+
+// Try to split address into two lines to maintain layout
+const fullAddress = reservation.wholesaler?.address || "No Address";
+let addressLine1 = fullAddress;
+let addressLine2 = "";
+
+const lastCommaIndex = fullAddress.lastIndexOf(',');
+// Split only if there's a comma and it's not the very end
+if (lastCommaIndex > 0 && lastCommaIndex < fullAddress.length - 2) { 
+    addressLine1 = fullAddress.substring(0, lastCommaIndex).trim();
+    addressLine2 = fullAddress.substring(lastCommaIndex + 1).trim();
+}
+
+pdf.text(addressLine1, contactTextX, currentContactY);
+if (addressLine2) {
+     pdf.text(addressLine2, contactTextX, currentContactY + 4);
+}
+// --- END: MODIFIED CONTACT SECTION ---
 
 
 
@@ -246,7 +277,8 @@ pdf.text('United Arab Emirates', contactTextX, currentContactY + 4);
     const addBilledToLine = (label: string, value: string, yPos: number) => {
         pdf.text(label, labelX, yPos);
         pdf.text(":", colonX, yPos);
-        pdf.text(value, valueX, yPos);
+        // Use "N/A" as a fallback to prevent jsPDF from crashing on null/undefined
+        pdf.text(value || "N/A", valueX, yPos);
         pdf.line(margin + 5, yPos + 2, margin + billedToBoxW - 5, yPos + 2); // Line after each detail
     };
 
