@@ -201,6 +201,9 @@ const BookingsPage: NextPage = () => {
               (req: any) => String(req.request ?? "")
             );
 
+            // --- MODIFICATION: Get agentRef from first room ---
+            const agentRef = String(firstRawRoom.agentRef ?? "");
+
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
                 room.bookingData?.detailedInfo?.service || {};
@@ -332,6 +335,7 @@ const BookingsPage: NextPage = () => {
               allRooms: allRoomsData,
               source: null,
               specialRequests, // --- MODIFICATION: Add special requests to reservation object ---
+              agentRef, // --- MODIFICATION: Add agentRef to reservation object ---
             };
           });
           setReservations(mapped);

@@ -115,7 +115,7 @@ const Settings: React.FC = () => {
     const payload = {
       email: profile.email,
       password: password,
-      type: "agency"
+      type: "wholesaler"
     };
 
     try {
