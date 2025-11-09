@@ -21,7 +21,7 @@ export async function getWholesalerBrandingServer(
     // Extract base domain from hostname
     const domain = extractDomain(hostname);
     
-    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api/v1';
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     const response = await fetch(
       `${baseUrl}/ui-settings/by-domain?domain=${domain}`,
       {
@@ -44,9 +44,9 @@ export async function getWholesalerBrandingServer(
       
       // Proper data extraction according to API response structure
       return {
-        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || 'Jetixia System',
-        logo: brandSettings.brandLogo || data.logo || '/favicon.ico',
-        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '/favicon.ico',
+        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || '',
+        logo: brandSettings.brandLogo || data.logo || '',
+        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '',
         siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
       };
     }
@@ -54,7 +54,6 @@ export async function getWholesalerBrandingServer(
     // Fallback
     return getFallbackBranding();
   } catch (error) {
-    console.error('Error fetching wholesaler branding (server):', error);
     return getFallbackBranding();
   }
 }
@@ -76,7 +75,7 @@ export async function getWholesalerBranding(
     const hostname = window.location.hostname;
     const domain = extractDomain(hostname);
 
-    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api/v1';
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     const response = await fetch(
       `${baseUrl}/ui-settings/by-domain?domain=${domain}`,
       {
@@ -99,9 +98,9 @@ export async function getWholesalerBranding(
       
       // Proper data extraction according to API response structure
       const branding: WholesalerBranding = {
-        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || 'Jetixia System',
-        logo: brandSettings.brandLogo || data.logo || '/favicon.ico',
-        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '/favicon.ico',
+        name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || '',
+        logo: brandSettings.brandLogo || data.logo || '',
+        navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '',
         siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
       };
 
@@ -112,7 +111,6 @@ export async function getWholesalerBranding(
     // Fallback
     return getFallbackBranding();
   } catch (error) {
-    console.error('Error fetching wholesaler branding (client):', error);
     return getFallbackBranding();
   }
 }
@@ -141,7 +139,7 @@ function getFallbackBranding(): WholesalerBranding {
 function extractDomain(hostname: string): string {
   // Default for localhost - let API handle jetixia domain
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'jetixia';
+    return 'localhost:3001';
   }
 
   // Extract domain using regex (e.g., "admin.bdesktravel.com" -> "bdesktravel.com")
