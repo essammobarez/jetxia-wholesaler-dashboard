@@ -651,7 +651,7 @@ export default function Login() {
 
               <div className="relative z-10">
                 <div className="relative bg-white rounded-xl  p-8 w-full max-w-sm m-4">
-                  {authStep === 'credentials' && (
+                  {/* {authStep === 'credentials' && (
                     <div className="flex justify-center mb-8">
                       {branding?.logo ? (
                         <Image src={branding.logo} alt="Company Logo" width={160} height={55} priority />
@@ -659,7 +659,17 @@ export default function Login() {
                         <div className="h-14 w-40 bg-gray-100 animate-pulse rounded"></div>
                       )}
                     </div>
-                  )}
+                  )} */}
+                  <div className='text-center'>
+                    <Image src={branding?.logo} alt="Company Logo" width={160} height={55} priority className='mx-auto' />
+                    <h2 className="text-2xl font-semibold mb-3 leading-tight whitespace-nowrap mx-auto">
+                    Welcome To <span className=" font-bold">{branding?.name}</span>
+                  </h2>
+                  <p className="mb-4">
+                    {branding?.name ? `${branding.name} helps travel agencies do their business better.` : 'Your trusted travel technology partner.'}
+                  </p>
+                  </div>
+                  
 
                   {message && (
                     <div className={`w-full p-2 rounded text-center mb-4 text-sm ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -680,10 +690,10 @@ export default function Login() {
                 <div className="absolute inset-0 bg-gray-900/15"></div>
               </div>
               <div className="relative z-10 px-8 py-6">
-                <h2 className="text-3xl font-semibold text-white mb-3 leading-tight">
+                {/* <h2 className="text-3xl font-semibold text-white mb-3 leading-tight">
                   Welcome To <span className="text-white font-bold">{branding?.name}</span>
-                </h2>
-                 {/* <p className="mb-4 text-white">
+                </h2> */}
+                {/* <p className="mb-4 text-white">
                   {branding?.name ? `${branding.name} helps travel agencies do their business better.` : 'Your trusted travel technology partner.'}
                 </p> 
                 <p className="text-white text-sm mb-8 max-w-md">

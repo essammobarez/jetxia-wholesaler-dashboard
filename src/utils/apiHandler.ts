@@ -7,6 +7,8 @@ export interface WholesalerBranding {
   name: string;
   logo: string;
   navLogo?: string;
+  loadingLogo?: string;
+  landingBanner?: string;
   siteContent?: string;
 }
 
@@ -47,7 +49,9 @@ export async function getWholesalerBrandingServer(
         name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || '',
         logo: brandSettings.brandLogo || data.logo || '',
         navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '',
-        siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
+        loadingLogo: brandSettings.loadingLogo || '',
+        landingBanner: brandSettings.landingBanner || '',
+        siteContent: brandSettings.wholesalerSiteContent || '',
       };
     }
 
@@ -101,7 +105,9 @@ export async function getWholesalerBranding(
         name: brandSettings.metaName?.trim() || brandSettings.brandName || data.name || '',
         logo: brandSettings.brandLogo || data.logo || '',
         navLogo: brandSettings.navLogo || brandSettings.brandLogo || data.logo || '',
-        siteContent: brandSettings.wholesalerSiteContent || 'Your trusted partner in travel technology solutions.',
+        loadingLogo: brandSettings.loadingLogo || '',
+        landingBanner: brandSettings.landingBanner || '',
+        siteContent: brandSettings.wholesalerSiteContent || '',
       };
 
       // console.log("Extracted branding:", branding);
@@ -121,10 +127,12 @@ export async function getWholesalerBranding(
  */
 function getFallbackBranding(): WholesalerBranding {
   return {
-    name: 'Jetixia System',
-    logo: '/favicon.ico',
-    navLogo: '/favicon.ico',
-    siteContent: 'Your trusted partner in travel technology solutions.',
+    name: '',
+    logo: '',
+    navLogo: '',
+    loadingLogo: '',
+    landingBanner: '',
+    siteContent: '',
   };
 }
 
