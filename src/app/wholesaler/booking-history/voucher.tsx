@@ -19,6 +19,7 @@ export interface Reservation {
     agencyName?: string;
     address?: string;
     phoneNumber?: string;
+    logoUrl?: string | null; // --- START: ADDED UPDATE ---
     // profileImage is no longer expected from the main response
   };
   passengers?: { firstName: string; lastName: string; lead?: boolean; nationality?: string }[];
@@ -478,9 +479,19 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
   // --- MODIFICATION: Read agency data directly from the reservation object ---
   const agencyData = reservation.agency || {};
 
-  // `agencyData.profileImage` will be undefined, so `bufferToDataUrl` will return null
-  const logoSrc = bufferToDataUrl(null); // No profile image in new response
-  const fallbackLogo = "https://i.imgur.com/1Y2v4Yy.png";
+  // --- START: ADDED UPDATE ---
+  // Helper function to proxy external URLs via the app's API route
+  const proxied = (url: string | null | undefined) => {
+    if (!url) return null;
+    // Use the API route /api/proxy to fetch the image
+    return `/api/proxy?url=${encodeURIComponent(url)}`;
+  };
+
+  const fallbackLogoUrl = "https://i.imgur.com/1Y2v4Yy.png";
+  
+  // Proxy the agency logo, or if it doesn't exist, proxy the fallback logo
+  const logoSrc = proxied(agencyData.logoUrl) || proxied(fallbackLogoUrl);
+  // --- END: ADDED UPDATE ---
 
   const agencyName = agencyData.agencyName || "Booking Desk Travel";
 
@@ -488,9 +499,15 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
   const agencyAddress = agencyData.address || "123 Travel Lane, Suite 100, Dubai, UAE";
   const agencyPhone = agencyData.phoneNumber || "+971 506942880";
 
-  const mapImageSrc = reservation.geolocation
+  // --- START: ADDED UPDATE ---
+  // Proxy the Yandex map image and its fallback as well
+  const yandexMapUrl = reservation.geolocation
     ? `https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${reservation.geolocation.longitude},${reservation.geolocation.latitude}&z=15&l=map&size=600,300&pt=${reservation.geolocation.longitude},${reservation.geolocation.latitude},pm2rdl`
-    : "https://i.imgur.com/8cAquNo.png";
+    : null;
+  const mapFallbackUrl = "https://i.imgur.com/8cAquNo.png";
+  
+  const mapImageSrc = proxied(yandexMapUrl) || proxied(mapFallbackUrl);
+  // --- END: ADDED UPDATE ---
 
   const today = new Date();
 
@@ -513,10 +530,10 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
         <header style={styles.header}>
           <div style={styles.headerLeft}>
             <img
-              src={logoSrc || fallbackLogo} // Will use fallbackLogo
+              src={logoSrc || ''} // Use proxied URL or fallback
               alt={agencyName}
               style={styles.headerLogo}
-              crossOrigin="anonymous"
+              crossOrigin="anonymous" // Required for html2canvas to process the proxied image
             />
             <div style={styles.companyInfo}>
               <p style={styles.companyName}>{agencyName}</p>
@@ -551,6 +568,7 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
           <div style={styles.hotelInfoSection}>
             <h2 style={styles.hotelName}>{hotel?.name || 'N/A'}</h2>
             <div style={styles.addressLine}>
+              {/* These local images are same-origin and do NOT need the proxy */}
               <img src="/images/icons/map-pin-line.png" alt="address" style={styles.smallIcon} />
               <span>{hotel?.address?.fullAddress || 'N/A'}</span>
             </div>
@@ -587,7 +605,12 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
           </div>
 
           <div style={styles.mapContainer}>
-            <img src={mapImageSrc} alt="Hotel Location" style={styles.mapImage} crossOrigin="anonymous" />
+            <img 
+              src={mapImageSrc || ''} // Use proxied map URL
+              alt="Hotel Location" 
+              style={styles.mapImage} 
+              crossOrigin="anonymous" // Required for html2canvas
+            />
             <div style={styles.mapOverlayCard}>
               <p style={styles.mapOverlayHotelName}>{hotel?.name || 'N/A'}</p>
               <p style={styles.mapOverlayAddress}>{hotel?.address?.fullAddress || 'N/A'}</p>
@@ -635,7 +658,7 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
         {/* --- FOOTER MODIFIED --- */}
         <footer style={styles.footerNotes}>
           <img
-            src="/images/nb.png"
+            src="/images/nb.png" // This local image is fine
             alt="Important Notes"
             style={styles.footerImage}
           />
@@ -709,7 +732,8 @@ export async function generateVoucherPDF(reservation: Reservation) {
     setTimeout(resolve, 200);
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  // Give images (especially proxied ones) time to load
+  await new Promise((resolve) => setTimeout(resolve, 2000)); // Increased delay for proxy
 
   // 5. Generate PDF (existing logic)
   const content = container.querySelector("#voucher-content") as HTMLElement;
@@ -737,7 +761,8 @@ export async function generateVoucherPDF(reservation: Reservation) {
     },
     html2canvas: {
       scale: scale,
-      useCORS: true,
+      useCORS: true, // This is crucial
+      allowTaint: true, // May help in some cases
       backgroundColor: '#ffffff',
     },
     autoPaging: "none",

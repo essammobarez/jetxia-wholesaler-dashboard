@@ -24,10 +24,11 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
         </span>
       </div>
       <div className="space-y-5">
+        {/* Adult Price (12+ years) */}
         <div>
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
             <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-            Adult Price ($) *
+            Adult Price (12+ years) *
           </label>
           <div className="relative">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
@@ -55,10 +56,12 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
             </p>
           )}
         </div>
+
+        {/* Child Price (6-12 years) */}
         <div>
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-            Child Price ($) <span className="text-gray-400 ml-1">(Optional)</span>
+            <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
+            Child Price (6-12 years)
           </label>
           <div className="relative">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
@@ -66,20 +69,45 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
               type="number"
               min="0"
               step="0.01"
-              value={formData.pricing.child}
+              value={formData.pricing.child6to12}
               onChange={(e) => setFormData(prev => ({
                 ...prev,
-                pricing: { ...prev.pricing, child: parseFloat(e.target.value) || 0 }
+                pricing: { ...prev.pricing, child6to12: parseFloat(e.target.value) || 0 }
               }))}
-              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
               placeholder="0.00"
             />
           </div>
         </div>
+
+        {/* Child Price (2-6 years) */}
+        <div>
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+            <span className="w-2 h-2 bg-pink-500 rounded-full mr-2"></span>
+            Child Price (2-6 years)
+          </label>
+          <div className="relative">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.pricing.child2to6}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                pricing: { ...prev.pricing, child2to6: parseFloat(e.target.value) || 0 }
+              }))}
+              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-pink-500 dark:focus:border-pink-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-pink-100 dark:focus:ring-pink-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        {/* Infant Price (0-2 years) */}
         <div>
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-            Infant Price ($) <span className="text-gray-400 ml-1">(Optional)</span>
+            Infant Price (0-2 years)
           </label>
           <div className="relative">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
@@ -97,10 +125,12 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
             />
           </div>
         </div>
+
+        {/* Single Supplement */}
         <div>
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
             <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-            Single Supplement ($) <span className="text-gray-400 ml-1">(Optional)</span>
+            Single Supplement
           </label>
           <div className="relative">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>

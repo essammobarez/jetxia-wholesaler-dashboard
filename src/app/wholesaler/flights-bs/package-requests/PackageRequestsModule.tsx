@@ -6,105 +6,13 @@ import {
   Plane,
   Loader,
   AlertTriangle,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
 
 // Import UI Components
 import BookingFilter from './components/BookingFilter';
 import BookingRequestCard from './components/BookingRequestCard';
-import BookingDetailsModal from './components/BookingDetailsModal'; // <-- IMPORT NEW MODAL
-
-// #region --- Confirmation Modal Component ---
-
-interface ConfirmationModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  isProcessing: boolean;
-  actionType?: 'confirmed' | 'cancelled' | 'cancelled';
-}
-
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
-  isOpen,
-  title,
-  message,
-  onConfirm,
-  onCancel,
-  isProcessing,
-  actionType,
-}) => {
-  if (!isOpen) return null;
-
-  const confirmButtonColor =
-    actionType === 'confirmed'
-      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-      : 'bg-red-600 hover:bg-red-700 focus:ring-red-500';
-
-  const confirmButtonIcon =
-    actionType === 'confirmed' ? (
-      <CheckCircle className="w-4 h-4 mr-2" />
-    ) : (
-      <XCircle className="w-4 h-4 mr-2" />
-    );
-
-  const confirmButtonText =
-    actionType === 'confirmed'
-      ? 'Confirm'
-      : actionType === 'cancelled'
-        ? 'Reject'
-        : 'Cancel Booking';
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 transition-opacity"
-      aria-labelledby="modal-title"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md m-4 transform transition-all scale-100 opacity-100">
-        <div className="p-6">
-          <h3
-            className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
-            id="modal-title"
-          >
-            {title}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            {message}
-          </p>
-        </div>
-        <div className="flex justify-end space-x-4 bg-gray-100 dark:bg-gray-900/50 px-6 py-4 rounded-b-2xl">
-          <button
-            type="button"
-            className="px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm transition-colors disabled:opacity-50"
-            onClick={onCancel}
-            disabled={isProcessing}
-          >
-            No, go back
-          </button>
-          <button
-            type="button"
-            className={`inline-flex items-center justify-center px-5 py-2.5 text-sm font-semibold text-white rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 ${confirmButtonColor}`}
-            onClick={onConfirm}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <Loader className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              confirmButtonIcon
-            )}
-            {isProcessing ? 'Processing...' : `Yes, ${confirmButtonText}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// #endregion
+import BookingDetailsModal from './components/BookingDetailsModal';
+import ConfirmationModal from './components/ConfirmationModal';
 
 // #region --- Data Types, Helpers, and Mappers ---
 
@@ -119,7 +27,6 @@ const getAuthToken = () => {
 };
 
 // --- Package Booking API Types ---
-// EXPORTED for modal
 export interface ApiPackageBooking {
   _id: string;
   travelers: {
@@ -184,7 +91,6 @@ export interface ApiPackageBooking {
 }
 
 // --- Flight Booking API Types ---
-// EXPORTED for modal
 export interface ApiFlightBooking {
   _id: string;
   reference: string;
@@ -247,10 +153,10 @@ export interface ApiFlightBooking {
   createdAt: string;
 }
 
-// Main Internal Type (Exported for Card component)
+// Main Internal Type
 export interface PackageRequest {
-  _id: string; // Database ID for API calls
-  id: string; // Display ID (booking reference)
+  _id: string;
+  id: string;
   requestDate: string;
   customer: {
     name: string;
@@ -316,12 +222,10 @@ export interface PackageRequest {
     };
     netProfit: number;
   };
-  status: 'Pending' | 'Confirmed' | 'Cancelled' | 'Under Review' | 'Cancelled'; // Added Cancelled
+  status: 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed' | 'Under Review';
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
-  // --- ADDED FOR VIEW MODAL ---
   rawData: ApiPackageBooking | ApiFlightBooking;
   bookingType: 'package' | 'flight';
-  // --------------------------
 }
 
 // Capitalize status helper
@@ -332,16 +236,16 @@ const capitalize = (s: string): PackageRequest['status'] => {
   if (
     formatted === 'Pending' ||
     formatted === 'Confirmed' ||
-    formatted === 'Rejected' ||
-    formatted === 'Under Review' ||
-    formatted === 'Cancelled' // Added Cancelled
+    formatted === 'Cancelled' ||
+    formatted === 'Completed' ||
+    formatted === 'Under Review'
   ) {
-    return formatted;
+    return formatted as PackageRequest['status'];
   }
-  return 'Under Review'; // Default
+  return 'Under Review';
 };
 
-// Maps Package API data to our internal PackageRequest component type
+// Maps Package API data to Requests
 const mapPackageBookingsToRequests = (
   bookings: ApiPackageBooking[],
 ): PackageRequest[] => {
@@ -353,8 +257,8 @@ const mapPackageBookingsToRequests = (
       (1000 * 3600 * 24);
 
     return {
-      _id: b._id, // Store the raw ID
-      id: b.bookingReference || b._id, // Use reference as display ID
+      _id: b._id,
+      id: b.bookingReference || b._id,
       requestDate: b.bookingDate,
       customer: {
         name: `${firstPassenger.firstName || 'N/A'} ${
@@ -373,7 +277,6 @@ const mapPackageBookingsToRequests = (
         endDate: b.travelEndDate,
       },
       flight: {
-        // Flight data is minimal in this API, using placeholders
         airline: 'See Details',
         flightNumber: 'N/A',
         from: 'N/A',
@@ -385,7 +288,6 @@ const mapPackageBookingsToRequests = (
         class: 'N/A',
       },
       hotel: {
-        // Hotel data is minimal in this API, using placeholders
         name: 'See Details',
         address: 'N/A',
         rating: 0,
@@ -395,7 +297,7 @@ const mapPackageBookingsToRequests = (
         nights: durationDays - 1,
       },
       travelers: b.travelers,
-      roomPreference: 'Mixed', // Default
+      roomPreference: 'Mixed',
       specialRequests: b.specialRequests,
       pricing: {
         basePrice: b.pricing.totalPrice,
@@ -403,7 +305,6 @@ const mapPackageBookingsToRequests = (
         discount: 0,
       },
       financials: {
-        // Financials are not provided, using defaults
         flightCost: 0,
         hotelCost: 0,
         totalCost: 0,
@@ -414,16 +315,14 @@ const mapPackageBookingsToRequests = (
         netProfit: 0,
       },
       status: capitalize(b.status),
-      priority: 'Medium', // Default
-      // --- ADDED FOR VIEW MODAL ---
+      priority: 'Medium',
       rawData: b,
       bookingType: 'package',
-      // --------------------------
     };
   });
 };
 
-// Maps Flight API data to our internal PackageRequest component type
+// Maps Flight API data to Requests
 const mapFlightBookingsToRequests = (
   bookings: ApiFlightBooking[],
 ): PackageRequest[] => {
@@ -436,8 +335,8 @@ const mapFlightBookingsToRequests = (
         : 1;
 
     return {
-      _id: b._id, // Store the raw ID
-      id: b.reference || b._id, // Use reference as display ID
+      _id: b._id,
+      id: b.reference || b._id,
       requestDate: b.createdAt,
       customer: {
         name: b.contact.name,
@@ -465,7 +364,6 @@ const mapFlightBookingsToRequests = (
         class: 'See Details',
       },
       hotel: {
-        // No hotel data in flight bookings
         name: 'N/A',
         address: 'N/A',
         rating: 0,
@@ -479,7 +377,7 @@ const mapFlightBookingsToRequests = (
         children: b.passengers.filter(p => p.paxType === 'CHD').length,
         infants: b.passengers.filter(p => p.paxType === 'INF').length,
       },
-      roomPreference: 'N/A' as any, // Not applicable
+      roomPreference: 'N/A' as any,
       specialRequests: 'N/A',
       pricing: {
         basePrice: b.priceSnapshot.totalAmount,
@@ -487,7 +385,6 @@ const mapFlightBookingsToRequests = (
         discount: 0,
       },
       financials: {
-        // Financials are not provided, using defaults
         flightCost: 0,
         hotelCost: 0,
         totalCost: 0,
@@ -498,11 +395,9 @@ const mapFlightBookingsToRequests = (
         netProfit: 0,
       },
       status: capitalize(b.status),
-      priority: 'Medium', // Default
-      // --- ADDED FOR VIEW MODAL ---
+      priority: 'Medium',
       rawData: b,
       bookingType: 'flight',
-      // --------------------------
     };
   });
 };
@@ -520,21 +415,17 @@ const PackageBookingsComponent = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
 
-  // State for modal and API updates
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<{
     _id: string;
-    action: 'confirmed' | 'cancelled' | 'cancelled';
+    action: 'confirmed' | 'cancelled';
   } | null>(null);
 
-  // --- ADDED: State for View Modal ---
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedBookingForView, setSelectedBookingForView] =
     useState<PackageRequest | null>(null);
-  // ---------------------------------
 
-  // Data Fetching Effect
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -564,12 +455,9 @@ const PackageBookingsComponent = () => {
         }
         const packageData = await packageResponse.json();
 
-        // --- DUMMY DATA REMOVED ---
-        // Restore original line:
         setPackageRequests(
           mapPackageBookingsToRequests(packageData.data.bookings),
         );
-        // ---------------
       } catch (err: any) {
         setError(err.message || 'An unknown error occurred');
       } finally {
@@ -580,7 +468,6 @@ const PackageBookingsComponent = () => {
     fetchData();
   }, []);
 
-  // Filter requests
   const filteredRequests = packageRequests.filter(request => {
     const matchesSearch =
       request.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -598,16 +485,15 @@ const PackageBookingsComponent = () => {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  // Status badge styling
   const getStatusBadge = (status: string) => {
     const styles: { [key: string]: string } = {
       Pending:
         'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300',
       Confirmed:
         'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300',
-      Rejected:
-        'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300',
-      Cancelled: // Added Cancelled
+      Completed:
+        'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300',
+      Cancelled:
         'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300',
       'Under Review':
         'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300',
@@ -615,7 +501,6 @@ const PackageBookingsComponent = () => {
     return styles[status] || styles['Pending'];
   };
 
-  // Priority badge styling
   const getPriorityBadge = (priority: string) => {
     const styles: { [key: string]: string } = {
       Low: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-900/30 dark:text-gray-300',
@@ -628,13 +513,13 @@ const PackageBookingsComponent = () => {
     return styles[priority] || styles['Medium'];
   };
 
-  // --- Modal and API Call Handlers ---
   const handleModalCancel = () => {
     setIsModalOpen(false);
     setSelectedRequest(null);
   };
 
-  const handleModalConfirm = async () => {
+  // UPDATED: Sends lowercase status payload
+  const handleModalConfirm = async (modalData: { pnr: string }) => {
     if (!selectedRequest) return;
 
     setIsUpdating(true);
@@ -650,7 +535,12 @@ const PackageBookingsComponent = () => {
 
     const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/packages/bookings/${_id}/status`;
     const method = 'PATCH';
-    const payload = { status: action };
+
+    // PAYLOAD: uses 'action' directly which is already lowercase ("confirmed" or "cancelled")
+    const payload = {
+      status: action,
+      pnr: modalData.pnr
+    };
 
     try {
       const response = await fetch(url, {
@@ -669,7 +559,6 @@ const PackageBookingsComponent = () => {
         );
       }
 
-      // Update local state on success
       setPackageRequests(prevRequests =>
         prevRequests.map(req =>
           req._id === _id ? { ...req, status: capitalize(action) } : req,
@@ -686,22 +575,19 @@ const PackageBookingsComponent = () => {
 
   const openConfirmationModal = (
     _id: string,
-    action: 'confirmed' | 'cancelled' | 'cancelled',
+    action: 'confirmed' | 'cancelled',
   ) => {
     setSelectedRequest({ _id, action });
     setIsModalOpen(true);
   };
 
-  // --- ADDED: Handler for View Modal ---
   const handleViewDetails = (request: PackageRequest) => {
     setSelectedBookingForView(request);
     setIsViewModalOpen(true);
   };
-  // -------------------------------------
 
   return (
     <div className="space-y-6">
-      {/* Confirmation Modal */}
       <ConfirmationModal
         isOpen={isModalOpen}
         title="Confirm Action"
@@ -714,15 +600,12 @@ const PackageBookingsComponent = () => {
         actionType={selectedRequest?.action}
       />
 
-      {/* --- ADDED: View Details Modal --- */}
       <BookingDetailsModal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         booking={selectedBookingForView}
       />
-      {/* --------------------------------- */}
 
-      {/* Search and Filters */}
       <BookingFilter
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -732,7 +615,6 @@ const PackageBookingsComponent = () => {
         setFilterPriority={setFilterPriority}
       />
 
-      {/* Loading and Error States */}
       {loading && (
         <div className="card-modern p-12 text-center">
           <Loader className="w-16 h-16 text-purple-600 mx-auto mb-4 animate-spin" />
@@ -755,7 +637,6 @@ const PackageBookingsComponent = () => {
         </div>
       )}
 
-      {/* Requests List */}
       {!loading && !error && (
         <div className="grid grid-cols-1 gap-4">
           {filteredRequests.length === 0 ? (
@@ -782,7 +663,7 @@ const PackageBookingsComponent = () => {
                 onConfirm={_id => openConfirmationModal(_id, 'confirmed')}
                 onReject={_id => openConfirmationModal(_id, 'cancelled')}
                 onCancel={_id => openConfirmationModal(_id, 'cancelled')}
-                onView={handleViewDetails} // <-- PASS HANDLER
+                onView={handleViewDetails}
               />
             ))
           )}
@@ -801,21 +682,17 @@ const FlightBookingsComponent = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
 
-  // State for modal and API updates
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<{
     _id: string;
-    action: 'confirmed' | 'cancelled' | 'cancelled';
+    action: 'confirmed' | 'cancelled';
   } | null>(null);
 
-  // --- ADDED: State for View Modal ---
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedBookingForView, setSelectedBookingForView] =
     useState<PackageRequest | null>(null);
-  // ---------------------------------
 
-  // Data Fetching Effect
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -845,10 +722,7 @@ const FlightBookingsComponent = () => {
         }
         const flightData = await flightResponse.json();
 
-        // --- DUMMY DATA REMOVED ---
-        // Restore original line:
         setFlightRequests(mapFlightBookingsToRequests(flightData.data));
-        // ---------------
       } catch (err: any) {
         setError(err.message || 'An unknown error occurred');
       } finally {
@@ -859,7 +733,6 @@ const FlightBookingsComponent = () => {
     fetchData();
   }, []);
 
-  // Filter requests
   const filteredRequests = flightRequests.filter(request => {
     const matchesSearch =
       request.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -877,16 +750,15 @@ const FlightBookingsComponent = () => {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  // Status badge styling
   const getStatusBadge = (status: string) => {
     const styles: { [key: string]: string } = {
       Pending:
         'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300',
       Confirmed:
         'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300',
-      Rejected:
-        'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300',
-      Cancelled: // Added Cancelled
+      Completed:
+        'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300',
+      Cancelled:
         'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300',
       'Under Review':
         'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300',
@@ -894,7 +766,6 @@ const FlightBookingsComponent = () => {
     return styles[status] || styles['Pending'];
   };
 
-  // Priority badge styling
   const getPriorityBadge = (priority: string) => {
     const styles: { [key: string]: string } = {
       Low: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-900/30 dark:text-gray-300',
@@ -907,13 +778,12 @@ const FlightBookingsComponent = () => {
     return styles[priority] || styles['Medium'];
   };
 
-  // --- Modal and API Call Handlers ---
   const handleModalCancel = () => {
     setIsModalOpen(false);
     setSelectedRequest(null);
   };
 
-  const handleModalConfirm = async () => {
+  const handleModalConfirm = async (modalData: { pnr: string }) => {
     if (!selectedRequest) return;
 
     setIsUpdating(true);
@@ -929,7 +799,12 @@ const FlightBookingsComponent = () => {
 
     const url = `${process.env.NEXT_PUBLIC_FLIGHT_URL}block-seats/bookings/${_id}/status`;
     const method = 'PATCH';
-    const payload = { status: action };
+
+    // PAYLOAD: uses 'action' directly which is already lowercase ("confirmed" or "cancelled")
+    const payload = {
+      status: action,
+      pnr: modalData.pnr
+    };
 
     try {
       const response = await fetch(url, {
@@ -948,7 +823,6 @@ const FlightBookingsComponent = () => {
         );
       }
 
-      // Update local state on success
       setFlightRequests(prevRequests =>
         prevRequests.map(req =>
           req._id === _id ? { ...req, status: capitalize(action) } : req,
@@ -965,22 +839,19 @@ const FlightBookingsComponent = () => {
 
   const openConfirmationModal = (
     _id: string,
-    action: 'confirmed' | 'cancelled' | 'cancelled',
+    action: 'confirmed' | 'cancelled',
   ) => {
     setSelectedRequest({ _id, action });
     setIsModalOpen(true);
   };
 
-  // --- ADDED: Handler for View Modal ---
   const handleViewDetails = (request: PackageRequest) => {
     setSelectedBookingForView(request);
     setIsViewModalOpen(true);
   };
-  // -------------------------------------
 
   return (
     <div className="space-y-6">
-      {/* Confirmation Modal */}
       <ConfirmationModal
         isOpen={isModalOpen}
         title="Confirm Action"
@@ -993,15 +864,12 @@ const FlightBookingsComponent = () => {
         actionType={selectedRequest?.action}
       />
 
-      {/* --- ADDED: View Details Modal --- */}
       <BookingDetailsModal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         booking={selectedBookingForView}
       />
-      {/* --------------------------------- */}
 
-      {/* Search and Filters */}
       <BookingFilter
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -1011,7 +879,6 @@ const FlightBookingsComponent = () => {
         setFilterPriority={setFilterPriority}
       />
 
-      {/* Loading and Error States */}
       {loading && (
         <div className="card-modern p-12 text-center">
           <Loader className="w-16 h-16 text-purple-600 mx-auto mb-4 animate-spin" />
@@ -1034,7 +901,6 @@ const FlightBookingsComponent = () => {
         </div>
       )}
 
-      {/* Requests List */}
       {!loading && !error && (
         <div className="grid grid-cols-1 gap-4">
           {filteredRequests.length === 0 ? (
@@ -1061,7 +927,7 @@ const FlightBookingsComponent = () => {
                 onConfirm={_id => openConfirmationModal(_id, 'confirmed')}
                 onReject={_id => openConfirmationModal(_id, 'cancelled')}
                 onCancel={_id => openConfirmationModal(_id, 'cancelled')}
-                onView={handleViewDetails} // <-- PASS HANDLER
+                onView={handleViewDetails}
               />
             ))
           )}
@@ -1076,14 +942,12 @@ const FlightBookingsComponent = () => {
 // #region --- Main Module Component ---
 
 const PackageRequestsModule = () => {
-  // State for UI
   const [activeTab, setActiveTab] = useState<'packages' | 'flight'>(
     'packages',
   );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
@@ -1096,7 +960,6 @@ const PackageRequestsModule = () => {
         </div>
       </div>
 
-      {/* Tab Navigation */}
       <div className="flex border-b-2 border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setActiveTab('packages')}
@@ -1120,7 +983,6 @@ const PackageRequestsModule = () => {
         </button>
       </div>
 
-      {/* Render active tab content */}
       {activeTab === 'packages' && <PackageBookingsComponent />}
       {activeTab === 'flight' && <FlightBookingsComponent />}
     </div>

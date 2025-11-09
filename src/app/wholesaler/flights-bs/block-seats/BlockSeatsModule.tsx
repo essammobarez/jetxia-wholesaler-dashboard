@@ -31,7 +31,8 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
       logo: `https://images.kiwi.com/airlines/64/${item.airline.code}.png`,
       flagCode: item.airline.country,
     },
-    flightNumber: item.flightNumber || `${item.airline.code}${Math.floor(1000 + Math.random() * 9000)}`,
+    // UPDATED: Use departureFlightNumber from route as primary flight number
+    flightNumber: item.route?.departureFlightNumber || item.flightNumber || `${item.airline.code}${Math.floor(1000 + Math.random() * 9000)}`,
     route: {
       from: [{
         code: item.route.from.iataCode,
@@ -46,17 +47,32 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
         flag: '',
       }],
       isRoundTrip: item.route.tripType === 'ROUND_TRIP',
+      // UPDATED: Ensure these are mapped for the Form
+      departureFlightNumber: item.route.departureFlightNumber,
+      returnFlightNumber: item.route.returnFlightNumber,
       departure: item.availableDates?.[0]?.departureDate || '',
       return: item.availableDates?.[0]?.returnDate || '',
     },
     departureDate: item.availableDates?.[0]?.departureDate || new Date().toISOString(),
-    departureTime: item.departureTime || '14:30',
-    arrivalTime: item.arrivalTime || '17:45',
-    duration: item.duration || '3h 15m',
-    aircraft: item.aircraft || 'Boeing 737',
+    departureTime: item.availableDates?.[0]?.departureTime || item.departureTime || '00:00',
+    arrivalTime: item.arrivalTime || '00:00',
+    duration: item.duration || '--',
+    aircraft: item.aircraft || '',
+    // UPDATED: Map the full classes structure including deep pricing/commission
+    classes: item.classes.map((cls: any) => ({
+        classId: cls.classId,
+        className: mapClassName(cls.classId),
+        totalSeats: cls.totalSeats,
+        bookedSeats: cls.bookedSeats,
+        availableSeats: cls.availableSeats,
+        // Full pricing object (adult, children, infant + commissions)
+        pricing: cls.pricing,
+        currency: cls.currency
+    })),
+    // UPDATED: priceClasses for Card display (using Adult price as base)
     priceClasses: item.classes.map((cls: any) => ({
       classType: mapClassName(cls.classId),
-      price: cls.price,
+      price: cls.pricing?.adult?.price || 0,
       availableSeats: cls.availableSeats,
       totalSeats: cls.totalSeats,
       baggageAllowance: {
@@ -71,10 +87,11 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
         cancellationFee: item.fareRules.cancellationFee,
       },
     })),
+    // UPDATED: Quick access pricing for filters/sorting (using Adult price)
     pricing: {
-        economy: item.classes.find((c: any) => c.classId === 1)?.price || 0,
-        business: item.classes.find((c: any) => c.classId === 2)?.price || 0,
-        first: item.classes.find((c: any) => c.classId === 3)?.price || 0,
+        economy: item.classes.find((c: any) => c.classId === 1)?.pricing?.adult?.price || 0,
+        business: item.classes.find((c: any) => c.classId === 2)?.pricing?.adult?.price || 0,
+        first: item.classes.find((c: any) => c.classId === 3)?.pricing?.adult?.price || 0,
     },
     availability: {
         class1: {
@@ -98,15 +115,23 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
     fareRules: item.fareRules,
     supplierCommission: item.commission.supplierCommission,
     agencyCommission: item.commission.agencyCommission,
+    // UPDATED: Map available dates including new time and deadline fields
     availableDates: item.availableDates.map((d: any, index: number) => ({
         id: `${item._id}-${index}`,
-        departure: d.departureDate,
-        return: d.returnDate || '',
+        departureDate: d.departureDate,
+        departureTime: d.departureTime,
+        returnDate: d.returnDate,
+        returnTime: d.returnTime,
+        deadline: d.deadline,
+        // Keep backward compatibility for components using old single string format if needed
+        departure: d.departureDate ? `${d.departureDate}T${d.departureTime || '00:00'}:00.000Z` : '',
+        return: d.returnDate ? `${d.returnDate}T${d.returnTime || '00:00'}:00.000Z` : ''
     })),
     status: item.status,
     createdAt: item.createdAt,
     validUntil: item.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     lastUpdated: item.updatedAt,
+    name: item.name
   }));
 };
 
@@ -167,7 +192,7 @@ const BlockSeatsModule = () => {
   const filteredBlockSeats = blockSeats.filter(seat => {
     const fromLocation = Array.isArray(seat.route.from) ? seat.route.from.map(f => `${f.city} ${f.code}`).join(' ') : String(seat.route.from);
     const toLocation = Array.isArray(seat.route.to) ? seat.route.to.map(t => `${t.city} ${t.code}`).join(' ') : String(seat.route.to);
-    
+      
     const matchesSearch =
       seat.airline?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       seat.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||

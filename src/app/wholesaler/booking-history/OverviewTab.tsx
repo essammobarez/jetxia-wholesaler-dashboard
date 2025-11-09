@@ -21,7 +21,9 @@ import BookingCard from "./BookingCard";
 import BookingFilter from "./BookingFilter";
 import { BookingModal, Reservation } from "./BookingModal";
 import EditPriceModal from "./EditPriceModal";
-import { generateInvoicePDF } from "./InvoiceGenerator";
+// --- START: MODIFIED IMPORT ---
+import { generateInvoicePDF, generateInvoiceNumber } from "./InvoiceGenerator";
+// --- END: MODIFIED IMPORT ---
 import PercentageLoaderModal from "./LoadingModal";
 import RoomCancellationModal from "./RoomCancellationModal";
 import PayOptionsModal from "./payoptionsmodal";
@@ -201,6 +203,9 @@ const BookingsPage: NextPage = () => {
               (req: any) => String(req.request ?? "")
             );
 
+            // --- MODIFICATION: Get agentRef from first room ---
+            const agentRef = String(firstRawRoom.agentRef ?? "");
+
             const allRoomsData = (item.rooms || []).map((room: any) => {
               const detailedService =
                 room.bookingData?.detailedInfo?.service || {};
@@ -332,6 +337,7 @@ const BookingsPage: NextPage = () => {
               allRooms: allRoomsData,
               source: null,
               specialRequests, // --- MODIFICATION: Add special requests to reservation object ---
+              agentRef, // --- MODIFICATION: Add agentRef to reservation object ---
             };
           });
           setReservations(mapped);
@@ -506,14 +512,30 @@ const BookingsPage: NextPage = () => {
       });
   };
 
+  // --- START: MODIFIED FUNCTION ---
   const handleGenerateInvoice = (reservation: Reservation) => {
     if (generatingDocFor || isLoaderVisible) return;
+
+    // Generate the missing data
+    const newInvoiceNumber = generateInvoiceNumber();
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(today.getDate() + 30); // Set due date 30 days from now
+
+    // Use the component's existing formatDate helper
+    const newInvoiceDate = formatDate(today.toISOString());
+    const newDueDate = formatDate(futureDate.toISOString());
+
     setGeneratingDocFor(reservation.bookingId);
     setLoaderMessage("Generating Invoice...");
     const generationTask = async () => {
       try {
         await generateInvoicePDF({
           reservation,
+          // Pass the newly generated data
+          invoiceNumber: newInvoiceNumber,
+          invoiceDate: newInvoiceDate,
+          dueDate: newDueDate,
         });
         toast.success("Invoice generated successfully!");
       } catch (error) {
@@ -526,6 +548,7 @@ const BookingsPage: NextPage = () => {
     };
     simulateProgress(generationTask);
   };
+  // --- END: MODIFIED FUNCTION ---
 
   const handleGenerateVoucher = (reservation: Reservation) => {
     if (generatingDocFor || isLoaderVisible) return;

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
   FiX, 
   FiChevronDown, 
-  FiHome, // <-- FIX: Changed FiBuilding to FiHome
+  FiHome, 
   FiCalendar, 
   FiMoon, 
   FiUsers, 
@@ -12,12 +12,12 @@ import {
   FiFileText, 
   FiCreditCard, 
   FiTag,
-  FiEdit // Added for the edit button
+  FiEdit 
 } from 'react-icons/fi';
 import { FaCheckCircle, FaExclamationCircle, FaTimesCircle, FaBan } from 'react-icons/fa';
-import EditPriceModal from './EditPriceModal'; // Import the EditPriceModal
+import EditPriceModal from './EditPriceModal'; 
 
-// INTERFACES (Keep these as they are from your previous file)
+// INTERFACES 
 interface Passenger {
   paxId: number;
   type: string;
@@ -97,6 +97,7 @@ export interface Reservation {
     originalPrice?: { value: number; currency: string };
     markupApplied?: { type: string; value: number; description: string };
   };
+  agentRef?: string; 
 }
 
 interface BookingModalProps {
@@ -351,7 +352,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
             
             {/* LEFT COLUMN: BOOKING OVERVIEW */}
             <div className="lg:col-span-1 space-y-6">
-              {/* --- FIX: Changed icon from FiBuilding to FiHome --- */}
               <Section title="Hotel & Stay" icon={FiHome}>
                 <h4 className="font-bold text-lg text-gray-900 dark:text-white">{r.hotelInfo.name}</h4>
                 <DetailItem label="Check-in" value={formatDate(r.checkIn)} icon={FiCalendar}/>
@@ -363,8 +363,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({ reservation: r, isOp
               <Section title="Agency Details" icon={FiUsers}>
                 <DetailItem label="Agency" value={r.agencyName}/>
                 <DetailItem label="Reservation:" value={r.reservationId}/>
-                <DetailItem label="Agent Reference" value={r.clientRef.split('-')[0].toUpperCase()}/>
-                {/* MODIFICATION: Added Provider Name Display */}
+                <DetailItem label="Agent Reference" value={r.agentRef}/>
                 <DetailItem label="Provider" value={r.providerName}/>
               </Section>
               
