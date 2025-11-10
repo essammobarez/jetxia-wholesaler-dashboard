@@ -237,7 +237,9 @@ export default function Login() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [branding, setBranding] = useState<WholesalerBranding | null>(null);
   const [isLoadingBranding, setIsLoadingBranding] = useState(true);
-  document.title = `Login | ${branding?.name}`;
+  if(document) {
+    document.title = branding?.name ? `Login | ${branding?.name}` : "Login";
+  }
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
@@ -662,7 +664,7 @@ export default function Login() {
                   )} */}
                   <div className='text-center'>
                     <Image src={branding?.logo} alt="Company Logo" width={160} height={55} priority className='mx-auto' />
-                    <h2 className="text-2xl font-semibold mb-3 leading-tight whitespace-nowrap mx-auto">
+                    <h2 className="text-2xl font-semibold mb-3 leading-tight mx-auto">
                     Welcome To <span className=" font-bold">{branding?.name}</span>
                   </h2>
                   <p className="mb-4">
@@ -685,7 +687,22 @@ export default function Login() {
             {/* Right Login Panel (UPDATED) */}
             <div className="relative flex items-center justify-center">
               <div className="absolute inset-0 w-full h-full">
-                <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
+                {
+                  branding?.landingBanner ? (
+                    <Image
+                      src={branding?.landingBanner}
+                      alt="Login Background"
+                      fill
+                      style={{ objectFit: 'cover' }}
+                      priority
+                    />
+                  ) : (
+                    <div>
+                      <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
+                    </div>
+                  )
+                }
+                
                 {/* Semi-transparent overlay covering entire image */}
                 <div className="absolute inset-0 bg-gray-900/15"></div>
               </div>
