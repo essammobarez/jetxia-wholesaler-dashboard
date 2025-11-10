@@ -356,8 +356,8 @@ export default function WholesalerPage() {
     const fetchBranding = async () => {
       try {
         const branding = await getWholesalerBranding();
-        if (branding.logo) {
-          setLogoUrl(branding.logo);
+        if (branding.navLogo) {
+          setLogoUrl(branding.navLogo);
         }
       } catch (error) {
         console.error('Error fetching branding:', error);

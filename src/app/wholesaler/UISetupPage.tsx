@@ -9,6 +9,8 @@ interface UISettings {
   agencyDomain: string;
   navLogo: string;
   brandLogo: string;
+  loadingLogo: string;
+  landingBanner: string;
   metaName: string;
   brandName: string;
 }
@@ -20,6 +22,8 @@ export default function UISetupPage() {
     agencyDomain: '',
     navLogo: '',
     brandLogo: '',
+    loadingLogo: '',
+    landingBanner: '',
     metaName: '',
     brandName: '',
   });
@@ -35,13 +39,13 @@ export default function UISetupPage() {
 
   // Extract domain from current URL
   const extractDomain = (): string => {
-    if (typeof window === 'undefined') return 'jetixia.com';
+    if (typeof window === 'undefined') return 'localhost:3001';
 
     const hostname = window.location.hostname;
 
     // If localhost, return default
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'jetixia.com';
+      return 'localhost:3001';
     }
 
     // Extract domain using regex
@@ -103,6 +107,8 @@ export default function UISetupPage() {
             agencyDomain: brandSettings.agencyDomain || '',
             navLogo: brandSettings.navLogo || '',
             brandLogo: brandSettings.brandLogo || '',
+            loadingLogo: brandSettings.loadingLogo || '',
+            landingBanner: brandSettings.landingBanner || '',
             metaName: brandSettings.metaName || '',
             brandName: brandSettings.brandName || '',
           };
@@ -187,7 +193,7 @@ export default function UISetupPage() {
     setSuccess(null);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'navLogo' | 'brandLogo') => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'navLogo' | 'brandLogo' | 'loadingLogo' | 'landingBanner') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -222,7 +228,7 @@ export default function UISetupPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = (fieldName: 'navLogo' | 'brandLogo') => {
+  const handleRemoveImage = (fieldName: 'navLogo' | 'brandLogo' | 'loadingLogo' | 'landingBanner') => {
     setFormData(prev => ({
       ...prev,
       [fieldName]: ''
@@ -367,27 +373,112 @@ export default function UISetupPage() {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
           Logo Configuration
         </h3>
-        <div className="max-w-md">
+        
+        {/* Three column layout for small logos */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* Nav Logo */}
           <div>
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Brand Logo
+              Navigation Logo
             </label>
-            {formData.brandLogo && (
+            {formData.navLogo ? (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-lg">
                 <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3">Preview</p>
-                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[80px]">
+                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
                   <img
-                    src={formData.brandLogo}
-                    alt="Brand logo"
-                    className="max-h-16 object-contain"
+                    src={formData.navLogo}
+                    alt="Nav logo"
+                    className="max-h-20 object-contain"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
                   />
                 </div>
               </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-4 py-8 rounded-lg italic text-center">
+                Not set
+              </div>
             )}
           </div>
+
+          {/* Brand Logo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+              Brand Logo
+            </label>
+            {formData.brandLogo ? (
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-lg">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3">Preview</p>
+                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
+                  <img
+                    src={formData.brandLogo}
+                    alt="Brand logo"
+                    className="max-h-20 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-4 py-8 rounded-lg italic text-center">
+                Not set
+              </div>
+            )}
+          </div>
+
+          {/* Loading Logo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+              Loading Logo
+            </label>
+            {formData.loadingLogo ? (
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-lg">
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3">Preview</p>
+                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
+                  <img
+                    src={formData.loadingLogo}
+                    alt="Loading logo"
+                    className="max-h-20 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-4 py-8 rounded-lg italic text-center">
+                Not set
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Full width layout for landing banner */}
+        <div>
+          <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+            Landing Banner
+          </label>
+          {formData.landingBanner ? (
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-lg">
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3">Preview</p>
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[200px]">
+                <img
+                  src={formData.landingBanner}
+                  alt="Landing banner"
+                  className="max-h-[180px] w-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-4 py-12 rounded-lg italic text-center">
+              No banner set
+            </div>
+          )}
         </div>
       </div>
 
@@ -551,11 +642,71 @@ export default function UISetupPage() {
               Logo Configuration
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Upload your logo image
+              Upload your logo images
             </p>
           </div>
         </div>
-        <div className="max-w-md">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Nav Logo */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Navigation Logo <span className="text-red-500">*</span>
+            </label>
+            
+            {!formData.navLogo ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => handleImageUpload(e, 'navLogo')}
+                  className="hidden"
+                  id="navLogoInput"
+                />
+                <label
+                  htmlFor="navLogoInput"
+                  className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                >
+                  <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Click to upload
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Max 5MB
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="relative p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage('navLogo')}
+                  className="absolute top-1 right-1 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  title="Remove image"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[80px]">
+                  <img
+                    src={formData.navLogo}
+                    alt="Nav logo preview"
+                    className="max-h-16 max-w-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Used in navigation bar
+            </p>
+          </div>
+
           {/* Brand Logo */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -573,33 +724,33 @@ export default function UISetupPage() {
                 />
                 <label
                   htmlFor="brandLogoInput"
-                  className="flex flex-col items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                  className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
                 >
-                  <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mb-3" />
+                  <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Click to upload image
+                    Click to upload
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    JPG, PNG, GIF or WebP (Max 5MB)
+                    Max 5MB
                   </span>
                 </label>
               </div>
             ) : (
-              <div className="relative p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+              <div className="relative p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
                 <button
                   type="button"
                   onClick={() => handleRemoveImage('brandLogo')}
-                  className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  className="absolute top-1 right-1 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
                   title="Remove image"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3 h-3" />
                 </button>
                 <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
-                <div className="bg-white dark:bg-gray-900 p-4 rounded-lg flex items-center justify-center min-h-[100px]">
+                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[80px]">
                   <img
                     src={formData.brandLogo}
                     alt="Brand logo preview"
-                    className="max-h-20 max-w-full object-contain"
+                    className="max-h-16 max-w-full object-contain"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -610,9 +761,129 @@ export default function UISetupPage() {
             
             <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1 a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               Primary brand logo (used as favicon)
+            </p>
+          </div>
+
+          {/* Loading Logo */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Loading Logo <span className="text-red-500">*</span>
+            </label>
+            
+            {!formData.loadingLogo ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => handleImageUpload(e, 'loadingLogo')}
+                  className="hidden"
+                  id="loadingLogoInput"
+                />
+                <label
+                  htmlFor="loadingLogoInput"
+                  className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                >
+                  <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Click to upload
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Max 5MB
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="relative p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage('loadingLogo')}
+                  className="absolute top-1 right-1 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  title="Remove image"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[80px]">
+                  <img
+                    src={formData.loadingLogo}
+                    alt="Loading logo preview"
+                    className="max-h-16 max-w-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Displayed during loading screens
+            </p>
+          </div>
+
+          {/* Landing Banner */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Landing Banner <span className="text-red-500">*</span>
+            </label>
+            
+            {!formData.landingBanner ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => handleImageUpload(e, 'landingBanner')}
+                  className="hidden"
+                  id="landingBannerInput"
+                />
+                <label
+                  htmlFor="landingBannerInput"
+                  className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200"
+                >
+                  <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-2" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Click to upload
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Max 5MB
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="relative p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage('landingBanner')}
+                  className="absolute top-1 right-1 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg z-10"
+                  title="Remove image"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg flex items-center justify-center min-h-[80px]">
+                  <img
+                    src={formData.landingBanner}
+                    alt="Landing banner preview"
+                    className="max-h-16 max-w-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Hero banner for landing page
             </p>
           </div>
         </div>
