@@ -189,7 +189,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '15px'
   },
   headerLogo: {
-    width: '100px',
+    width: '80px',
     height: 'auto',
     objectFit: 'contain',
     borderRadius: '4px',

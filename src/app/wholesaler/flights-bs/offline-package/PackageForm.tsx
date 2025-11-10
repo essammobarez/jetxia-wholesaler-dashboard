@@ -103,7 +103,8 @@ const getInitialFormData = (pkg?: ApiPackage) => {
 
     pricing: {
       adult: pkg?.pricing?.adultPrice || 0,
-      child: pkg?.pricing?.childPrice6to12 || 0,
+      child6to12: pkg?.pricing?.childPrice6to12 || 0,
+      child2to6: pkg?.pricing?.childPrice2to6 || 0,
       infant: pkg?.pricing?.infantPrice || 0,
       singleSupplement: pkg?.pricing?.singleSupplement || 0
     },
@@ -120,22 +121,25 @@ const getInitialFormData = (pkg?: ApiPackage) => {
       bookingDeadline: formatDateForInput(pkg?.bookingDeadline)
     },
     itinerary: pkg?.itinerary?.map((day: any) => ({
-       day: day.dayNumber,
-       title: day.title,
-       description: day.description,
-       activities: day.activities?.map((a: any) => a.activity) || [],
-       meals: [
-         day.meals?.breakfast ? 'Breakfast' : null,
-         day.meals?.lunch ? 'Lunch' : null,
-         day.meals?.dinner ? 'Dinner' : null
-       ].filter(Boolean),
-       accommodation: day.accommodation || ''
+      day: day.dayNumber,
+      title: day.title,
+      description: day.description,
+      activities: day.activities?.map((a: any) => a.activity) || [],
+      meals: [
+        day.meals?.breakfast ? 'Breakfast' : null,
+        day.meals?.lunch ? 'Lunch' : null,
+        day.meals?.dinner ? 'Dinner' : null
+      ].filter(Boolean),
+      accommodation: day.accommodation || ''
     })) || [] as any[],
     images: pkg?.packageImages || [] as string[],
     selectedInclusions: {
-      meals: pkg?.inclusions?.filter((i: any) => i.category === 'meal').map((i: any) => i.name).filter(Boolean) || [],
-      activities: pkg?.inclusions?.filter((i: any) => i.category === 'activity').map((i: any) => i.name).filter(Boolean) || [],
-      extras: pkg?.inclusions?.filter((i: any) => ['extra', 'transport', 'visa'].includes(i.category)).map((i: any) => i.name).filter(Boolean) || []
+      // Load meals from pkg.inclusions (string array)
+      meals: pkg?.inclusions?.map((i: any) => i.name).filter(Boolean) || [],
+      // Load exclusions from pkg.exclusions, map to {name, price} for the UI
+      activities: pkg?.exclusions?.map((e: any) => ({ name: e.name, price: String(e.price || 0) })) || [],
+      // Load optional extras from pkg.optionalExtras, map to {name, price} for the UI
+      extras: pkg?.optionalExtras?.map((e: any) => ({ name: e.name, price: String(e.price || 0) })) || []
     }
   };
 };
@@ -405,9 +409,11 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     }));
   };
 
-  const handleAddImage = () => {
-    const url = prompt('Enter image URL:');
-    if (url) setFormData(prev => ({ ...prev, images: [...prev.images, url] }));
+  const handleImageUpload = (base64String: string) => {
+    setFormData(prev => ({
+      ...prev,
+      images: [...prev.images, base64String]
+    }));
   };
 
   const handleRemoveImage = (index: number) => {
@@ -449,38 +455,51 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     );
   }, [blockSeatsData, selectedCountry]);
 
+  // --- NEW PAYLOAD FUNCTIONS ---
+
+  // 1. Build INCLUSIONS (from Meals)
   const buildInclusionsPayload = () => {
-      const inclusions: any[] = [];
-      formData.selectedInclusions.meals.forEach(meal => {
-          if (typeof meal === 'string' && meal) {
-            inclusions.push({ name: meal, type: 'included', category: 'meal', icon: 'restaurant' });
-          }
-      });
-      formData.selectedInclusions.activities.forEach(act => {
-          if (typeof act === 'string' && act) {
-             inclusions.push({ name: act, type: 'included', category: 'activity', icon: 'attractions' });
-          }
-      });
-      formData.selectedInclusions.extras.forEach(extra => {
-          // Defensive check: ensure extra is a string before attempting string operations
-          if (typeof extra !== 'string' || !extra) return;
-
-          let category = 'extra';
-          let icon = 'star';
-          const lowerExtra = extra.toLowerCase();
-
-          if (lowerExtra.includes('transfer') || lowerExtra.includes('car')) { 
-              category = 'transport'; 
-              icon = 'airport_shuttle'; 
-          } else if (lowerExtra.includes('visa')) { 
-              category = 'visa'; 
-              icon = 'badge'; 
-          }
-          
-          inclusions.push({ name: extra, type: 'included', category, icon });
-      });
-      return inclusions;
+    return formData.selectedInclusions.meals.map((meal: string) => ({
+      name: meal,
+      description: "", // As requested
+      price: 0, // Meals from this section don't have a price in the UI
+      currency: "USD",
+      type: "included",
+      category: "", // As requested
+      icon: "restaurant" // Matching example
+    }));
   };
+
+  // 2. Build EXCLUSIONS (from "Activities Excluded" in UI)
+  const buildExclusionsPayload = () => {
+    // Note: The UI saves "Activities Excluded" into formData.selectedInclusions.activities
+    return formData.selectedInclusions.activities.map((item: any) => ({
+      name: item.name,
+      description: "", // As requested
+      price: parseFloat(item.price) || 0,
+      currency: "USD",
+      type: "excluded",
+      category: "", // As requested
+      icon: "do_not_disturb_on" // Generic icon for exclusion
+    }));
+  };
+
+  // 3. Build OPTIONAL EXTRAS (from "Extra Services" in UI)
+  const buildOptionalExtrasPayload = () => {
+    // Note: The UI saves "Extra Services" into formData.selectedInclusions.extras
+    return formData.selectedInclusions.extras.map((item: any) => ({
+      name: item.name,
+      description: "", // As requested
+      price: parseFloat(item.price) || 0,
+      currency: "USD",
+      type: "optional",
+      category: "", // As requested
+      icon: "star" // Matching example
+    }));
+  };
+  
+  // --- END OF NEW PAYLOAD FUNCTIONS ---
+
 
   const buildItineraryPayload = () => {
       return formData.itinerary.map(day => ({
@@ -529,12 +548,16 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         })),
         itinerary: buildItineraryPayload(),
         mealPlan: {
-              type: "BB", 
-              description: "Bed & Breakfast - Daily breakfast included"
+            type: "BB", 
+            description: "Bed & Breakfast - Daily breakfast included"
         },
+        
+        // --- UPDATED PAYLOAD KEYS ---
         inclusions: buildInclusionsPayload(),
-        exclusions: [],
-        optionalExtras: [],
+        exclusions: buildExclusionsPayload(),
+        optionalExtras: buildOptionalExtrasPayload(),
+        // --- END OF UPDATES ---
+
         flights: [
             {
                 flightBlockSeatId: formData.selectedBlockSeat.id,
@@ -549,8 +572,8 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         ],
         pricing: {
             adultPrice: formData.pricing.adult,
-            childPrice6to12: formData.pricing.child,
-            childPrice2to6: 0,
+            childPrice6to12: formData.pricing.child6to12,
+            childPrice2to6: formData.pricing.child2to6,
             infantPrice: formData.pricing.infant,
             singleSupplement: formData.pricing.singleSupplement,
             currency: "USD"
@@ -584,12 +607,15 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     }
     
     const newItinerary = buildItineraryPayload();
-    changedData.itinerary = newItinerary; 
-
-    const newInclusions = buildInclusionsPayload();
+    
+    // --- UPDATED INCLUSIONS/EXCLUSIONS/EXTRAS ---
     if (JSON.stringify(formData.selectedInclusions) !== JSON.stringify(originalFormData.selectedInclusions)) {
-          changedData.inclusions = newInclusions;
+        changedData.inclusions = buildInclusionsPayload();
+        changedData.exclusions = buildExclusionsPayload();
+        changedData.optionalExtras = buildOptionalExtrasPayload();
     }
+    // --- END OF UPDATE ---
+
 
     if (formData.selectedBlockSeat?.id !== originalFormData.selectedBlockSeat?.id) {
       changedData.flights = [{ flightBlockSeatId: formData.selectedBlockSeat.id, selectedSeats: 1 }];
@@ -604,7 +630,8 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     
     const changedPricing: { [key: string]: any } = {};
     if (formData.pricing.adult !== originalFormData.pricing.adult) changedPricing.adultPrice = formData.pricing.adult;
-    if (formData.pricing.child !== originalFormData.pricing.child) changedPricing.childPrice6to12 = formData.pricing.child;
+    if (formData.pricing.child6to12 !== originalFormData.pricing.child6to12) changedPricing.childPrice6to12 = formData.pricing.child6to12;
+    if (formData.pricing.child2to6 !== originalFormData.pricing.child2to6) changedPricing.childPrice2to6 = formData.pricing.child2to6;
     if (formData.pricing.infant !== originalFormData.pricing.infant) changedPricing.infantPrice = formData.pricing.infant;
     if (formData.pricing.singleSupplement !== originalFormData.pricing.singleSupplement) changedPricing.singleSupplement = formData.pricing.singleSupplement;
     if (Object.keys(changedPricing).length > 0) {
@@ -622,6 +649,29 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     if (formData.dates.startDate !== originalFormData.dates.startDate) changedData.startDate = new Date(formData.dates.startDate).toISOString();
     if (formData.dates.endDate !== originalFormData.dates.endDate) changedData.endDate = new Date(formData.dates.endDate).toISOString();
     if (formData.dates.bookingDeadline !== originalFormData.dates.bookingDeadline) changedData.bookingDeadline = formData.dates.bookingDeadline ? new Date(formData.dates.bookingDeadline).toISOString() : undefined;
+
+    // Check if itinerary actually changed
+    const originalItineraryPayload = originalFormData.itinerary.map(day => ({
+      dayNumber: day.day,
+      title: day.title || "",
+      description: day.description || "",
+      activities: day.activities.map((act: string) => ({
+        time: "Variable",
+        activity: act,
+        description: ""
+      })),
+      meals: {
+        breakfast: day.meals.includes('Breakfast'),
+        lunch: day.meals.includes('Lunch'),
+        dinner: day.meals.includes('Dinner')
+      },
+      accommodation: day.accommodation || ""
+    }));
+
+
+    if(JSON.stringify(newItinerary) !== JSON.stringify(originalItineraryPayload)) {
+      changedData.itinerary = newItinerary;
+    }
 
     return changedData;
   }
@@ -751,7 +801,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               formData={formData}
               toggleSection={toggleSection}
               expandedSections={expandedSections}
-              handleAddImage={handleAddImage}
+              handleImageUpload={handleImageUpload}
               handleRemoveImage={handleRemoveImage}
             />
           </div>

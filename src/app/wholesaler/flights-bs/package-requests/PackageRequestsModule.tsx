@@ -14,6 +14,15 @@ import BookingRequestCard from './components/BookingRequestCard';
 import BookingDetailsModal from './components/BookingDetailsModal';
 import ConfirmationModal from './components/ConfirmationModal';
 
+// Import Invoice Generator
+import {
+  generateInvoicePDF,
+  generateInvoiceNumber,
+} from './components/invoiceGenerator';
+
+// --- ADDED: Import Flight Voucher Generator ---
+import { generateFlightVoucherPDF } from './components/flightVoucherGenerator';
+
 // #region --- Data Types, Helpers, and Mappers ---
 
 // Helper function to get Auth Token
@@ -88,6 +97,7 @@ export interface ApiPackageBooking {
   paymentStatus: string;
   bookingDate: string;
   bookedBy: { email: string };
+  wholesalerId?: string | any; // Added to match API response
 }
 
 // --- Flight Booking API Types ---
@@ -118,6 +128,8 @@ export interface ApiFlightBooking {
   agency: {
     _id: string;
     email: string;
+    // Assuming agency name might be available in full API, if not we use email as fallback in mapper if needed
+    agencyName?: string;
   };
   classId: number;
   trip: {
@@ -406,6 +418,22 @@ const mapFlightBookingsToRequests = (
 
 // #region --- Tab Content Components ---
 
+// Handler for Generating Invoice
+const handleGenerateInvoice = async (request: PackageRequest) => {
+  const now = new Date();
+  const dueDate = new Date();
+  dueDate.setDate(now.getDate() + 7); // Set due date to 7 days from now
+
+  const invoiceData = {
+    invoiceNumber: generateInvoiceNumber(),
+    invoiceDate: now.toLocaleDateString('en-GB'), // DD/MM/YYYY
+    dueDate: dueDate.toLocaleDateString('en-GB'), // DD/MM/YYYY
+    request: request, // Pass the entire request object to the generator
+  };
+
+  await generateInvoicePDF(invoiceData);
+};
+
 const PackageBookingsComponent = () => {
   const [packageRequests, setPackageRequests] = useState<PackageRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -467,6 +495,15 @@ const PackageBookingsComponent = () => {
 
     fetchData();
   }, []);
+
+  // --- ADDED: Handler for Package Voucher ---
+  // This is a placeholder. You will need a specific voucher template for "packages"
+  const handleGeneratePackageVoucher = (request: PackageRequest) => {
+    if (request.bookingType !== 'package') return;
+    // TODO: Implement package voucher generation when template is available
+    alert('Package voucher generation is not yet implemented.');
+    console.log('Generate package voucher for:', request);
+  };
 
   const filteredRequests = packageRequests.filter(request => {
     const matchesSearch =
@@ -539,7 +576,7 @@ const PackageBookingsComponent = () => {
     // PAYLOAD: uses 'action' directly which is already lowercase ("confirmed" or "cancelled")
     const payload = {
       status: action,
-      pnr: modalData.pnr
+      pnr: modalData.pnr,
     };
 
     try {
@@ -664,6 +701,8 @@ const PackageBookingsComponent = () => {
                 onReject={_id => openConfirmationModal(_id, 'cancelled')}
                 onCancel={_id => openConfirmationModal(_id, 'cancelled')}
                 onView={handleViewDetails}
+                onInvoice={handleGenerateInvoice}
+                onVoucher={handleGeneratePackageVoucher} // <-- PASS THE HANDLER
               />
             ))
           )}
@@ -733,6 +772,18 @@ const FlightBookingsComponent = () => {
     fetchData();
   }, []);
 
+  // --- ADDED: Handler for Flight Voucher ---
+  const handleGenerateFlightVoucher = async (request: PackageRequest) => {
+    if (request.bookingType !== 'flight') return;
+    try {
+      // We pass the rawData, which is the ApiFlightBooking object
+      await generateFlightVoucherPDF(request.rawData as ApiFlightBooking);
+    } catch (err) {
+      console.error('Error generating flight voucher:', err);
+      alert('Error generating flight voucher. See console for details.');
+    }
+  };
+
   const filteredRequests = flightRequests.filter(request => {
     const matchesSearch =
       request.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -759,7 +810,7 @@ const FlightBookingsComponent = () => {
       Completed:
         'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300',
       Cancelled:
-        'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300',
+        'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/3D dark:text-red-300',
       'Under Review':
         'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300',
     };
@@ -797,13 +848,13 @@ const FlightBookingsComponent = () => {
       return;
     }
 
-    const url = `${process.env.NEXT_PUBLIC_FLIGHT_URL}block-seats/bookings/${_id}/status`;
+    const url = `${process.env.NEXT_PUBLIC_FLIGHT_URL}/block-seats/bookings/${_id}/status`;
     const method = 'PATCH';
 
     // PAYLOAD: uses 'action' directly which is already lowercase ("confirmed" or "cancelled")
     const payload = {
       status: action,
-      pnr: modalData.pnr
+      pnr: modalData.pnr,
     };
 
     try {
@@ -928,6 +979,8 @@ const FlightBookingsComponent = () => {
                 onReject={_id => openConfirmationModal(_id, 'cancelled')}
                 onCancel={_id => openConfirmationModal(_id, 'cancelled')}
                 onView={handleViewDetails}
+                onInvoice={handleGenerateInvoice}
+                onVoucher={handleGenerateFlightVoucher} // <-- PASS THE HANDLER
               />
             ))
           )}

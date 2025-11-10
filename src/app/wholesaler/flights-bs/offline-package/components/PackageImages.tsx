@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { ImageIcon, ChevronDown, ChevronUp, X, Upload, Info } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface PackageImagesProps {
   formData: any;
   toggleSection: (section: 'images') => void;
   expandedSections: { images: boolean };
-  handleAddImage: () => void;
+  handleImageUpload: (base64String: string) => void;
   handleRemoveImage: (index: number) => void;
 }
 
@@ -15,9 +16,45 @@ const PackageImages: React.FC<PackageImagesProps> = ({
   formData,
   toggleSection,
   expandedSections,
-  handleAddImage,
+  handleImageUpload,
   handleRemoveImage,
 }) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      Array.from(event.target.files).forEach(file => {
+        // Check file type
+        if (!file.type.startsWith('image/')) {
+          toast.error(`File ${file.name} is not an image.`);
+          return;
+        }
+
+        // Check file size (e.g., 5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`Image ${file.name} is larger than 5MB.`);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+          if (loadEvent.target?.result) {
+            handleImageUpload(loadEvent.target.result as string);
+          }
+        };
+        reader.onerror = (error) => {
+          console.error("Error reading file:", error);
+          toast.error(`Error reading file ${file.name}.`);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    // Clear the input value to allow re-uploading the same file
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+
   return (
     <div className="card-modern p-6">
       <div
@@ -41,7 +78,7 @@ const PackageImages: React.FC<PackageImagesProps> = ({
                   <img
                     src={image}
                     alt={`Package ${index + 1}`}
-                    className="w-full h-24 object-cover rounded-lg"
+                    className="w-full h-32 object-cover rounded-lg"
                   />
                   <button
                     onClick={() => handleRemoveImage(index)}
@@ -53,16 +90,29 @@ const PackageImages: React.FC<PackageImagesProps> = ({
               ))}
             </div>
           )}
+          
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            accept="image/png, image/jpeg, image/webp"
+            multiple
+          />
+
+          {/* Upload Button */}
           <button
-            onClick={handleAddImage}
-            className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:border-pink-400 hover:text-pink-600 transition-colors font-medium"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full py-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:border-pink-400 hover:text-pink-600 transition-colors font-medium flex flex-col items-center justify-center space-y-2"
           >
-            <Upload className="w-4 h-4 inline mr-2" />
-            Add Image URL
+            <Upload className="w-5 h-5" />
+            <span>Upload Image</span>
           </button>
+          
           <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
             <Info className="w-3 h-3 mr-1" />
-            Add images to showcase your package
+            Upload images to showcase your package (Max 5MB each).
           </p>
         </div>
       )}

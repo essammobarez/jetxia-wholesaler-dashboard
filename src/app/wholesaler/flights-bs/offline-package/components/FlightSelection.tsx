@@ -27,8 +27,8 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
   setShowHotelSelector,
 }) => {
   
-  // Determine if we should show the list: explicit toggle OR no seat selected yet
-  const shouldShowList = showBlockSeatSelector || !formData.selectedBlockSeat;
+  // Determine if we should show the list: only show if toggled
+  const shouldShowList = showBlockSeatSelector;
 
   return (
     <div className="card-modern p-6 border-2 border-cyan-200 dark:border-cyan-800 shadow-lg hover:shadow-xl transition-all">
@@ -39,13 +39,20 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
           </div>
           <span>Flight (Block Seats)</span>
         </h3>
-        {/* Only show Change button if a seat is already selected */}
-        {formData.selectedBlockSeat && (
+        {/* Show Change button if a seat is selected, else show Select button */}
+        {formData.selectedBlockSeat ? (
             <button
             onClick={handleSelectFlightClick}
             className="btn-gradient text-sm"
             >
             Change Flight
+            </button>
+        ) : (
+            <button
+            onClick={handleSelectFlightClick}
+            className="btn-gradient text-sm"
+            >
+            Select Flight
             </button>
         )}
       </div>
@@ -85,39 +92,39 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl items-center space-x-3">
-                 <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
                     <Plane className="w-5 h-5 text-blue-600 dark:text-blue-300 rotate-45" />
-                 </div>
-                 <div>
-                   <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">Outbound Flight</p>
-                   <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">
-                     {formData.selectedBlockSeat.departureFlightNumber || 'N/A'}
-                   </p>
-                 </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600/70 dark:text-blue-400/70">Outbound Flight</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">
+                      {formData.selectedBlockSeat.departureFlightNumber || 'N/A'}
+                    </p>
+                  </div>
               </div>
 
               <div className="flex p-3 bg-pink-50 dark:bg-pink-900/20 border border-pink-100 dark:border-pink-800 rounded-xl items-center space-x-3">
-                 <div className="p-2 bg-pink-100 dark:bg-pink-800 rounded-lg">
+                  <div className="p-2 bg-pink-100 dark:bg-pink-800 rounded-lg">
                     <Plane className="w-5 h-5 text-pink-600 dark:text-pink-300 -rotate-135" />
-                 </div>
-                 <div>
-                   <p className="text-[11px] font-semibold uppercase tracking-wider text-pink-600/70 dark:text-pink-400/70">Return Flight</p>
-                   <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">
-                     {formData.selectedBlockSeat.returnFlightNumber || 'N/A'}
-                   </p>
-                 </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-pink-600/70 dark:text-pink-400/70">Return Flight</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">
+                      {formData.selectedBlockSeat.returnFlightNumber || 'N/A'}
+                    </p>
+                  </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-3 px-2">
-               <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                   <Timer className="w-4 h-4" />
                   <span className="text-sm font-medium">Duration: {formData.selectedBlockSeat.duration}</span>
-               </div>
-               <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                </div>
+                <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                   <ArrowRightLeft className="w-4 h-4" />
                   <span className="text-sm font-medium">Round Trip</span>
-               </div>
+                </div>
             </div>
           </div>
 
@@ -141,29 +148,29 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
                   >
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                         <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                           Departure
-                         </p>
-                         <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                           {new Date(dateInfo.departure).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
-                         </p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            Departure
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {new Date(dateInfo.departure).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                          </p>
                       </div>
                       <div className="flex justify-between items-center">
-                         <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                           Return
-                         </p>
-                         <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                           {new Date(dateInfo.return).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
-                         </p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            Return
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {new Date(dateInfo.return).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                          </p>
                       </div>
 
                       {dateInfo.deadline && (
-                         <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end">
-                           <p className="text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-md">
-                             <AlertCircle className="w-3 h-3 mr-1" />
-                             Deadline: {new Date(dateInfo.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                           </p>
-                         </div>
+                          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end">
+                            <p className="text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-md">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Deadline: {new Date(dateInfo.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                            </p>
+                          </div>
                       )}
                     </div>
                   </div>
@@ -174,35 +181,35 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
         </div>
       ) : null}
 
-      {/* Flight Selector List - ALWAYS SHOW if no seat selected OR explicitly toggled */}
+      {/* Flight Selector List - ONLY SHOW if toggled */}
       {shouldShowList && (
         <div className={`space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar ${formData.selectedBlockSeat ? 'mt-6 border-t border-gray-200 dark:border-gray-700 pt-6' : 'mt-2'}`}>
           <div className="sticky top-0 bg-white dark:bg-gray-900 py-3 z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800 mb-2">
-             <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center">
-               <Plane className="w-4 h-4 mr-2 text-cyan-500" />
-               Available Flights {formData.destination.country && `to ${formData.destination.country}`}
-             </p>
-             {blockSeatsData.length > 0 && (
-                 <span className="px-2.5 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-md">
-                  {blockSeatsData.length} Found
-                 </span>
-             )}
+              <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center">
+                <Plane className="w-4 h-4 mr-2 text-cyan-500" />
+                Available Flights {formData.destination.country && `to ${formData.destination.country}`}
+              </p>
+              {blockSeatsData.length > 0 && (
+                  <span className="px-2.5 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-md">
+                    {blockSeatsData.length} Found
+                  </span>
+              )}
           </div>
           
           {!formData.destination.country ? (
-               <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start">
-                 <Info className="w-5 h-5 text-amber-600 dark:text-amber-500 mr-3 flex-shrink-0 mt-0.5" />
-                 <div>
-                   <h5 className="text-sm font-bold text-amber-800 dark:text-amber-300 mb-1">Action Required</h5>
-                   <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                     Please select a <strong>Destination Country</strong> in the Basic Information section above to see relevant flights.
-                   </p>
-                 </div>
-               </div>
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start">
+                <Info className="w-5 h-5 text-amber-600 dark:text-amber-500 mr-3 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="text-sm font-bold text-amber-800 dark:text-amber-300 mb-1">Action Required</h5>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                    Please select a <strong>Destination Country</strong> in the Basic Information section above to see relevant flights.
+                  </p>
+                </div>
+              </div>
           ) : isLoadingFlights ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-               <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Loading flights...</p>
+                <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Loading flights...</p>
             </div>
           ) : blockSeatsData.length > 0 ? (
             <div className="space-y-3 pb-2">
@@ -227,31 +234,31 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
                     <img src={seat.airline.logo} alt={seat.airline.name} className="w-10 h-10 rounded-md object-contain border border-gray-100 dark:border-gray-700 bg-white p-0.5" />
                     <div>
                       <div className="flex items-center flex-wrap gap-2">
-                         <p className="font-bold text-gray-900 dark:text-white leading-tight">
-                           {seat.airline.name}
-                         </p>
-                         <div className="flex space-x-1">
-                           <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded flex items-center">
-                             <Plane className="w-3 h-3 mr-1 rotate-45" />
-                             {seat.departureFlightNumber || 'N/A'}
-                           </span>
-                           <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 rounded flex items-center">
-                             <Plane className="w-3 h-3 mr-1 -rotate-135" />
-                             {seat.returnFlightNumber || 'N/A'}
-                           </span>
-                         </div>
+                          <p className="font-bold text-gray-900 dark:text-white leading-tight">
+                            {seat.airline.name}
+                          </p>
+                          <div className="flex space-x-1">
+                            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded flex items-center">
+                              <Plane className="w-3 h-3 mr-1 rotate-45" />
+                              {seat.departureFlightNumber || 'N/A'}
+                            </span>
+                            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 rounded flex items-center">
+                              <Plane className="w-3 h-3 mr-1 -rotate-135" />
+                              {seat.returnFlightNumber || 'N/A'}
+                            </span>
+                          </div>
                       </div>
                       
                       <div className="flex items-center mt-2 space-x-3">
-                         <div className="flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md">
-                           <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.from[0]?.code}</span>
-                           <ArrowRightLeft className="w-3 h-3 mx-1.5 text-gray-400" />
-                           <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.to[0]?.code}</span>
-                         </div>
-                         <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                           <Timer className="w-3 h-3 mr-1" />
-                           {seat.duration}
-                         </span>
+                          <div className="flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md">
+                            <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.from[0]?.code}</span>
+                            <ArrowRightLeft className="w-3 h-3 mx-1.5 text-gray-400" />
+                            <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.to[0]?.code}</span>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                            <Timer className="w-3 h-3 mr-1" />
+                            {seat.duration}
+                          </span>
                       </div>
                     </div>
                   </div>
