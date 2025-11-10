@@ -16,7 +16,8 @@ import {
   User,
   FileText,
 } from 'lucide-react';
-import { PackageRequest } from './PackageRequestsModule'; // Import type from main module
+// Adjust the import path if necessary to match your project structure
+import { PackageRequest } from './PackageRequestsModule';
 
 interface CardProps {
   request: PackageRequest;
@@ -25,7 +26,9 @@ interface CardProps {
   onConfirm: (requestId: string) => void;
   onReject: (requestId: string) => void;
   onCancel: (requestId: string) => void;
-  onView: (request: PackageRequest) => void; // <-- ADD THIS PROP
+  onView: (request: PackageRequest) => void;
+  onInvoice: (request: PackageRequest) => void;
+  onVoucher: (request: PackageRequest) => void; // <-- ADDED PROP
 }
 
 const BookingRequestCard: React.FC<CardProps> = ({
@@ -35,7 +38,9 @@ const BookingRequestCard: React.FC<CardProps> = ({
   onConfirm,
   onReject,
   onCancel,
-  onView, // <-- GET THIS PROP
+  onView,
+  onInvoice,
+  onVoucher, // <-- DESTRUCTURE PROP
 }) => {
   return (
     <div
@@ -73,6 +78,70 @@ const BookingRequestCard: React.FC<CardProps> = ({
               minute: '2-digit',
             })}
           </p>
+        </div>
+
+        <div className="flex items-center space-x-3 flex-shrink-0 ml-4">
+          <button
+            onClick={() => onView(request)}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View
+          </button>
+
+          {request.status === 'Pending' && (
+            <>
+              <button
+                onClick={() => onConfirm(request._id)}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Confirm
+              </button>
+              <button
+                onClick={() => onReject(request._id)}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Reject
+              </button>
+            </>
+          )}
+
+          {/* Show Cancel, Voucher, and Invoice buttons if status is Confirmed */}
+          {request.status === 'Confirmed' && (
+            <>
+              <button
+                onClick={() => onCancel(request._id)}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Cancel
+              </button>
+
+              {/* --- UPDATED VOUCHER BUTTON --- */}
+              <button
+                onClick={() => onVoucher(request)} // <-- Connects to the new prop
+                className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+               Itinerary 
+              </button>
+
+              <button
+                onClick={() => onInvoice(request)}
+                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Invoice
+              </button>
+            </>
+          )}
+
+          <button className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg">
+            <Edit className="w-4 h-4 mr-2" />
+            Edit
+          </button>
         </div>
       </div>
 
@@ -157,54 +226,6 @@ const BookingRequestCard: React.FC<CardProps> = ({
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Actions */}
-      <div className="mt-4 pt-4 border-t-2 border-gray-200 dark:border-gray-700 flex items-center justify-end space-x-3">
-        <button
-          onClick={() => onView(request)} // <-- ADD ONCLICK HANDLER
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
-        >
-          <Eye className="w-4 h-4 mr-2" />
-          View
-        </button>
-
-        {/* 'Package Request' button removed */}
-
-        {request.status === 'Pending' && (
-          <>
-            <button
-              onClick={() => onConfirm(request._id)}
-              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Confirm
-            </button>
-            <button
-              onClick={() => onReject(request._id)}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
-            >
-              <XCircle className="w-4 h-4 mr-2" />
-              Reject
-            </button>
-          </>
-        )}
-
-        {/* Show Cancel button if status is Confirmed */}
-        {request.status === 'Confirmed' && (
-          <button
-            onClick={() => onCancel(request._id)}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg"
-          >
-            <XCircle className="w-4 h-4 mr-2" />
-            Cancel
-          </button>
-        )}
-
-        <button className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold flex items-center transition-colors shadow-md hover:shadow-lg">
-          <Edit className="w-4 h-4 mr-2" />
-          Edit
-        </button>
       </div>
     </div>
   );
