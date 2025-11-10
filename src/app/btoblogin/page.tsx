@@ -698,7 +698,7 @@ export default function Login() {
                     />
                   ) : (
                     <div>
-                      <Image src="/images/bg.png" alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
+                      <Image src="..." alt="Login Background" fill style={{ objectFit: 'cover' }} priority />
                     </div>
                   )
                 }
