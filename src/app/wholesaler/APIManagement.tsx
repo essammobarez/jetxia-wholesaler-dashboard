@@ -123,8 +123,8 @@ const APIManagement: NextPage = () => {
             { name: "MIKI_REQUEST_PASSWORD", label: "Request Password", type: "password", placeholder: "Enter Miki Request Password" }
         ],
         "iwtx": [
-            { name: "YOUR_SUPPLIER_CODE", label: "Supplier Code", type: "text", placeholder: "Enter your Supplier Code" },
-            { name: "YOUR_SUPPLIER_PASSWORD", label: "Supplier Password", type: "password", placeholder: "Enter your Supplier Password" }
+            { name: "IWTX_SUPPLIER_CODE", label: "Supplier Code", type: "text", placeholder: "Enter your Supplier Code" },
+            { name: "IWTX_SUPPLIER_PASSWORD", label: "Supplier Password", type: "password", placeholder: "Enter your Supplier Password" }
         ],
         "Hotelbeds": [
             { name: "HOTELBEDS_API_KEY", label: "API Key", type: "text", placeholder: "Enter Hotelbeds API Key" },
