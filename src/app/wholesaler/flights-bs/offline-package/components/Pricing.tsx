@@ -1,6 +1,6 @@
 // src/components/Pricing.tsx
 
-import React from 'react';
+import React from 'react'; // Removed useState since childAgeRange is gone
 import { DollarSign, AlertTriangle } from 'lucide-react';
 
 interface PricingProps {
@@ -10,6 +10,40 @@ interface PricingProps {
 }
 
 const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
+  // Local state to manage the selected age range view - REMOVED
+  // const [childAgeRange, setChildAgeRange] = useState<'6-12' | '2-6'>('6-12'); - REMOVED
+
+  // handleAgeRangeChange - REMOVED
+
+  // --- NEW: Handler for the 2-6 "It have price" checkbox ---
+  const handleChild2to6CheckboxChange = (isChecked: boolean) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        child2to6: {
+          ...prev.pricing.child2to6,
+          isFree: !isChecked, // if checked, isFree is false
+          price: !isChecked ? 0 : prev.pricing.child2to6.price, // Reset price to 0 if now free
+        }
+      }
+    }));
+  };
+
+  // --- NEW: Handler for the 2-6 price input ---
+  const handleChild2to6PriceChange = (value: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        child2to6: {
+          ...prev.pricing.child2to6,
+          price: parseFloat(value) || 0,
+        }
+      }
+    }));
+  };
+
   return (
     <div className="card-modern p-6 border-2 border-yellow-200 dark:border-yellow-800 shadow-lg hover:shadow-xl transition-all">
       <div className="flex items-center justify-between mb-4">
@@ -41,11 +75,10 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
                 ...prev,
                 pricing: { ...prev.pricing, adult: parseFloat(e.target.value) || 0 }
               }))}
-              className={`w-full pl-12 pr-5 py-4 border-2 rounded-xl transition-all duration-200 ${
-                errors.pricing
+              className={`w-full pl-12 pr-5 py-4 border-2 rounded-xl transition-all duration-200 ${errors.pricing
                   ? 'border-red-500 focus:border-red-600'
                   : 'border-gray-300 dark:border-gray-600 focus:border-yellow-500 dark:focus:border-yellow-400'
-              } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-yellow-100 dark:focus:ring-yellow-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg`}
+                } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-yellow-100 dark:focus:ring-yellow-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg`}
               placeholder="0.00"
             />
           </div>
@@ -57,11 +90,12 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
           )}
         </div>
 
-        {/* Child Price (6-12 years) */}
+        {/* --- MODIFIED SECTION --- */}
+        {/* Children (6-12 years) Price */}
         <div>
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
             <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
-            Child Price (6-12 years)
+            Children Price (6-12 years)
           </label>
           <div className="relative">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
@@ -70,7 +104,7 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
               min="0"
               step="0.01"
               value={formData.pricing.child6to12}
-              onChange={(e) => setFormData(prev => ({
+              onChange={(e) => setFormData((prev: any) => ({
                 ...prev,
                 pricing: { ...prev.pricing, child6to12: parseFloat(e.target.value) || 0 }
               }))}
@@ -80,28 +114,56 @@ const Pricing: React.FC<PricingProps> = ({ formData, setFormData, errors }) => {
           </div>
         </div>
 
-        {/* Child Price (2-6 years) */}
+        {/* --- NEW SECTION --- */}
+        {/* Children (2-6 years) Price */}
         <div>
-          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-            <span className="w-2 h-2 bg-pink-500 rounded-full mr-2"></span>
-            Child Price (2-6 years)
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center justify-between">
+            <span className="flex items-center">
+              <span className="w-2 h-2 bg-indigo-400 rounded-full mr-2"></span>
+              Children Price (2-6 years)
+            </span>
+            {/* The new checkbox */}
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                // --- UPDATED: Removed focus rings ---
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                checked={!formData.pricing.child2to6.isFree}
+                onChange={(e) => handleChild2to6CheckboxChange(e.target.checked)}
+              />
+              {/* --- UPDATED: Changed text color to blue --- */}
+              <span className="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                It has price
+              </span>
+            </label>
           </label>
           <div className="relative">
-            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.pricing.child2to6}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                pricing: { ...prev.pricing, child2to6: parseFloat(e.target.value) || 0 }
-              }))}
-              className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-pink-500 dark:focus:border-pink-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-pink-100 dark:focus:ring-pink-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
-              placeholder="0.00"
-            />
+            {formData.pricing.child2to6.isFree ? (
+              // "FREE" disabled input
+              <input
+                type="text"
+                value="FREE"
+                disabled
+                className="w-full px-5 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 font-semibold text-lg cursor-not-allowed"
+              />
+            ) : (
+              // Price input
+              <>
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 text-lg font-bold">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.pricing.child2to6.price}
+                  onChange={(e) => handleChild2to6PriceChange(e.target.value)}
+                  className="w-full pl-12 pr-5 py-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl transition-all duration-200 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 focus:outline-none shadow-sm hover:shadow-md font-semibold text-lg"
+                  placeholder="0.00"
+                />
+              </>
+            )}
           </div>
         </div>
+        {/* --- END OF NEW/MODIFIED SECTION --- */}
 
         {/* Infant Price (0-2 years) */}
         <div>

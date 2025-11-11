@@ -21,6 +21,20 @@ interface BlockSeatFormProps {
     onSave: (seat: BlockSeat) => void;
 }
 
+// --- NEW/UPDATED TYPES ---
+interface StoppageDate {
+    arrival: string;
+    departure: string;
+}
+
+interface AvailableDateEntry {
+    departure: string;
+    return: string;
+    deadline: string;
+    id: string;
+    stoppageDates: StoppageDate[];
+}
+
 const getAuthToken = () => {
     return document.cookie
         .split('; ')
@@ -34,6 +48,25 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
         price,
         commission: { type: 'percentage' as const, value: 0 }
     });
+
+    // UPDATED: Helper to find stoppage data from complex blockSeat structure
+    const getInitialStoppages = (routeData: any): { country: string; airportCode: string; depFlightNumber: string; retFlightNumber: string; }[] => {
+        if (Array.isArray(routeData?.stoppages) && routeData.stoppages.length > 0) {
+            return routeData.stoppages.map((stop: any) => ({
+                country: stop.country || '',
+                airportCode: stop.iataCode || stop.code || '',
+                // --- ADDED ---
+                depFlightNumber: stop.departureFlightNumber || '',
+                retFlightNumber: stop.returnFlightNumber || ''
+            }));
+        }
+        return [];
+    };
+
+    // UPDATED: Helper to determine stoppage type and count from data
+    const initialStoppages = getInitialStoppages((blockSeat as any)?.route);
+    const initialStoppageCount = initialStoppages.length > 0 ? String(initialStoppages.length) : '';
+    const initialStoppageType = initialStoppages.length > 0 ? 'stoppage' : 'direct';
 
     const [formData, setFormData] = useState({
         airline: blockSeat?.airline.name || '',
@@ -52,8 +85,16 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
             isRoundTrip: blockSeat?.route.isRoundTrip !== undefined ? blockSeat.route.isRoundTrip : (blockSeat as any)?.route?.tripType === 'ROUND_TRIP' || true,
             departureFlightNumber: (blockSeat as any)?.route?.departureFlightNumber || '',
             returnFlightNumber: (blockSeat as any)?.route?.returnFlightNumber || '',
+            // --- NEW STOPPAGE STATE ---
+            stoppageType: initialStoppageType as 'direct' | 'stoppage' | null,
+            stoppageCount: initialStoppageCount,
+            // --- UPDATED STOPPAGES STATE ---
+            stoppages: initialStoppages as Array<{ country: string; airportCode: string; depFlightNumber: string; retFlightNumber: string; }>,
+            // --- NEW: Stoppage dates for the date builder ---
+            stoppageDates: Array(initialStoppages.length).fill(null).map(() => ({ arrival: '', departure: '' })) as StoppageDate[],
         },
-        availableDates: blockSeat?.availableDates || [] as { departure: string; return: string; deadline: string; id: string }[],
+        // --- UPDATED: availableDates state with new type ---
+        availableDates: (blockSeat?.availableDates as any[])?.map(d => ({ ...d, stoppageDates: d.stoppageDates || [] })) || [] as AvailableDateEntry[],
         pricing: {
             class1: {
                 adult: initPassengerPricing((blockSeat as any)?.classes?.find((c: any) => c.classId === 1)?.pricing?.adult?.price || 0),
@@ -185,15 +226,24 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                 setSelectedToAirports((toRouteData.iataCode || toRouteData.code) ? [(toRouteData.iataCode || toRouteData.code)] : []);
             }
 
+            // --- UPDATED: Load available dates with stoppage dates ---
             if ((blockSeat as any).availableDates && (blockSeat as any).availableDates.length > 0) {
-                const recombinedDates = (blockSeat as any).availableDates.map((d: any) => {
+                const recombinedDates: AvailableDateEntry[] = (blockSeat as any).availableDates.map((d: any) => {
                     const departure = d.departureDate && d.departureTime ? `${d.departureDate}T${d.departureTime}:00.000` : (d.departureDate || d.departure);
                     const returnDate = d.returnDate && d.returnTime ? `${d.returnDate}T${d.returnTime}:00.000` : (d.returnDate || d.return);
+
+                    // --- NEW: Recombine stoppage dates ---
+                    const stoppageDates = (d.stoppageDates || []).map((stop: any) => ({
+                        arrival: stop.arrivalDate && stop.arrivalTime ? `${stop.arrivalDate}T${stop.arrivalTime}:00.000` : (stop.arrival || ''),
+                        departure: stop.departureDate && stop.departureTime ? `${stop.departureDate}T${stop.departureTime}:00.000` : (stop.departure || '')
+                    }));
+
                     return {
                         departure: departure,
                         return: returnDate,
                         deadline: d.deadline,
-                        id: d._id || d.id || Math.random().toString(36).substr(2, 9)
+                        id: d._id || d.id || Math.random().toString(36).substr(2, 9),
+                        stoppageDates: stoppageDates // Add the new array
                     };
                 });
 
@@ -262,6 +312,83 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
         }
     };
 
+    // --- UPDATED: Handler for Stoppage Type/Count Changes ---
+    const handleStoppageChange = (stoppageType: 'direct' | 'stoppage' | null, stoppageCount: string) => {
+        const count = parseInt(stoppageCount, 10) || 0;
+
+        // Resize the stoppages array, preserving existing items
+        const newStoppages = Array(count).fill(null).map((_, i) =>
+            formData.route.stoppages[i] || { country: '', airportCode: '', depFlightNumber: '', retFlightNumber: '' }
+        );
+
+        // --- NEW: Resize the temporary stoppage DATES array ---
+        const newStoppageDates = Array(count).fill(null).map((_, i) =>
+            formData.route.stoppageDates[i] || { arrival: '', departure: '' }
+        );
+
+        setFormData(prev => ({
+            ...prev,
+            route: {
+                ...prev.route,
+                stoppageType,
+                stoppageCount,
+                // Clear stoppages if 'direct', otherwise set the new array
+                stoppages: stoppageType === 'direct' ? [] : newStoppages,
+                // --- NEW: Update stoppage dates array ---
+                stoppageDates: stoppageType === 'direct' ? [] : newStoppageDates
+            }
+        }));
+    };
+
+    // --- NEW: Handler for changing a stop's country ---
+    const handleStoppageCountryChange = (index: number, country: string) => {
+        setFormData(prev => {
+            const newStoppages = [...prev.route.stoppages];
+            // Set new country and reset airportCode, but preserve flight numbers
+            newStoppages[index] = { ...newStoppages[index], country, airportCode: '' };
+            return { ...prev, route: { ...prev.route, stoppages: newStoppages } };
+        });
+    };
+
+    // --- NEW: Handler for changing a stop's airport ---
+    const handleStoppageAirportToggle = (index: number, airportCode: string) => {
+        setFormData(prev => {
+            const newStoppages = [...prev.route.stoppages];
+            const currentStop = newStoppages[index];
+            // This acts like a radio button, only one airport per stop
+            newStoppages[index] = { ...currentStop, airportCode: airportCode };
+            return { ...prev, route: { ...prev.route, stoppages: newStoppages } };
+        });
+    };
+
+    // --- NEW: Handler for Stoppage Flight Numbers ---
+    const handleStoppageFlightNumberChange = (index: number, type: 'departure' | 'return', value: string) => {
+        setFormData(prev => {
+            const newStoppages = [...prev.route.stoppages];
+            const stop = newStoppages[index];
+            if (type === 'departure') {
+                stop.depFlightNumber = value;
+            } else {
+                stop.retFlightNumber = value;
+            }
+            return { ...prev, route: { ...prev.route, stoppages: newStoppages } };
+        });
+    };
+
+    // --- NEW: Handler for Stoppage Date Builder ---
+    const handleStoppageDateChange = (index: number, type: 'arrival' | 'departure', value: string) => {
+        setFormData(prev => {
+            const newStoppageDates = [...prev.route.stoppageDates];
+            const stopDate = newStoppageDates[index];
+            if (type === 'arrival') {
+                stopDate.arrival = value;
+            } else {
+                stopDate.departure = value;
+            }
+            return { ...prev, route: { ...prev.route, stoppageDates: newStoppageDates } };
+        });
+    };
+
     const toggleFromAirport = (airportCode: string) => {
         setSelectedFromAirports(prev => prev.includes(airportCode) ? prev.filter(code => code !== airportCode) : [...prev, airportCode]);
     };
@@ -305,9 +432,27 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
         if (!formData.airline) newErrors.airline = 'Please select an airline';
         if (selectedFromAirports.length === 0) newErrors.from = 'Please select at least one departure airport';
         if (selectedToAirports.length === 0) newErrors.to = 'Please select at least one destination airport';
+
+        // NEW: Validate stoppages
+        if (formData.route.stoppageType === 'stoppage') {
+            if (!formData.route.stoppageCount || parseInt(formData.route.stoppageCount, 10) <= 0) {
+                newErrors.stoppage = 'Please select the number of stops.';
+            }
+            formData.route.stoppages.forEach((stop, index) => {
+                if (!stop.airportCode) {
+                    newErrors[`stop_${index}`] = `Please select an airport for Stop ${index + 1}.`;
+                    // This error isn't displayed, but good for logic
+                }
+            });
+            if (formData.route.stoppages.some(s => !s.airportCode)) {
+                newErrors.stoppageAirport = 'Please select an airport for all specified stops.';
+            }
+        }
+
         if (formData.availableDates.length === 0) newErrors.dates = 'Please add at least one available date';
         if (formData.availability.class1.total > 0 && formData.pricing.class1.adult.price <= 0) newErrors.class1 = 'Class 1 Adult price is required';
         if (formData.availability.class1.total <= 0 && formData.availability.class2.total <= 0 && formData.availability.class3.total <= 0) newErrors.availability = 'Please set total seats for at least one class';
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -350,6 +495,19 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                 country: country?.country || ''
             };
         });
+
+        // --- NEW: Map Stoppage Data ---
+        const stoppageAirportsData = formData.route.stoppages.map(stop => {
+            const airport = countriesAndAirports.flatMap(c => c.airports).find(a => a.code === stop.airportCode);
+            const country = countriesAndAirports.find(c => c.country === stop.country);
+            return {
+                iataCode: airport?.code || stop.airportCode,
+                country: country?.country || stop.country,
+                // --- ADDED ---
+                departureFlightNumber: stop.depFlightNumber,
+                returnFlightNumber: stop.retFlightNumber
+            };
+        }).filter(stop => stop.iataCode); // Ensure we only send valid stops
 
         const formatCommission = (comm: { type: string, value: number }) => ({
             type: comm.type === 'fixed' ? 'FIXED_AMOUNT' : 'PERCENTAGE',
@@ -406,23 +564,35 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
             });
         }
 
+        // --- UPDATED: availableDates payload ---
+        const availableDatesPayload = formData.availableDates.map(d => ({
+            departureDate: getLocalDate(d.departure),
+            departureTime: getLocalTime(d.departure),
+            returnDate: formData.route.isRoundTrip ? getLocalDate(d.return) : null,
+            returnTime: formData.route.isRoundTrip ? getLocalTime(d.return) : null,
+            deadline: getLocalDate(d.deadline),
+            // --- NEW: Format stoppage dates for API ---
+            stoppageDates: d.stoppageDates.map(stop => ({
+                arrivalDate: getLocalDate(stop.arrival),
+                arrivalTime: getLocalTime(stop.arrival),
+                departureDate: getLocalDate(stop.departure),
+                departureTime: getLocalTime(stop.departure)
+            }))
+        }));
+
         const currentApiPayload = {
-            name: formData.name || `${fromAirportsData[0]?.iataCode || 'Departure'} to ${toAirportsData[0]?.iataCode || 'Destination'} ${formData.route.isRoundTrip ? 'Round Trip' : 'One Way'}`,
+            name: formData.name || `${fromAirportsData[0]?.iataCode || 'From'} to ${toAirportsData[0]?.iataCode || 'To'} ${formData.route.stoppageType === 'stoppage' ? `(${stoppageAirportsData.length} Stop)` : ''}`,
             airline: { code: formData.airlineCode, name: formData.airline, country: formData.airlineCountry },
             route: {
                 from: fromAirportsData[0] || {},
                 to: toAirportsData[0] || {},
+                // --- NEW: Add stoppages to payload ---
+                stoppages: stoppageAirportsData,
                 tripType: formData.route.isRoundTrip ? 'ROUND_TRIP' : 'ONE_WAY',
                 departureFlightNumber: formData.route.departureFlightNumber,
                 returnFlightNumber: formData.route.returnFlightNumber,
             },
-            availableDates: formData.availableDates.map(d => ({
-                departureDate: getLocalDate(d.departure),
-                departureTime: getLocalTime(d.departure),
-                returnDate: formData.route.isRoundTrip ? getLocalDate(d.return) : null,
-                returnTime: formData.route.isRoundTrip ? getLocalTime(d.return) : null,
-                deadline: getLocalDate(d.deadline)
-            })),
+            availableDates: availableDatesPayload, // --- UPDATED ---
             classes: classesPayload,
             currency: formData.pricing.currency,
             status: formData.status,
@@ -441,7 +611,7 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                 supplierCommission: { type: 'FIXED_AMOUNT', value: 0 },
                 agencyCommission: { type: 'FIXED_AMOUNT', value: 0 },
             },
-            remarks: `Block seat from ${fromAirportsData.map(a => a.iataCode).join(', ')} to ${toAirportsData.map(a => a.iataCode).join(', ')}`,
+            remarks: `Block seat from ${fromAirportsData.map(a => a.iataCode).join(', ')} to ${toAirportsData.map(a => a.iataCode).join(', ')}. Stops: ${stoppageAirportsData.map(a => a.iataCode).join(', ') || 'None'}`,
         };
 
         try {
@@ -518,8 +688,10 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
 
                 <div className="p-8 space-y-6">
                     <AirlineInformation
-                        formData={formData}
+                        formData={formData as any} // Pass the relevant part of formData
                         handleAirlineChange={handleAirlineChange}
+                        // --- NEW: Pass stoppage state and handler ---
+                        onStoppageChange={handleStoppageChange}
                         errors={errors}
                     />
 
@@ -537,12 +709,25 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                         setToCountry={handleSetToCountry}
                         handleDepartureFlightNumberChange={handleDepartureFlightNumberChange}
                         handleReturnFlightNumberChange={handleReturnFlightNumberChange}
+                        // --- NEW: Pass stoppage state and handlers ---
+                        stoppageType={formData.route.stoppageType}
+                        stoppageCount={formData.route.stoppageCount}
+                        stoppages={formData.route.stoppages}
+                        handleStoppageCountryChange={handleStoppageCountryChange}
+                        handleStoppageAirportToggle={handleStoppageAirportToggle}
+                        // --- NEW: Pass flight number handler ---
+                        handleStoppageFlightNumberChange={handleStoppageFlightNumberChange}
                     />
 
                     <AvailableFlightDates
                         formData={formData}
                         setFormData={setFormData}
                         errors={errors}
+                        // --- NEW: Pass stoppage info to date builder ---
+                        stoppageType={formData.route.stoppageType}
+                        stoppageCount={formData.route.stoppageCount}
+                        stoppageDates={formData.route.stoppageDates}
+                        handleStoppageDateChange={handleStoppageDateChange}
                     />
 
                     <Pricing
@@ -585,9 +770,18 @@ const BlockSeatForm: React.FC<BlockSeatFormProps> = ({ blockSeat, onClose, onSav
                 </div>
 
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-t-2 border-gray-200 dark:border-gray-700 p-8 rounded-b-xl flex justify-between items-center">
-                    <p className="text-base text-gray-600 dark:text-gray-400 font-medium">
-                        * Required fields
-                    </p>
+                    <div>
+                        <p className="text-base text-gray-600 dark:text-gray-400 font-medium">
+                            * Required fields
+                        </p>
+                        {/* --- NEW: Show stoppage errors --- */}
+                        {errors.stoppageAirport && (
+                            <p className="text-red-500 text-sm font-medium mt-1">{errors.stoppageAirport}</p>
+                        )}
+                        {errors.stoppageDates && (
+                            <p className="text-red-500 text-sm font-medium mt-1">{errors.stoppageDates}</p>
+                        )}
+                    </div>
                     <div className="flex space-x-4">
                         <div
                             onClick={onClose}

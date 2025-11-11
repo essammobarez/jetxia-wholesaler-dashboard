@@ -26,8 +26,9 @@ const FareRules: React.FC<FareRulesProps> = ({
     fareRulesTemplates,
     getSelectedCurrencySymbol
 }) => {
-    // Check if Manual Entry is active
-    const isManualEntry = formData.fareRules.templateName === 'Manual Entry';
+    // --- UPDATE: Check if Semi Flexible (Custom) mode is active ---
+    const isManualEntry = formData.fareRules.templateName === 'Semi Flexible';
+    // --- END UPDATE ---
 
     // --- UPDATE: Check if Non-Refundable Template is selected ---
     const isNonRefundableTemplate = formData.fareRules.templateName === 'Non-Refundable';
@@ -64,42 +65,61 @@ const FareRules: React.FC<FareRulesProps> = ({
             </div>
             <div className="mb-6">
                 <label className="block text-base font-semibold text-gray-800 dark:text-gray-200 mb-3">
-                    Select Standard Template or Manual Entry
+                    {/* --- UPDATE: Changed label text --- */}
+                    Select Standard Template or Semi Flexible (Custom)
+                    {/* --- END UPDATE --- */}
                 </label>
                 <select
-                    value={formData.fareRules.templateName === 'Manual Entry' ? '' : formData.fareRules.templateName}
+                    // --- UPDATE: Check for 'Semi Flexible' instead of 'Manual Entry' ---
+                    value={formData.fareRules.templateName === 'Semi Flexible' ? '' : formData.fareRules.templateName}
+                    // --- END UPDATE ---
                     onChange={(e) => {
                         const templateName = e.target.value;
                         // Call the parent function to set template data (for Flexible/Non-Refundable)
                         handleFareRuleTemplate(templateName);
 
-                        // If "Manual Entry" is selected, force-clear the fields
+                        // --- UPDATE: If "Semi Flexible (Custom)" is selected, force-clear the fields ---
                         if (templateName === '') {
                             setFormData(prev => ({
                                 ...prev,
                                 fareRules: {
                                     ...prev.fareRules,
-                                    templateName: 'Manual Entry',
+                                    // --- UPDATE: Set templateName to 'Semi Flexible' for custom mode ---
+                                    templateName: 'Semi Flexible',
+                                    // --- END UPDATE ---
                                     cancellationFee: 0, // Reset to 0
                                     changeFee: 0,       // Reset to 0
                                     refundable: false,  // Reset to default
                                 }
                             }));
                         }
+                        // --- END UPDATE ---
                     }}
                     className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 dark:focus:ring-orange-900 transition-all text-base font-medium"
                 >
-                    <option value="">Manual Entry (Custom)</option>
+                    {/* --- UPDATE: Changed option text --- */}
+                    <option value="">Semi Flexible (Custom)</option>
+                    {/* --- END UPDATE --- */}
                     {fareRulesTemplates
-                        .filter(template => template.name === 'Flexible' || template.name === 'Non-Refundable')
+                        // --- UPDATE: Added 'Semi Flexible' to the filter ---
+                        .filter(template => template.name === 'Flexible' || template.name === 'Non-Refundable' || template.name === 'Semi Flexible')
+                        // --- END UPDATE ---
                         .map((template) => (
                             <option key={template.name} value={template.name}>
-                                {template.name} - {template.refundable ? 'Refundable' : 'Non-Refundable'}
+                                {/* --- UPDATE: Change display text for Non-Refundable --- */}
+                                {template.name} - {
+                                    template.name === 'Non-Refundable'
+                                        ? 'Non Changeable'
+                                        : (template.refundable ? 'Refundable' : 'Non-Refundable')
+                                }
+                                {/* --- END UPDATE --- */}
                             </option>
                         ))}
                 </select>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Select a template to apply standard rules, or keep "Manual Entry" to customize all fields
+                    {/* --- UPDATE: Changed helper text --- */}
+                    Select a template to apply standard rules, or keep "Semi Flexible (Custom)" to customize all fields
+                    {/* --- END UPDATE --- */}
                 </p>
             </div>
             <div className="space-y-6">
@@ -127,7 +147,9 @@ const FareRules: React.FC<FareRulesProps> = ({
                                 value={formData.fareRules.cancellationFee}
                                 onChange={(e) => setFormData(prev => ({
                                     ...prev,
-                                    fareRules: { ...prev.fareRules, cancellationFee: Number(e.target.value), templateName: 'Manual Entry' }
+                                    // --- UPDATE: Set templateName to 'Semi Flexible' on change ---
+                                    fareRules: { ...prev.fareRules, cancellationFee: Number(e.target.value), templateName: 'Semi Flexible' }
+                                    // --- END UPDATE ---
                                 }))}
                                 onWheel={(e) => e.currentTarget.blur()}
                                 min="0"
@@ -149,7 +171,9 @@ const FareRules: React.FC<FareRulesProps> = ({
                                 value={formData.fareRules.changeFee}
                                 onChange={(e) => setFormData(prev => ({
                                     ...prev,
-                                    fareRules: { ...prev.fareRules, changeFee: Number(e.target.value), templateName: 'Manual Entry' }
+                                    // --- UPDATE: Set templateName to 'Semi Flexible' on change ---
+                                    fareRules: { ...prev.fareRules, changeFee: Number(e.target.value), templateName: 'Semi Flexible' }
+                                    // --- END UPDATE ---
                                 }))}
                                 onWheel={(e) => e.currentTarget.blur()}
                                 min="0"
@@ -171,7 +195,9 @@ const FareRules: React.FC<FareRulesProps> = ({
                                     type="button"
                                     onClick={() => setFormData(prev => ({
                                         ...prev,
-                                        fareRules: { ...prev.fareRules, refundable: true, templateName: 'Manual Entry' }
+                                        // --- UPDATE: Set templateName to 'Semi Flexible' on change ---
+                                        fareRules: { ...prev.fareRules, refundable: true, templateName: 'Semi Flexible' }
+                                        // --- END UPDATE ---
                                     }))}
                                     disabled={!isManualEntry}
                                     className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all disabled:opacity-70 disabled:cursor-not-allowed ${formData.fareRules.refundable
@@ -185,7 +211,9 @@ const FareRules: React.FC<FareRulesProps> = ({
                                     type="button"
                                     onClick={() => setFormData(prev => ({
                                         ...prev,
-                                        fareRules: { ...prev.fareRules, refundable: false, templateName: 'Manual Entry' }
+                                        // --- UPDATE: Set templateName to 'Semi Flexible' on change ---
+                                        fareRules: { ...prev.fareRules, refundable: false, templateName: 'Semi Flexible' }
+                                        // --- END UPDATE ---
                                     }))}
                                     disabled={!isManualEntry}
                                     className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all disabled:opacity-70 disabled:cursor-not-allowed ${!formData.fareRules.refundable
@@ -193,7 +221,9 @@ const FareRules: React.FC<FareRulesProps> = ({
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                         }`}
                                 >
-                                    Non-Refundable
+                                    {/* --- UPDATE: Changed button text --- */}
+                                    Semi-Refundable
+                                    {/* --- END UPDATE --- */}
                                 </button>
                             </div>
                         </div>
@@ -225,7 +255,13 @@ const FareRules: React.FC<FareRulesProps> = ({
                         <div className="flex justify-between">
                             <span className="text-gray-600 dark:text-gray-400">Refundable:</span>
                             <span className={`font-bold ${formData.fareRules.refundable ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                {formData.fareRules.refundable ? 'Yes' : 'No'}
+                                {/* --- UPDATE: Show 'Semi-Refundable' when applicable --- */}
+                                {
+                                    formData.fareRules.refundable 
+                                        ? 'Yes' 
+                                        : (isManualEntry ? 'Semi-Refundable' : 'No')
+                                }
+                                {/* --- END UPDATE --- */}
                             </span>
                         </div>
                     </div>
