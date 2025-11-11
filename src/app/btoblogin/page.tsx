@@ -284,9 +284,6 @@ export default function Login() {
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [branding, setBranding] = useState<WholesalerBranding | null>(null);
   const [isLoadingBranding, setIsLoadingBranding] = useState(true);
-  if(document) {
-    document.title = branding?.name ? `Login | ${branding?.name}` : "Login";
-  }
 
   const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.endsWith('/')
     ? process.env.NEXT_PUBLIC_BACKEND_URL
@@ -334,7 +331,10 @@ export default function Login() {
       try {
         const brandingData = await getWholesalerBranding(true);
         setBranding(brandingData);
-        console.log('Branding data loaded:', brandingData);
+        if(document) {
+          document.title = brandingData?.name ? `Login | ${brandingData?.name}` : "Login";
+        }
+        // console.log('Branding data loaded:', brandingData);
       } catch (err) {
         console.error('Failed to fetch wholesaler branding:', err);
       } finally {
