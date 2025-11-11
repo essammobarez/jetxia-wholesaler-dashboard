@@ -9,7 +9,7 @@ import FlightSelection from './components/FlightSelection';
 import HotelSelection from './components/HotelSelection';
 import Availability from './components/Availability';
 import PackageHighlights from './components/PackageHighlights';
-import ItineraryBuilder from './components/ItineraryBuilder';
+// import ItineraryBuilder from './components/ItineraryBuilder';
 import PackageInclusions from './components/PackageInclusions';
 import PackageImages from './components/PackageImages';
 import Pricing from './components/Pricing';
@@ -771,7 +771,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               handleRemoveHighlight={handleRemoveHighlight}
               handleAddHighlight={handleAddHighlight}
             />
-            <ItineraryBuilder
+            {/* <ItineraryBuilder
               formData={formData}
               setFormData={setFormData}
               toggleSection={toggleSection}
@@ -786,7 +786,7 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               handleToggleActivity={handleToggleActivity}
               availableMeals={availableMeals}
               availableActivities={availableActivities}
-            />
+            /> */}
             <PackageInclusions
               formData={formData}
               setFormData={setFormData} 
