@@ -52,7 +52,7 @@ interface ApiProvider {
 
 interface SupplierConnection {
     _id: string;
-    supplier: string; // This is the supplier ID
+    supplier: ApiProvider; // --- MODIFIED: Was 'string', now is 'ApiProvider' to match your JSON data
     credentials: {
         [key: string]: string; // Flexible credentials object
     };
@@ -137,6 +137,13 @@ const APIManagement: NextPage = () => {
             { name: "Welcomebeds_TOKEN", label: "Token", type: "password", placeholder: "Enter Welcomebeds Token" }
         ],
         // A default configuration for providers not explicitly listed
+        // --- MODIFICATION START: Added 'E Booking' to match your JSON data ---
+        "E Booking": [
+            { name: "client_id", label: "Client ID", type: "text", placeholder: "Enter the client ID" },
+            { name: "client_secret", label: "Client Secret", type: "password", placeholder: "Enter the client secret" },
+            { name: "scope", label: "Scope", type: "text", placeholder: "e.g., read:hotels write:bookings" }
+        ],
+        // --- MODIFICATION END ---
         "Default": [
             { name: "client_id", label: "Client ID", type: "text", placeholder: "Enter the client ID" },
             { name: "client_secret", label: "Client Secret", type: "password", placeholder: "Enter the client secret" },
@@ -232,11 +239,14 @@ const APIManagement: NextPage = () => {
                 
                 
                 
+                
                 throw new Error('Invalid format for supplier list.');
             }
             if (!connectionResult.success || !Array.isArray(connectionResult.data)) throw new Error('Invalid format for connections data.');
 
             setAllProviders(providerResult.data);
+            
+            // This map is still needed for the 'Add' modal, but not for the loop below.
             const providerDetailsMap = new Map<string, { name: string, logo: string }>(
                 providerResult.data.map((p: ApiProvider) => [p._id, { name: p.name, logo: p.logoUrl }])
             );
@@ -244,9 +254,16 @@ const APIManagement: NextPage = () => {
 
 
             const suppliersMap = new Map<string, Supplier>();
+            
+            // --- MODIFICATION START: Updated loop to handle populated supplier object ---
             for (const connection of connectionResult.data as SupplierConnection[]) {
-                const supplierId = connection.supplier;
-                const providerInfo = providerDetailsMap.get(supplierId) || { name: 'E Booking', logo: '' };
+                // 'connection.supplier' is now an object, not a string ID
+                const supplierId = connection.supplier._id;
+                const providerInfo = {
+                    name: connection.supplier.name,
+                    logo: connection.supplier.logoUrl
+                };
+                // --- MODIFICATION END ---
 
                 // UPDATED: Store credentials dynamically
                 const newCredential: Credential = {
@@ -297,6 +314,16 @@ const APIManagement: NextPage = () => {
             setIsSubmittingAdd(false);
             return;
         }
+
+        // --- START: MODIFICATION ---
+        // Check if a supplier with this ID already exists in the user's list
+        const alreadyExists = suppliers.some(s => s.id === selectedProviderId);
+        if (alreadyExists) {
+            setAddModalError("This supplier connection already added.");
+            setIsSubmittingAdd(false);
+            return;
+        }
+        // --- END: MODIFICATION ---
 
         const selectedProvider = allProviders.find(p => p._id === selectedProviderId);
         const fieldsToRender = (selectedProvider && supplierFieldConfig[selectedProvider.name])
@@ -719,7 +746,7 @@ const APIManagement: NextPage = () => {
                                 ));
                             })()}
 
-                            {addModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{addModalError}</p></div></div></div>)}
+                            {addModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/3D"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{addModalError}</p></div></div></div>)}
                             <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-700"><button type="button" onClick={() => setIsAddModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">Cancel</button><button type="submit" className="flex w-36 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isSubmittingAdd}>{isSubmittingAdd ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save "}</button></div>
                         </form>
                     </div>
@@ -767,7 +794,7 @@ const APIManagement: NextPage = () => {
                                 ));
                             })()}
 
-                            {updateModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{updateModalError}</p></div></div></div>)}
+                            {updateModalError && (<div className="rounded-md bg-red-50 p-4 dark:bg-red-900/3D"><div className="flex"><div className="flex-shrink-0"><XCircle className="h-5 w-5 text-red-400" aria-hidden="true" /></div><div className="ml-3"><p className="text-sm font-medium text-red-800 dark:text-red-300">{updateModalError}</p></div></div></div>)}
                             <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-700">
                                 <button type="button" onClick={() => setIsUpdateModalOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">Cancel</button>
                                 <button type="submit" className="flex w-40 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isSubmittingUpdate}>{isSubmittingUpdate ? <Loader2 className="h-5 w-5 animate-spin" /> : "Update Credential"}</button>
