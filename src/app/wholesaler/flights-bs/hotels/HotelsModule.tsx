@@ -232,10 +232,10 @@ const HotelsModule = () => {
             },
             description: apiHotel.description || '',
             images: [],
-            amenities: (apiHotel.hotelAmenities || []).map((amenityName: string) => ({
-                icon: getAmenityIcon(amenityName),
-                name: amenityName,
-                available: true
+            amenities: (apiHotel.hotelAmenities || []).map((amenity: any) => ({ // <-- FIX 1: Use amenity.name
+              icon: getAmenityIcon(amenity.name),
+              name: amenity.name,
+              available: true
             })),
             roomTypes: (apiHotel.roomTypes || []).map((apiRoom: any) => ({
               type: apiRoom.roomTypeName,
@@ -243,7 +243,7 @@ const HotelsModule = () => {
               maxOccupancy: apiRoom.maxGuests || 0,
               available: apiRoom.availableRooms || 0,
               total: apiRoom.blockedRooms || 0,
-              amenities: apiRoom.amenities || [],
+              amenities: (apiRoom.amenities || []).map((amenity: any) => amenity.name), // <-- FIX 2: Map objects to strings
             })),
             checkInDate: apiHotel.availableDatePeriods?.[0]?.checkInDate?.split('T')[0] || 'N/A',
             checkOutDate: apiHotel.availableDatePeriods?.[0]?.checkOutDate?.split('T')[0] || 'N/A',
@@ -518,12 +518,12 @@ const HotelsModule = () => {
                <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                <h3 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Failed to Load Hotels</h3>
                <p className="text-red-600 dark:text-red-400">{error}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                  Retry
-              </button>
+                 <button
+                   onClick={() => window.location.reload()}
+                   className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                 >
+                   Retry
+                 </button>
            </div>
        )}
 
