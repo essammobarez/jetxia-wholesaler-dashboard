@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import {
   Edit,
@@ -16,7 +18,7 @@ import {
 } from './HotelsModule'; // Assuming files are in the same directory
 
 interface HotelCardProps {
-  hotel: HotelInventory;
+  hotel: HotelInventory; // <-- Uses the correct type from HotelsModule
   onEdit: (hotel: HotelInventory) => void;
   onDelete: (id: string) => void;
 }
@@ -40,6 +42,8 @@ const HotelCard = ({ hotel, onEdit, onDelete }: HotelCardProps) => {
             </div>
             <div className="flex items-center">
               <MapPin className="w-4 h-4 mr-1" />
+              {/* --- THIS IS THE FIX --- */}
+              {/* It now reads from hotel.location, which is a flat object */}
               <span>{hotel.location.city}, {hotel.location.country}</span>
             </div>
           </div>
@@ -63,13 +67,13 @@ const HotelCard = ({ hotel, onEdit, onDelete }: HotelCardProps) => {
       {/* Rating & Reviews */}
       <div className="flex items-center space-x-4 mb-4">
          {/* Display rating/reviews if available, otherwise hide or show placeholder */}
-        {hotel.rating > 0 && (
-          <div className="flex items-center">
-            <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
-            <span className="font-semibold text-gray-900 dark:text-white">{hotel.rating}</span>
-            <span className="text-gray-500 dark:text-gray-400 text-sm ml-1">({hotel.reviews} reviews)</span>
-          </div>
-        )}
+       {hotel.rating > 0 && (
+         <div className="flex items-center">
+           <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
+           <span className="font-semibold text-gray-900 dark:text-white">{hotel.rating}</span>
+           <span className="text-gray-500 dark:text-gray-400 text-sm ml-1">({hotel.reviews} reviews)</span>
+         </div>
+       )}
         <div className="flex items-center text-gray-600 dark:text-gray-400">
           <Calendar className="w-4 h-4 mr-1" />
           {/* Displaying first available date range */}
@@ -145,7 +149,7 @@ const HotelCard = ({ hotel, onEdit, onDelete }: HotelCardProps) => {
                 style={{ width: `${(hotel.availableRooms / hotel.totalRooms) * 100}%` }}
                 ></div>
             </div>
-           )}
+            )}
         </div>
       </div>
     </div>

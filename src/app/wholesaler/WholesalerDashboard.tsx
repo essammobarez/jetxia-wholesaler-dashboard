@@ -111,6 +111,7 @@ import BlockSeatsModule from './flights-bs/block-seats/BlockSeatsModule';
 import HotelsModule from './flights-bs/hotels/HotelsModule';
 import OfflinePackageModule from './flights-bs/offline-package/OfflinePackageModule';
 import PackageRequestsModule from './flights-bs/package-requests/PackageRequestsModule';
+import VisaModule from './VisaModule'; // ✨ ADDED: Import for Visa Module
 
 // ✨ NEW: Import for UI Setup Module
 import UISetupPage from './UISetupPage';
@@ -120,18 +121,18 @@ import UISetupPage from './UISetupPage';
 
 /**
  * 🔐 MENU SYSTEM ARCHITECTURE:
- * 
+ *
  * 1. API-Controlled Menu Items:
- *    - Fetched from backend /wholesaler/profile endpoint
- *    - Backend determines which menu items user has access to
- *    - Stored in `apiMenuItems` state and displayed in sidebar
- * 
+ * - Fetched from backend /wholesaler/profile endpoint
+ * - Backend determines which menu items user has access to
+ * - Stored in `apiMenuItems` state and displayed in sidebar
+ *
  * 2. Token-Authorized Pages (Not in menu, always accessible if authenticated):
- *    - Profile Settings
- *    - Preferences
- *    - Get Support
- *    - These pages are accessible via direct navigation but not shown in sidebar
- *    - Authorization validated by JWT token presence only
+ * - Profile Settings
+ * - Preferences
+ * - Get Support
+ * - These pages are accessible via direct navigation but not shown in sidebar
+ * - Authorization validated by JWT token presence only
  */
 const TOKEN_AUTHORIZED_PAGES = ['Profile Settings', 'Preferences', 'Get Support'];
 
@@ -710,6 +711,7 @@ export default function WholesalerPage() {
                     {[
                       'Overview',
                       'Block Seats',
+                      'Visa', // ✨ ADDED
                       'Hotels',
                       'Offline Package',
                       'Package Requests',
@@ -742,6 +744,7 @@ export default function WholesalerPage() {
                         <span className="text-sm">
                           {tab === 'Overview' && 'Overview'}
                           {tab === 'Block Seats' && 'Block Seats'}
+                          {tab === 'Visa' && 'Visa'} {/* ✨ ADDED */}
                           {tab === 'Hotels' && 'Hotels'}
                           {tab === 'Offline Package' && 'Offline Package'}
                           {tab === 'Package Requests' && 'Package Requests'}
@@ -1161,48 +1164,48 @@ export default function WholesalerPage() {
 
               {/* START OF REMOVED SECTION */}
               {/*
-               <div className="relative text-gray-500 dark:text-gray-400 w-full sm:w-auto">
-                 <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
-                 <input
-                   type="text"
-                   placeholder="Search anything..."
-                   className="input-modern pl-10 pr-4 py-3 w-full sm:w-80 text-sm"
-                 />
-               </div>
-               */}
+                <div className="relative text-gray-500 dark:text-gray-400 w-full sm:w-auto">
+                  <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search anything..."
+                    className="input-modern pl-10 pr-4 py-3 w-full sm:w-80 text-sm"
+                  />
+                </div>
+                */}
               {/* END OF REMOVED SECTION */}
 
               {/* START OF REMOVED SECTION */}
               {/*
-               <div className="hidden lg:flex items-center space-x-4">
-                 <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
-                   <LayoutGrid className="w-4 h-4 mr-2" />
-                   Newsletters
-                 </button>
-                 <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
-                   <LayoutGrid className="w-4 h-4 mr-2" />
-                   Release Tracker
-                 </button>
-               </div>
-               */}
+                <div className="hidden lg:flex items-center space-x-4">
+                  <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Newsletters
+                  </button>
+                  <button className="btn-modern bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-sm py-2 px-4">
+                    <LayoutGrid className="w-4 h-4 mr-2" />
+                    Release Tracker
+                  </button>
+                </div>
+                */}
               {/* END OF REMOVED SECTION */}
             </div>
 
             <div className="flex items-center space-x-4">
               {/* START OF REMOVED SECTION */}
               {/*
-               <button
-                 onClick={() => setDarkMode(!darkMode)}
-                 aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                 className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 group"
-               >
-                 {darkMode ? (
-                   <Sun className="w-5 h-5 text-yellow-500 group-hover:rotate-180 transition-transform duration-500" />
-                 ) : (
-                   <Moon className="w-5 h-5 text-gray-600 group-hover:rotate-180 transition-transform duration-500" />
-                 )}
-               </button>
-               */}
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                  className="p-3 rounded-xl hover:bg-white/10 dark:hover:bg-gray-800/50 transition-all duration-300 group"
+                >
+                  {darkMode ? (
+                    <Sun className="w-5 h-5 text-yellow-500 group-hover:rotate-180 transition-transform duration-500" />
+                  ) : (
+                    <Moon className="w-5 h-5 text-gray-600 group-hover:rotate-180 transition-transform duration-500" />
+                  )}
+                </button>
+                */}
               {/* END OF REMOVED SECTION */}
 
               <div className="relative">
@@ -1227,6 +1230,7 @@ export default function WholesalerPage() {
                 <FlightsBSPage onModuleSelect={setActiveTab} />
               )}
               {activeTab === 'Block Seats' && <BlockSeatsModule />}
+              {activeTab === 'Visa' && <VisaModule />} {/* ✨ ADDED */}
               {activeTab === 'Hotels' && <HotelsModule />}
               {activeTab === 'Offline Package' && <OfflinePackageModule />}
               {activeTab === 'Package Requests' && <PackageRequestsModule />}

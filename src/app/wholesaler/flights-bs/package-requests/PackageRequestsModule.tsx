@@ -6,6 +6,7 @@ import {
   Plane,
   Loader,
   AlertTriangle,
+  CreditCard, // Icon for Visa tab
 } from 'lucide-react';
 
 // Import UI Components
@@ -13,6 +14,8 @@ import BookingFilter from './components/BookingFilter';
 import BookingRequestCard from './components/BookingRequestCard';
 import BookingDetailsModal from './components/BookingDetailsModal';
 import ConfirmationModal from './components/ConfirmationModal';
+// --- ADDED: Import new Visa component ---
+import VisaBookingsComponent from './components/VisaBookingsComponent';
 
 // Import Invoice Generator
 import {
@@ -995,7 +998,7 @@ const FlightBookingsComponent = () => {
 // #region --- Main Module Component ---
 
 const PackageRequestsModule = () => {
-  const [activeTab, setActiveTab] = useState<'packages' | 'flight'>(
+  const [activeTab, setActiveTab] = useState<'packages' | 'flight' | 'visa'>( // UPDATED STATE
     'packages',
   );
 
@@ -1034,10 +1037,23 @@ const PackageRequestsModule = () => {
         >
           <Plane className="w-5 h-5 mr-2" /> Flight
         </button>
+        {/* --- ADDED VISA TAB BUTTON --- */}
+        <button
+          onClick={() => setActiveTab('visa')}
+          className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${
+            activeTab === 'visa'
+              ? 'border-b-4 border-purple-600 text-purple-600 dark:text-purple-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          <CreditCard className="w-5 h-5 mr-2" /> Visa
+        </button>
+        {/* --- END ADDED BUTTON --- */}
       </div>
 
       {activeTab === 'packages' && <PackageBookingsComponent />}
       {activeTab === 'flight' && <FlightBookingsComponent />}
+      {activeTab === 'visa' && <VisaBookingsComponent />} {/* UPDATED: Renders imported component */}
     </div>
   );
 };
