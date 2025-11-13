@@ -164,15 +164,28 @@ const PackageCard: React.FC<PackageCardProps> = ({ pkg, onEdit, onDelete }) => {
               <span><strong>Hotel:</strong> {pkg.hotels[0].hotelBlockRoomId.hotelName} ({pkg.hotels[0].hotelBlockRoomId.starRating} Stars)</span>
             </div>
           )}
+          
+          {/* --- ERROR FIX --- */}
           {pkg.flights && pkg.flights.length > 0 && (
             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
               <Plane className="w-4 h-4 mr-2 flex-shrink-0" />
               <span>
-                <strong>Flight:</strong> {pkg.flights[0].flightBlockSeatId.airline.name}
-                ({pkg.flights[0].flightBlockSeatId.route.from.iataCode} - {pkg.flights[0].flightBlockSeatId.route.to.iataCode}, {pkg.flights[0].flightBlockSeatId.route.tripType.replace('_', ' ')})
+                <strong>Flight:</strong>
+                {/* Check if flightBlockSeatId is null before accessing its properties */}
+                {pkg.flights[0].flightBlockSeatId ? (
+                  <>
+                    {/* Correctly access airline name from the first outbound segment */}
+                    {` ${pkg.flights[0].flightBlockSeatId.route?.outboundSegments?.[0]?.airline?.name ?? 'Unknown Airline'} `}
+                    ({pkg.flights[0].flightBlockSeatId.route.from.iataCode} - {pkg.flights[0].flightBlockSeatId.route.to.iataCode}, {pkg.flights[0].flightBlockSeatId.route.tripType.replace('_', ' ')})
+                  </>
+                ) : (
+                  ' Not specified'
+                )}
               </span>
             </div>
           )}
+          {/* --- END OF FIX --- */}
+
           {pkg.mealPlan && (
             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
               <DollarSign className="w-4 h-4 mr-2 flex-shrink-0" /> {/* Re-using icon */}
@@ -193,12 +206,13 @@ const PackageCard: React.FC<PackageCardProps> = ({ pkg, onEdit, onDelete }) => {
               </ul>
             </div>
           )}
+          {/* Fix: Check for itinerary.day (as in JSON) not itinerary.dayNumber */}
           {pkg.itinerary && pkg.itinerary.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Itinerary Summary</h4>
               <ul className="list-decimal list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
                 {pkg.itinerary.map(i => (
-                  <li key={i._id}><strong>Day {i.dayNumber}:</strong> {i.title}</li>
+                  <li key={i._id}><strong>Day {i.day}:</strong> {i.title}</li>
                 ))}
               </ul>
             </div>
@@ -206,6 +220,7 @@ const PackageCard: React.FC<PackageCardProps> = ({ pkg, onEdit, onDelete }) => {
         </div>
 
         {/* Inclusions, Exclusions, Extras */}
+        {/* Note: Your current JSON doesn't show these fields, but the code supports them, so I've left it. */}
         <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-4">
           {pkg.inclusions && pkg.inclusions.length > 0 && (
             <div>

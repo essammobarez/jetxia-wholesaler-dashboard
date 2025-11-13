@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-// --- UPDATED: Added ArrowDown ---
-import { MapPin, ArrowLeftRight, ArrowRight, Info, CheckCircle, X, Ticket, ArrowDown } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+// --- UPDATED: Removed ArrowDown, layout is no longer vertical ---
+import { ArrowLeftRight, ArrowRight, CheckCircle, Info, MapPin, Ticket, X } from 'lucide-react';
 import { countriesAndAirports } from '../countriesAndAirports';
 
 interface RouteInformationProps {
@@ -12,10 +12,14 @@ interface RouteInformationProps {
         };
     };
     handleTripTypeChange: (isRoundTrip: boolean) => void;
-    selectedFromAirports: string[];
-    selectedToAirports: string[];
-    toggleFromAirport: (airportCode: string) => void;
-    toggleToAirport: (airportCode: string) => void;
+
+    // --- UPDATED: Changed from array to single string for true radio button logic ---
+    selectedFromAirport: string;
+    selectedToAirport: string;
+    handleFromAirportChange: (airportCode: string) => void;
+    handleToAirportChange: (airportCode: string) => void;
+    // --- (Original props 'selectedFromAirports', 'selectedToAirports', 'toggleFromAirport', 'toggleToAirport' are replaced) ---
+
     errors: { [key: string]: string };
     fromCountry: string;
     setFromCountry: (country: string) => void;
@@ -38,10 +42,13 @@ interface RouteInformationProps {
 const RouteInformation: React.FC<RouteInformationProps> = ({
     formData,
     handleTripTypeChange,
-    selectedFromAirports,
-    selectedToAirports,
-    toggleFromAirport,
-    toggleToAirport,
+
+    // --- UPDATED: Using new single-select props ---
+    selectedFromAirport,
+    selectedToAirport,
+    handleFromAirportChange,
+    handleToAirportChange,
+
     errors,
     fromCountry,
     setFromCountry,
@@ -60,9 +67,10 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
 }) => {
 
     useEffect(() => {
-        console.log(`--- DEBUG (RouteInformation): Received FROM Country: [${fromCountry}], IATA: [${selectedFromAirports}]`);
-        console.log(`--- DEBUG (RouteInformation): Received TO Country: [${toCountry}], IATA: [${selectedToAirports}]`);
-    }, [fromCountry, toCountry, selectedFromAirports, selectedToAirports]);
+        // --- UPDATED: Debug log reflects new props ---
+        console.log(`--- DEBUG (RouteInformation): Received FROM Country: [${fromCountry}], IATA: [${selectedFromAirport}]`);
+        console.log(`--- DEBUG (RouteInformation): Received TO Country: [${toCountry}], IATA: [${selectedToAirport}]`);
+    }, [fromCountry, toCountry, selectedFromAirport, selectedToAirport]); // --- UPDATED ---
 
     const [fromCountrySearch, setFromCountrySearch] = useState(fromCountry || '');
     const [toCountrySearch, setToCountrySearch] = useState(toCountry || '');
@@ -165,6 +173,139 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
         setToCountry(country);
     };
 
+    // --- NEW: Define To (Destination) block as a variable to avoid duplication ---
+    const toDestinationBlock = (
+        <div className="space-y-4" ref={toRef}>
+            <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
+                To (Destination) *
+            </label>
+            <div className="relative">
+                <input
+                    type="text"
+                    placeholder="Search country..."
+                    value={toCountrySearch}
+                    onChange={(e) => {
+                        setToCountrySearch(e.target.value);
+                        if (!isToDropdownOpen) setIsToDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsToDropdownOpen(true)}
+                    className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                />
+                {toCountrySearch && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setToCountrySearch('');
+                            handleToCountryChange('');
+                            setIsToDropdownOpen(true);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                )}
+                {isToDropdownOpen && (
+                    <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
+                        {filteredToCountries.length > 0 ? (
+                            filteredToCountries.map((country) => (
+                                <div
+                                    key={country.country}
+                                    className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
+                                    onClick={() => {
+                                        handleToCountryChange(country.country);
+                                        setToCountrySearch(country.country);
+                                        setIsToDropdownOpen(false);
+                                    }}
+                                >
+                                    {/* Removed Flag Span */}
+                                    <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {toCountry && (
+                <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airport:</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                        {getAirportsForCountry(toCountry).map((airport) => (
+                            <label
+                                key={airport.code}
+                                className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${selectedToAirport === airport.code
+                                        ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
+                                        : 'bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
+                                    }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="to-airport"
+                                    checked={selectedToAirport === airport.code}
+                                    onChange={() => handleToAirportChange(airport.code)}
+                                    className="w-5 h-5 text-green-600 rounded-full focus:ring-green-500"
+                                />
+                                <span className="ml-3 font-medium text-gray-900 dark:text-white">
+                                    {airport.city} ({airport.code})
+                                </span>
+                                {selectedToAirport === airport.code && (
+                                    <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
+                                )}
+                            </label>
+                        ))}
+                    </div>
+                    {selectedToAirport && (
+                        <div>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {(() => {
+                                    const airport = getAirportsForCountry(toCountry).find(a => a.code === selectedToAirport);
+                                    if (!airport) return null;
+                                    return (
+                                        <span key={airport.code} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-semibold">
+                                            {airport.city} ({airport.code})
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
+                                <Info className="w-3 h-3 mr-1" />
+                                These airports will appear in frontend search results
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+            {errors.to && (
+                <p className="text-red-500 text-sm font-medium">{errors.to}</p>
+            )}
+
+            {fromCountry && toCountry && formData.route.isRoundTrip && (
+                <div className="mt-2">
+                    <label htmlFor="returnFlightNumber" className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                        <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
+                        {stoppageType === 'stoppage' ? 'Final Return Flight No.' : 'Return Flight Number'}
+                    </label>
+                    <input
+                        type="text"
+                        id="returnFlightNumber"
+                        placeholder="e.g., EK202"
+                        value={formData.route.returnFlightNumber}
+                        onChange={(e) => handleReturnFlightNumberChange(e.target.value)}
+                        className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium ${errors.returnFlightNumber ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                    />
+                    {/* --- ERROR MESSAGE ADDED --- */}
+                    {errors.returnFlightNumber && (
+                        <p className="text-red-500 text-sm font-medium mt-1">{errors.returnFlightNumber}</p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+    // --- END of toDestinationBlock variable ---
+
+
     return (
         <div className="bg-gradient-to-br from-green-50 via-white to-green-50/30 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 p-8 rounded-2xl border-2 border-green-100 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
             <div className="flex items-center mb-6 pb-4 border-b-2 border-green-200 dark:border-gray-700">
@@ -185,8 +326,8 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                         type="button"
                         onClick={() => handleTripTypeChange(true)}
                         className={`flex-1 p-4 rounded-xl border-2 transition-all ${formData.route.isRoundTrip
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
                             }`}
                     >
                         <div className="flex items-center justify-center space-x-2">
@@ -201,8 +342,8 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                         type="button"
                         onClick={() => handleTripTypeChange(false)}
                         className={`flex-1 p-4 rounded-xl border-2 transition-all ${!formData.route.isRoundTrip
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
                             }`}
                     >
                         <div className="flex items-center justify-center space-x-2">
@@ -214,9 +355,11 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                 </div>
             </div>
 
-            {/* --- UPDATED: Layout changed from grid to vertical stack (space-y-6) --- */}
-            <div className="space-y-6">
-                {/* --- ROW 1: FROM (DEPARTURE) SECTION --- */}
+            {/* --- UPDATED: Conditional Layout Grid --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mt-6">
+                
+                {/* --- Cell 1 (Row 1, Col 1): FROM (DEPARTURE) SECTION --- */}
+                {/* This is always rendered in the first grid cell */}
                 <div className="space-y-4" ref={fromRef}>
                     <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
                         From (Departure) *
@@ -272,42 +415,44 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
 
                     {fromCountry && (
                         <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airports:</p>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airport:</p>
                             <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                                 {getAirportsForCountry(fromCountry).map((airport) => (
                                     <label
                                         key={airport.code}
-                                        className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${selectedFromAirports.includes(airport.code)
-                                            ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
-                                            : 'bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
+                                        className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${selectedFromAirport === airport.code
+                                                ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
+                                                : 'bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
                                             }`}
                                     >
                                         <input
-                                            type="checkbox"
-                                            checked={selectedFromAirports.includes(airport.code)}
-                                            onChange={() => toggleFromAirport(airport.code)}
-                                            className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+                                            type="radio"
+                                            name="from-airport"
+                                            checked={selectedFromAirport === airport.code}
+                                            onChange={() => handleFromAirportChange(airport.code)}
+                                            className="w-5 h-5 text-green-600 rounded-full focus:ring-green-500"
                                         />
                                         <span className="ml-3 font-medium text-gray-900 dark:text-white">
                                             {airport.city} ({airport.code})
                                         </span>
-                                        {selectedFromAirports.includes(airport.code) && (
+                                        {selectedFromAirport === airport.code && (
                                             <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
                                         )}
                                     </label>
                                 ))}
                             </div>
-                            {selectedFromAirports.length > 0 && (
+                            {selectedFromAirport && (
                                 <div>
                                     <div className="flex flex-wrap gap-2 mb-2">
-                                        {selectedFromAirports.map(code => {
-                                            const airport = getAirportsForCountry(fromCountry).find(a => a.code === code);
+                                        {(() => {
+                                            const airport = getAirportsForCountry(fromCountry).find(a => a.code === selectedFromAirport);
+                                            if (!airport) return null;
                                             return (
-                                                <span key={code} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-semibold">
-                                                    {airport?.city} ({code})
+                                                <span key={airport.code} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-semibold">
+                                                    {airport.city} ({airport.code})
                                                 </span>
                                             );
-                                        })}
+                                        })()}
                                     </div>
                                     <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
                                         <Info className="w-3 h-3 mr-1" />
@@ -321,12 +466,11 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                         <p className="text-red-500 text-sm font-medium">{errors.from}</p>
                     )}
 
-                    {/* --- MOVED FLIGHT NUMBER --- */}
                     {fromCountry && toCountry && (
                         <div className="mt-2">
                             <label htmlFor="departureFlightNumber" className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
                                 <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
-                                {stoppageType === 'stoppage' ? 'First Departure Flight No.' : 'Departure Flight Number'}
+                                {stoppageType === 'stoppage' ? 'First Departure Flight No.' : 'Departure Flight Number'} *
                             </label>
                             <input
                                 type="text"
@@ -334,305 +478,245 @@ const RouteInformation: React.FC<RouteInformationProps> = ({
                                 placeholder="e.g., EK201"
                                 value={formData.route.departureFlightNumber}
                                 onChange={(e) => handleDepartureFlightNumberChange(e.target.value)}
-                                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                                className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium ${errors.departureFlightNumber ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
                             />
+                            {/* --- ERROR MESSAGE ADDED --- */}
+                            {errors.departureFlightNumber && (
+                                <p className="text-red-500 text-sm font-medium mt-1">{errors.departureFlightNumber}</p>
+                            )}
                         </div>
                     )}
                 </div>
 
-                {/* --- UPDATED: Visual Connector (Big, Bold, Colorful) --- */}
-                <div className="flex justify-center items-center text-green-500 dark:text-green-400">
-                    <ArrowDown className="w-10 h-10" strokeWidth={3} />
-                </div>
 
-                {/* --- ROW 2: STOPPAGE SECTION --- */}
-                {stoppageType === 'stoppage' && (parseInt(stoppageCount, 10) || 0) > 0 && (
-                    <div className="space-y-6"> {/* Removed md:col-span-2 */}
-                        <h4 className="text-xl font-bold text-gray-900 dark:text-white pt-4 border-t-2 border-gray-200 dark:border-gray-700">
-                            Stoppage / Transit
-                        </h4>
-                        {/* Loop N times based on stoppageCount */}
-                        {Array.from({ length: parseInt(stoppageCount, 10) }).map((_, index) => (
-                            <div
-                                className="space-y-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50"
-                                key={index}
-                                ref={el => stoppageRefs.current[index] = el}
-                            >
-                                <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
-                                    Stop {index + 1} *
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Search country..."
-                                        value={stoppageCountrySearches[index] || ''}
-                                        onChange={(e) => {
-                                            const newSearches = [...stoppageCountrySearches];
-                                            newSearches[index] = e.target.value;
-                                            setStoppageCountrySearches(newSearches);
-                                            const newOpen = [...isStoppageDropdownOpen];
-                                            newOpen[index] = true;
-                                            setIsStoppageDropdownOpen(newOpen);
-                                        }}
-                                        onFocus={() => {
-                                            const newOpen = [...isStoppageDropdownOpen];
-                                            newOpen[index] = true;
-                                            setIsStoppageDropdownOpen(newOpen);
-                                        }}
-                                        className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                                    />
-                                    {(stoppageCountrySearches[index]) && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
+                {/* --- RENDER LAYOUT BASED ON STOPPAGE TYPE --- */}
+                {stoppageType === 'stoppage' && (parseInt(stoppageCount, 10) || 0) > 0 ? (
+                    /* --- SCENARIO 1: STOPPAGE FLIGHT (2x2 Grid) --- */
+                    <>
+                        {/* --- Cell 2 (Row 1, Col 2): STOPPAGE / TRANSIT SECTION --- */}
+                        <div className="space-y-6">
+                            {/* --- UPDATED: Changed h4 to label and matched styles --- */}
+                            <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
+                                Stoppage / Transit
+                            </label>
+                            {/* Loop N times based on stoppageCount */}
+                            {Array.from({ length: parseInt(stoppageCount, 10) }).map((_, index) => (
+                                <div
+                                    className="space-y-4 p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50"
+                                    key={index}
+                                    ref={el => stoppageRefs.current[index] = el}
+                                >
+                                    <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
+                                        Stop {index + 1} *
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search country..."
+                                            value={stoppageCountrySearches[index] || ''}
+                                            onChange={(e) => {
                                                 const newSearches = [...stoppageCountrySearches];
-                                                newSearches[index] = '';
+                                                newSearches[index] = e.target.value;
                                                 setStoppageCountrySearches(newSearches);
-                                                handleStoppageCountryChange(index, ''); // Clear parent state
                                                 const newOpen = [...isStoppageDropdownOpen];
                                                 newOpen[index] = true;
                                                 setIsStoppageDropdownOpen(newOpen);
                                             }}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                                        >
-                                            <X className="w-5 h-5" />
-                                        </button>
+                                            onFocus={() => {
+                                                const newOpen = [...isStoppageDropdownOpen];
+                                                newOpen[index] = true;
+                                                setIsStoppageDropdownOpen(newOpen);
+                                            }}
+                                            className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
+                                        />
+                                        {(stoppageCountrySearches[index]) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newSearches = [...stoppageCountrySearches];
+                                                    newSearches[index] = '';
+                                                    setStoppageCountrySearches(newSearches);
+                                                    handleStoppageCountryChange(index, ''); // Clear parent state
+                                                    const newOpen = [...isStoppageDropdownOpen];
+                                                    newOpen[index] = true;
+                                                    setIsStoppageDropdownOpen(newOpen);
+                                                }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        )}
+                                        {isStoppageDropdownOpen[index] && (
+                                            <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
+                                                {countriesAndAirports.filter(c => c.country.toLowerCase().includes((stoppageCountrySearches[index] || '').toLowerCase())).length > 0 ? (
+                                                    countriesAndAirports.filter(c => c.country.toLowerCase().includes((stoppageCountrySearches[index] || '').toLowerCase())).map((country) => (
+                                                        <div
+                                                            key={country.country}
+                                                            className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
+                                                            onClick={() => {
+                                                                handleStoppageCountryChange(index, country.country); // Update parent
+                                                                const newSearches = [...stoppageCountrySearches];
+                                                                newSearches[index] = country.country;
+                                                                setStoppageCountrySearches(newSearches); // Update local
+                                                                const newOpen = [...isStoppageDropdownOpen];
+                                                                newOpen[index] = false;
+                                                                setIsStoppageDropdownOpen(newOpen); // Close dropdown
+                                                            }}
+                                                        >
+                                                            {/* Removed Flag Span */}
+                                                            <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Airport selection for the stop */}
+                                    {stoppages[index]?.country && (
+                                        <div className="space-y-2">
+                                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airport (Only 1): *</p>
+                                            <div className="space-y-2 max-h-48 overflow-y-auto bg-white dark:bg-gray-800/50 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                                                {getAirportsForCountry(stoppages[index].country).length > 0 ? (
+                                                    getAirportsForCountry(stoppages[index].country).map((airport) => (
+                                                        <label
+                                                            key={airport.code}
+                                                            className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${stoppages[index].airportCode === airport.code
+                                                                    ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
+                                                                    : 'bg-white dark:bg-gray-70m border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
+                                                                }`}
+                                                        >
+                                                            <input
+                                                                type="radio" // Use RADIO for single selection
+                                                                name={`stop-${index}-airport`}
+                                                                checked={stoppages[index].airportCode === airport.code}
+                                                                onChange={() => handleStoppageAirportToggle(index, airport.code)}
+                                                                className="w-5 h-5 text-green-600 rounded-full focus:ring-green-500" // rounded-full
+                                                            />
+                                                            <span className="ml-3 font-medium text-gray-900 dark:text-white">
+                                                                {airport.city} ({airport.code})
+                                                            </span>
+                                                            {stoppages[index].airportCode === airport.code && (
+                                                                <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
+                                                            )}
+                                                        </label>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No airports found for this country.</div>
+                                                )}
+                                            </div>
+                                        </div>
                                     )}
-                                    {isStoppageDropdownOpen[index] && (
-                                        <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
-                                            {countriesAndAirports.filter(c => c.country.toLowerCase().includes((stoppageCountrySearches[index] || '').toLowerCase())).length > 0 ? (
-                                                countriesAndAirports.filter(c => c.country.toLowerCase().includes((stoppageCountrySearches[index] || '').toLowerCase())).map((country) => (
-                                                    <div
-                                                        key={country.country}
-                                                        className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
-                                                        onClick={() => {
-                                                            handleStoppageCountryChange(index, country.country); // Update parent
-                                                            const newSearches = [...stoppageCountrySearches];
-                                                            newSearches[index] = country.country;
-                                                            setStoppageCountrySearches(newSearches); // Update local
-                                                            const newOpen = [...isStoppageDropdownOpen];
-                                                            newOpen[index] = false;
-                                                            setIsStoppageDropdownOpen(newOpen); // Close dropdown
-                                                        }}
-                                                    >
-                                                        {/* Removed Flag Span */}
-                                                        <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
+
+                                    {/* --- NEW FLIGHT NUMBERS FOR STOPPAGE --- */}
+                                    {stoppages[index]?.airportCode && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                                            <div>
+                                                <label htmlFor={`stop-${index}-dep-flight`} className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                                    <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
+                                                    Departure Flight No. *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    id={`stop-${index}-dep-flight`}
+                                                    placeholder="e.g., BA456"
+                                                    value={stoppages[index].depFlightNumber}
+                                                    onChange={(e) => handleStoppageFlightNumberChange(index, 'departure', e.target.value)}
+                                                    className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium ${errors[`stop_${index}_dep_flight`] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                                                />
+                                                {/* --- ERROR MESSAGE ADDED --- */}
+                                                {errors[`stop_${index}_dep_flight`] && (
+                                                    <p className="text-red-500 text-sm font-medium mt-1">{errors[`stop_${index}_dep_flight`]}</p>
+                                                )}
+                                            </div>
+                                            {/* --- UPDATED: Conditionally show Return Flight No. based on isRoundTrip --- */}
+                                            {formData.route.isRoundTrip && (
+                                                <div>
+                                                    <label htmlFor={`stop-${index}-ret-flight`} className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                                        <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
+                                                        Return Flight No. *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        id={`stop-${index}-ret-flight`}
+                                                        placeholder="e.g., BA457"
+                                                        value={stoppages[index].retFlightNumber}
+                                                        onChange={(e) => handleStoppageFlightNumberChange(index, 'return', e.target.value)}
+                                                        className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium ${errors[`stop_${index}_ret_flight`] ? 'border-red-500' : 'border-gray-200 dark:border-gray-600'}`}
+                                                    />
+                                                    {/* --- ERROR MESSAGE ADDED --- */}
+                                                    {errors[`stop_${index}_ret_flight`] && (
+                                                        <p className="text-red-500 text-sm font-medium mt-1">{errors[`stop_${index}_ret_flight`]}</p>
+                                                    )}
+                                                </div>
                                             )}
+                                            {/* --- END UPDATE --- */}
                                         </div>
                                     )}
                                 </div>
+                            ))}
+                        </div>
 
-                                {/* Airport selection for the stop */}
-                                {stoppages[index]?.country && (
-                                    <div className="space-y-2">
-                                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airport (Only 1): *</p>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto bg-white dark:bg-gray-800/50 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-                                            {getAirportsForCountry(stoppages[index].country).length > 0 ? (
-                                                getAirportsForCountry(stoppages[index].country).map((airport) => (
-                                                    <label
-                                                        key={airport.code}
-                                                        className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${stoppages[index].airportCode === airport.code
-                                                            ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
-                                                            : 'bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
-                                                            }`}
-                                                    >
-                                                        <input
-                                                            type="radio" // Use RADIO for single selection
-                                                            name={`stop-${index}-airport`}
-                                                            checked={stoppages[index].airportCode === airport.code}
-                                                            onChange={() => handleStoppageAirportToggle(index, airport.code)}
-                                                            className="w-5 h-5 text-green-600 rounded-full focus:ring-green-500" // rounded-full
-                                                        />
-                                                        <span className="ml-3 font-medium text-gray-900 dark:text-white">
-                                                            {airport.city} ({airport.code})
-                                                        </span>
-                                                        {stoppages[index].airportCode === airport.code && (
-                                                            <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
-                                                        )}
-                                                    </label>
-                                                ))
-                                            ) : (
-                                                <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No airports found for this country.</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                        {/* --- Cell 3 (Row 2, Col 1): "Selected Transit" Display --- */}
+                        <div className="space-y-4">
+                            <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
+                                Transit From
+                            </label>
+                            
+                            {stoppages.some(s => s.airportCode) ? (
+                                // --- Case 1: Stoppage is active AND an airport is selected ---
+                                <div className="space-y-2">
+                                    {stoppages.filter(s => s.airportCode).map((stop, index) => {
+                                        const country = stop.country;
+                                        const airport = getAirportsForCountry(country).find(a => a.code === stop.airportCode);
+                                        
+                                        if (!airport) return null;
 
-                                {/* --- NEW FLIGHT NUMBERS FOR STOPPAGE --- */}
-                                {stoppages[index]?.airportCode && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                                        <div>
-                                            <label htmlFor={`stop-${index}-dep-flight`} className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                                                <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
-                                                Departure Flight No.
-                                            </label>
-                                            <input
-                                                type="text"
-                                                id={`stop-${index}-dep-flight`}
-                                                placeholder="e.g., BA456"
-                                                value={stoppages[index].depFlightNumber}
-                                                onChange={(e) => handleStoppageFlightNumberChange(index, 'departure', e.target.value)}
-                                                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label htmlFor={`stop-${index}-ret-flight`} className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                                                <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
-                                                Return Flight No.
-                                            </label>
-                                            <input
-                                                type="text"
-                                                id={`stop-${index}-ret-flight`}
-                                                placeholder="e.g., BA457"
-                                                value={stoppages[index].retFlightNumber}
-                                                onChange={(e) => handleStoppageFlightNumberChange(index, 'return', e.target.value)}
-                                                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
+                                        // Find the *actual* index in the original stoppages array to label "Stop 1", "Stop 2" correctly
+                                        const originalIndex = stoppages.findIndex(s => s.airportCode === stop.airportCode);
 
-                {/* --- UPDATED: Visual Connector (only if stoppages exist, Big, Bold, Colorful) --- */}
-                {stoppageType === 'stoppage' && (parseInt(stoppageCount, 10) || 0) > 0 && (
-                    <div className="flex justify-center items-center text-green-500 dark:text-green-400">
-                        <ArrowDown className="w-10 h-10" strokeWidth={3} />
-                    </div>
-                )}
-
-
-                {/* --- ROW 3: TO (DESTINATION) SECTION --- */}
-                <div className="space-y-4" ref={toRef}>
-                    <label className="block text-base font-semibold text-gray-800 dark:text-gray-200">
-                        To (Destination) *
-                    </label>
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Search country..."
-                            value={toCountrySearch}
-                            onChange={(e) => {
-                                setToCountrySearch(e.target.value);
-                                if (!isToDropdownOpen) setIsToDropdownOpen(true);
-                            }}
-                            onFocus={() => setIsToDropdownOpen(true)}
-                            className="w-full px-4 py-3 pr-10 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                        />
-                        {toCountrySearch && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setToCountrySearch('');
-                                    handleToCountryChange('');
-                                    setIsToDropdownOpen(true);
-                                }}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        )}
-                        {isToDropdownOpen && (
-                            <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg max-h-60 overflow-y-auto mt-2">
-                                {filteredToCountries.length > 0 ? (
-                                    filteredToCountries.map((country) => (
-                                        <div
-                                            key={country.country}
-                                            className="px-4 py-3 hover:bg-green-50 dark:hover:bg-gray-700 cursor-pointer flex items-center"
-                                            onClick={() => {
-                                                handleToCountryChange(country.country);
-                                                setToCountrySearch(country.country);
-                                                setIsToDropdownOpen(false);
-                                            }}
-                                        >
-                                            {/* Removed Flag Span */}
-                                            <span className="font-medium text-gray-900 dark:text-white">{country.country}</span>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="px-4 py-3 text-gray-500 dark:text-gray-400">No countries found.</div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {toCountry && (
-                        <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select Airports:</p>
-                            <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-                                {getAirportsForCountry(toCountry).map((airport) => (
-                                    <label
-                                        key={airport.code}
-                                        className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${selectedToAirports.includes(airport.code)
-                                            ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
-                                            : 'bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 hover:border-green-300'
-                                            }`}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedToAirports.includes(airport.code)}
-                                            onChange={() => toggleToAirport(airport.code)}
-                                            className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
-                                        />
-                                        <span className="ml-3 font-medium text-gray-900 dark:text-white">
-                                            {airport.city} ({airport.code})
-                                        </span>
-                                        {selectedToAirports.includes(airport.code) && (
-                                            <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
-                                        )}
-                                    </label>
-                                ))}
-                            </div>
-                            {selectedToAirports.length > 0 && (
-                                <div>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {selectedToAirports.map(code => {
-                                            const airport = getAirportsForCountry(toCountry).find(a => a.code === code);
-                                            return (
-                                                <span key={code} className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-semibold">
-                                                    {airport?.city} ({code})
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
+                                        return (
+                                            <div 
+                                                key={`selected-stop-${index}`} 
+                                                className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-base font-medium text-gray-900 dark:text-white"
+                                            >
+                                                {(parseInt(stoppageCount, 10) || 0) > 1 && (
+                                                    <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                                        Stop {originalIndex + 1} (Departure)
+                                                    </span>
+                                                )}
+                                                {airport.city} ({airport.code})
+                                            </div>
+                                        );
+                                    })}
                                     <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
                                         <Info className="w-3 h-3 mr-1" />
-                                        These airports will appear in frontend search results
+                                        This is the departure point for the next leg.
                                     </p>
+                                </div>
+                            ) : (
+                                // --- Case 2: Stoppage is active BUT no airport is selected yet ---
+                                <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-base font-medium text-gray-400 dark:text-gray-500">
+                                    Select a transit airport above...
                                 </div>
                             )}
                         </div>
-                    )}
-                    {errors.to && (
-                        <p className="text-red-500 text-sm font-medium">{errors.to}</p>
-                    )}
 
-                    {/* --- MOVED FLIGHT NUMBER --- */}
-                    {fromCountry && toCountry && (
-                        <div className="mt-2">
-                            <label htmlFor="returnFlightNumber" className="flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                                <Ticket className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
-                                {stoppageType === 'stoppage' ? 'Final Return Flight No.' : 'Return Flight Number'}
-                            </label>
-                            <input
-                                type="text"
-                                id="returnFlightNumber"
-                                placeholder="e.g., EK202"
-                                value={formData.route.returnFlightNumber}
-                                onChange={(e) => handleReturnFlightNumberChange(e.target.value)}
-                                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-all text-base font-medium"
-                            />
-                        </div>
-                    )}
-                </div>
+                        {/* --- Cell 4 (Row 2, Col 2): TO (DESTINATION) SECTION --- */}
+                        {toDestinationBlock}
+                    </>
+                ) : (
+                    /* --- SCENARIO 2: DIRECT FLIGHT (2-Column Grid) --- */
+                    <>
+                        {/* --- Cell 2 (Row 1, Col 2): TO (DESTINATION) SECTION --- */}
+                        {toDestinationBlock}
+                    </>
+                )}
 
             </div>
+            {/* --- END: Conditional Layout Grid --- */}
 
         </div>
     );

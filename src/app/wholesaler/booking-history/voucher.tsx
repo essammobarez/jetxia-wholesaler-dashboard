@@ -8,9 +8,8 @@ import en from 'i18n-iso-countries/langs/en.json';
 countries.registerLocale(en);
 
 // --- RESERVATION INTERFACE (MODIFIED) ---
-// This interface now matches the Reservation object created in BookingsPage.tsx
 export interface Reservation {
-  reservationId?: string | number; // Accept number from allRoomsData
+  reservationId?: string | number;
   bookingId?: string;
   providerId?: string;
   checkIn?: string;
@@ -19,15 +18,14 @@ export interface Reservation {
     agencyName?: string;
     address?: string;
     phoneNumber?: string;
-    logoUrl?: string | null; // --- START: ADDED UPDATE ---
-    // profileImage is no longer expected from the main response
+    logoUrl?: string | null;
   };
   passengers?: { firstName: string; lastName: string; lead?: boolean; nationality?: string }[];
   hotelInfo?: {
     id?: string;
     name?: string;
-    starRating?: number; // Use 'stars' from hotelInfo, renamed to starRating
-    stars?: number; // Keep stars as it comes from fetchReservations
+    starRating?: number; 
+    stars?: number; 
     address?: {
       fullAddress?: string;
       city?: string;
@@ -52,7 +50,7 @@ export interface Reservation {
   } | null;
   allRooms?: {
     roomName?: string;
-    guests: number; // This is a number (guests.length)
+    guests: number;
     bedPreferences?: string;
     board?: string;
   }[];
@@ -64,7 +62,7 @@ export interface Reservation {
     serviceFee: number;
     currency: string;
   };
-  specialRequests?: string[]; // This will be populated from fetchReservations
+  specialRequests?: string[]; 
 }
 
 // --- HELPER FUNCTIONS (Unchanged) ---
@@ -101,7 +99,6 @@ const formatDateWithDay = (dateStr: string | undefined): string => {
   if (!dateStr) return "-";
   try {
     const d = new Date(dateStr);
-    // Adjust for timezone to prevent off-by-one day errors
     const utcDate = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     return utcDate.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -137,7 +134,6 @@ const getCountryName = (code: string | undefined): string => {
 };
 
 const bufferToDataUrl = (imageBuffer: any): string | null => {
-  // This function will now likely receive undefined and return null
   if (!imageBuffer || !imageBuffer.data || !Array.isArray(imageBuffer.data.data) || imageBuffer.data.data.length === 0) {
     return null;
   }
@@ -156,7 +152,7 @@ const bufferToDataUrl = (imageBuffer: any): string | null => {
 };
 
 
-// --- STYLES OBJECT (Unchanged) ---
+// --- STYLES OBJECT (Modified) ---
 const styles: { [key: string]: React.CSSProperties } = {
   voucherContainer: {
     all: 'initial',
@@ -217,8 +213,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: 0,
   },
   bookingInfoContainer: {
-    backgroundColor: '#dbeafe', // bg-blue-100 equivalent
-    padding: '12px 20px', // MODIFIED: Changed top/bottom padding to 12px
+    backgroundColor: '#dbeafe', 
+    padding: '12px 20px', 
     borderRadius: '8px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -230,8 +226,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 'bold',
     color: '#212529',
     margin: 0,
-    position: 'relative', // MODIFIED
-    top: '-3px', // MODIFIED: Moved up by 3px
+    position: 'relative', 
+    top: '-3px', 
   },
   bookingInfoDetails: {
     textAlign: 'right',
@@ -261,11 +257,31 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderBottom: '1px solid #eee',
     paddingBottom: '15px'
   },
+  // NEW: Flex container for Name + Stars
+  hotelNameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px', 
+    marginBottom: '0px'
+  },
   hotelName: {
     fontSize: '22pt',
     fontWeight: 'bold',
     margin: 0,
     color: '#000',
+    lineHeight: 1.2,
+  },
+  // NEW: Star styles
+  starContainer: {
+    display: 'flex',
+    gap: '2px',
+    alignItems: 'center',
+    paddingTop: '22px' 
+  },
+  starImage: {
+    width: '18px', 
+    height: '18px',
+    objectFit: 'contain'
   },
   addressLine: {
     display: 'flex',
@@ -382,8 +398,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   guestInfoSection: {
     padding: '12px 20px 12px 0',
-    // border: '1px solid #ddd', // Removed
-    // borderRadius: '6px', // Removed
     flex: 1,
     boxSizing: 'border-box',
   },
@@ -407,8 +421,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   specialRequestsSection: {
     padding: '12px 20px',
-    // border: '1px solid #ddd', // Removed
-    // borderRadius: '6px', // Removed
     flex: 1,
     boxSizing: 'border-box',
   },
@@ -471,43 +483,32 @@ const styles: { [key: string]: React.CSSProperties } = {
 };
 
 // --- VOUCHER REACT COMPONENT (MODIFIED) ---
-// Removed `agencyProfile` prop, as this data now comes from `reservation.agency`
 export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reservation }) => {
   const hotel = reservation.hotelInfo;
   const nights = calculateNights(reservation.checkIn, reservation.checkOut);
 
-  // --- MODIFICATION: Read agency data directly from the reservation object ---
   const agencyData = reservation.agency || {};
 
-  // --- START: ADDED UPDATE ---
-  // Helper function to proxy external URLs via the app's API route
   const proxied = (url: string | null | undefined) => {
     if (!url) return null;
-    // Use the API route /api/proxy to fetch the image
     return `/api/proxy?url=${encodeURIComponent(url)}`;
   };
 
   const fallbackLogoUrl = "https://i.imgur.com/1Y2v4Yy.png";
   
-  // Proxy the agency logo, or if it doesn't exist, proxy the fallback logo
   const logoSrc = proxied(agencyData.logoUrl) || proxied(fallbackLogoUrl);
-  // --- END: ADDED UPDATE ---
 
   const agencyName = agencyData.agencyName || "Booking Desk Travel";
 
-  // Use only the address field as city/country are not in the new agency object
   const agencyAddress = agencyData.address || "123 Travel Lane, Suite 100, Dubai, UAE";
   const agencyPhone = agencyData.phoneNumber || "+971 506942880";
 
-  // --- START: ADDED UPDATE ---
-  // Proxy the Yandex map image and its fallback as well
   const yandexMapUrl = reservation.geolocation
     ? `https://static-maps.yandex.ru/1.x/?lang=en-US&ll=${reservation.geolocation.longitude},${reservation.geolocation.latitude}&z=15&l=map&size=600,300&pt=${reservation.geolocation.longitude},${reservation.geolocation.latitude},pm2rdl`
     : null;
   const mapFallbackUrl = "https://i.imgur.com/8cAquNo.png";
   
   const mapImageSrc = proxied(yandexMapUrl) || proxied(mapFallbackUrl);
-  // --- END: ADDED UPDATE ---
 
   const today = new Date();
 
@@ -517,11 +518,13 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
 
   const totalGuests = reservation.passengers?.length || 0;
 
-  // This logic remains the same and will now work because `reservation.specialRequests` is populated
   const hasSpecialRequests = reservation.specialRequests && reservation.specialRequests.length > 0;
 
-  // Use hotelInfo.stars, which is passed from fetchReservations
   const hotelStarRating = reservation.hotelInfo?.stars || reservation.hotelInfo?.starRating || 0;
+
+  // --- ADDED UPDATE: Hotel Name Logic (Remove content after '(') ---
+  const rawHotelName = hotel?.name || 'N/A';
+  const displayHotelName = rawHotelName.split('(')[0].trim();
 
   return (
     <div style={styles.voucherContainer}>
@@ -530,10 +533,10 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
         <header style={styles.header}>
           <div style={styles.headerLeft}>
             <img
-              src={logoSrc || ''} // Use proxied URL or fallback
+              src={logoSrc || ''} 
               alt={agencyName}
               style={styles.headerLogo}
-              crossOrigin="anonymous" // Required for html2canvas to process the proxied image
+              crossOrigin="anonymous" 
             />
             <div style={styles.companyInfo}>
               <p style={styles.companyName}>{agencyName}</p>
@@ -566,9 +569,25 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
 
         <main style={styles.body}>
           <div style={styles.hotelInfoSection}>
-            <h2 style={styles.hotelName}>{hotel?.name || 'N/A'}</h2>
+             {/* --- ADDED UPDATE: Flex container + Name Formatting + Star Images --- */}
+            <div style={styles.hotelNameRow}>
+                <h2 style={styles.hotelName}>{displayHotelName}</h2>
+                
+                {hotelStarRating > 0 && (
+                    <div style={styles.starContainer}>
+                        {[...Array(hotelStarRating)].map((_, i) => (
+                            <img 
+                                key={i} 
+                                src="/images/star.png" 
+                                alt="star" 
+                                style={styles.starImage} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+
             <div style={styles.addressLine}>
-              {/* These local images are same-origin and do NOT need the proxy */}
               <img src="/images/icons/map-pin-line.png" alt="address" style={styles.smallIcon} />
               <span>{hotel?.address?.fullAddress || 'N/A'}</span>
             </div>
@@ -580,11 +599,7 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
           <div style={styles.roomDetailsSection}>
             <p style={styles.roomName}>Room 1: {reservation.allRooms?.[0]?.roomName || 'N/A'}</p>
             <p style={styles.roomBoard}>({reservation.allRooms?.[0]?.board || 'N/A'})</p>
-            {hotelStarRating > 0 && (
-              <p style={styles.hotelStars}>
-                {hotelStarRating} Star Hotel
-              </p>
-            )}
+            {/* --- ADDED UPDATE: Removed text based stars from here --- */}
           </div>
 
           <div style={styles.stayDetailsGrid}>
@@ -606,13 +621,14 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
 
           <div style={styles.mapContainer}>
             <img 
-              src={mapImageSrc || ''} // Use proxied map URL
+              src={mapImageSrc || ''} 
               alt="Hotel Location" 
               style={styles.mapImage} 
-              crossOrigin="anonymous" // Required for html2canvas
+              crossOrigin="anonymous" 
             />
             <div style={styles.mapOverlayCard}>
-              <p style={styles.mapOverlayHotelName}>{hotel?.name || 'N/A'}</p>
+              {/* --- ADDED UPDATE: Use Formatted Name in Overlay too --- */}
+              <p style={styles.mapOverlayHotelName}>{displayHotelName}</p>
               <p style={styles.mapOverlayAddress}>{hotel?.address?.fullAddress || 'N/A'}</p>
             </div>
           </div>
@@ -655,10 +671,9 @@ export const VoucherTemplate: React.FC<{ reservation: Reservation }> = ({ reserv
           <p style={styles.helpText}>For assistance with this booking, please contact our support team.</p>
         </div>
 
-        {/* --- FOOTER MODIFIED --- */}
         <footer style={styles.footerNotes}>
           <img
-            src="/images/nb.png" // This local image is fine
+            src="/images/nb.png" 
             alt="Important Notes"
             style={styles.footerImage}
           />
@@ -680,10 +695,6 @@ export async function generateVoucherPDF(reservation: Reservation) {
   // 1. Get Auth Token
   const match = document.cookie.match(/(?:^|; )authToken=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
-
-  // --- STEP 2: REMOVED ---
-  // The API call to /auth/profile has been removed as requested.
-  // Agency data will be read from the `reservation.agency` object.
 
   // 3. Fetch Hotel Details (For Geolocation, etc.)
   let geolocationData: { latitude: number; longitude: number } | null = null;
@@ -727,13 +738,12 @@ export async function generateVoucherPDF(reservation: Reservation) {
   // 4. Render component with all data
   const root = createRoot(container);
   await new Promise<void>((resolve) => {
-    // --- MODIFICATION: Removed `agencyProfile` prop ---
     root.render(<VoucherTemplate reservation={reservationWithFullDetails} />);
     setTimeout(resolve, 200);
   });
 
   // Give images (especially proxied ones) time to load
-  await new Promise((resolve) => setTimeout(resolve, 2000)); // Increased delay for proxy
+  await new Promise((resolve) => setTimeout(resolve, 2000)); 
 
   // 5. Generate PDF (existing logic)
   const content = container.querySelector("#voucher-content") as HTMLElement;
@@ -761,8 +771,8 @@ export async function generateVoucherPDF(reservation: Reservation) {
     },
     html2canvas: {
       scale: scale,
-      useCORS: true, // This is crucial
-      allowTaint: true, // May help in some cases
+      useCORS: true, 
+      allowTaint: true, 
       backgroundColor: '#ffffff',
     },
     autoPaging: "none",

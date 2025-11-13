@@ -714,7 +714,7 @@ export default function WholesalerPage() {
                       'Visa', // ✨ ADDED
                       'Hotels',
                       'Offline Package',
-                      'Package Requests',
+                      'Requests',
                     ].map((tab) => (
                       <button
                         key={tab}
@@ -747,7 +747,7 @@ export default function WholesalerPage() {
                           {tab === 'Visa' && 'Visa'} {/* ✨ ADDED */}
                           {tab === 'Hotels' && 'Hotels'}
                           {tab === 'Offline Package' && 'Offline Package'}
-                          {tab === 'Package Requests' && 'Package Requests'}
+                          {tab === 'Requests' && 'Requests'}
                         </span>
                       </button>
                     ))}
@@ -1233,7 +1233,7 @@ export default function WholesalerPage() {
               {activeTab === 'Visa' && <VisaModule />} {/* ✨ ADDED */}
               {activeTab === 'Hotels' && <HotelsModule />}
               {activeTab === 'Offline Package' && <OfflinePackageModule />}
-              {activeTab === 'Package Requests' && <PackageRequestsModule />}
+              {activeTab === 'Requests' && <PackageRequestsModule />}
               {!activeTab && <FlightsBSPage onModuleSelect={setActiveTab} />}
             </div>
           )}

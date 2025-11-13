@@ -22,78 +22,144 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
     return 'Economy'; // Default for classId 4 or others
   };
 
-  return apiData.map(item => ({
-    id: item._id,
-    airline: {
-      name: item.airline.name,
-      code: item.airline.code,
-      country: item.airline.country,
-      logo: `https://images.kiwi.com/airlines/64/${item.airline.code}.png`,
-      flagCode: item.airline.country,
-    },
-    // UPDATED: Use departureFlightNumber from route as primary flight number
-    flightNumber: item.route?.departureFlightNumber || item.flightNumber || `${item.airline.code}${Math.floor(1000 + Math.random() * 9000)}`,
-    route: {
-      from: [{
-        code: item.route.from.iataCode,
-        city: item.route.from.city || item.route.from.iataCode,
-        country: item.route.from.country,
-        flag: '',
-      }],
-      to: [{
-        code: item.route.to.iataCode,
-        city: item.route.to.city || item.route.to.iataCode,
-        country: item.route.to.country,
-        flag: '',
-      }],
-      isRoundTrip: item.route.tripType === 'ROUND_TRIP',
-      // UPDATED: Ensure these are mapped for the Form
-      departureFlightNumber: item.route.departureFlightNumber,
-      returnFlightNumber: item.route.returnFlightNumber,
-      departure: item.availableDates?.[0]?.departureDate || '',
-      return: item.availableDates?.[0]?.returnDate || '',
-    },
-    departureDate: item.availableDates?.[0]?.departureDate || new Date().toISOString(),
-    departureTime: item.availableDates?.[0]?.departureTime || item.departureTime || '00:00',
-    arrivalTime: item.arrivalTime || '00:00',
-    duration: item.duration || '--',
-    aircraft: item.aircraft || '',
-    // UPDATED: Map the full classes structure including deep pricing/commission
-    classes: item.classes.map((cls: any) => ({
-        classId: cls.classId,
-        className: mapClassName(cls.classId),
-        totalSeats: cls.totalSeats,
-        bookedSeats: cls.bookedSeats,
+  // Helper to convert HH:MM string to minutes
+  const timeToMinutes = (time: string): number => {
+    if (!time || !time.includes(':')) return 0;
+    const [hours, minutes] = time.split(':').map(Number);
+    return (hours || 0) * 60 + (minutes || 0);
+  };
+
+  // Helper to format minutes to HH:MM
+  const minutesToHHMM = (totalMinutes: number): string => {
+    if (isNaN(totalMinutes) || totalMinutes <= 0) return '--';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
+
+  return apiData.map(item => {
+    
+    // UPDATED: Get primary airline (first in list)
+    const primaryAirline = (Array.isArray(item.airlines) && item.airlines.length > 0)
+      ? item.airlines[0]
+      : { name: 'Unknown', code: 'N/A', country: 'N/A' }; // Fallback
+
+    // UPDATED: Get segment info
+    const firstOutboundSegment = (item.route?.outboundSegments && item.route.outboundSegments.length > 0)
+      ? item.route.outboundSegments[0]
+      : null;
+    const lastOutboundSegment = (item.route?.outboundSegments && item.route.outboundSegments.length > 0)
+      ? item.route.outboundSegments[item.route.outboundSegments.length - 1]
+      : null;
+    
+    const firstReturnSegment = (item.route?.returnSegments && item.route.returnSegments.length > 0)
+      ? item.route.returnSegments[0]
+      : null;
+
+    // UPDATED: Get first available date and its times
+    const firstAvailableDate = (item.availableDates && item.availableDates.length > 0)
+      ? item.availableDates[0]
+      : null;
+    
+    const firstOutboundTimeSegment = (firstAvailableDate?.outboundSegmentTimes && firstAvailableDate.outboundSegmentTimes.length > 0)
+      ? firstAvailableDate.outboundSegmentTimes[0]
+      : null;
+    const lastOutboundTimeSegment = (firstAvailableDate?.outboundSegmentTimes && firstAvailableDate.outboundSegmentTimes.length > 0)
+      ? firstAvailableDate.outboundSegmentTimes[firstAvailableDate.outboundSegmentTimes.length - 1]
+      : null;
+
+    // UPDATED: Calculate total duration
+    let totalDurationMinutes = 0;
+    if (firstAvailableDate?.outboundSegmentTimes) {
+      firstAvailableDate.outboundSegmentTimes.forEach((segment: any) => {
+        totalDurationMinutes += timeToMinutes(segment.flightDuration);
+        if (segment.layoverMinutes) {
+          totalDurationMinutes += segment.layoverMinutes;
+        }
+      });
+    }
+    const totalDurationStr = minutesToHHMM(totalDurationMinutes);
+
+    return {
+      id: item._id,
+      airline: {
+        // UPDATED: Use primary airline from array
+        name: primaryAirline.name,
+        code: primaryAirline.code,
+        country: primaryAirline.country,
+        logo: `https://images.kiwi.com/airlines/64/${primaryAirline.code}.png`,
+        flagCode: primaryAirline.country,
+      },
+      // UPDATED: Use flight number from first segment
+      flightNumber: firstOutboundSegment?.flightNumber || `${primaryAirline.code}${Math.floor(1000 + Math.random() * 9000)}`,
+      route: {
+        from: [{
+          code: item.route.from.iataCode,
+          city: item.route.from.city || item.route.from.iataCode, // city is not in new JSON, fallback to iataCode
+          country: item.route.from.country,
+          flag: '', // This needs to be populated, maybe from country?
+        }],
+        to: [{
+          code: item.route.to.iataCode,
+          city: item.route.to.city || item.route.to.iataCode, // city is not in new JSON, fallback to iataCode
+          country: item.route.to.country,
+          flag: '', // This needs to be populated
+        }],
+        isRoundTrip: item.route.tripType === 'ROUND_TRIP',
+        // UPDATED: Map from segments for the Form
+        departureFlightNumber: firstOutboundSegment?.flightNumber,
+        returnFlightNumber: firstReturnSegment?.flightNumber,
+        departure: firstAvailableDate?.departureDate || '',
+        return: firstAvailableDate?.returnDate || '',
+      },
+      departureDate: firstAvailableDate?.departureDate || new Date().toISOString(),
+      // UPDATED: Get time from first segment time
+      departureTime: firstOutboundTimeSegment?.departureTime || '00:00',
+      // UPDATED: Get time from last segment time
+      arrivalTime: lastOutboundTimeSegment?.arrivalTime || '00:00',
+      // UPDATED: Use calculated duration
+      duration: totalDurationStr,
+      aircraft: item.aircraft || '', // Still not in new JSON, defaults to empty
+      
+      // This classes mapping looks compatible with the new JSON. No changes needed.
+      classes: item.classes.map((cls: any) => ({
+          classId: cls.classId,
+          className: mapClassName(cls.classId),
+          totalSeats: cls.totalSeats,
+          bookedSeats: cls.bookedSeats,
+          availableSeats: cls.availableSeats,
+          pricing: cls.pricing, // Full pricing object
+          currency: cls.currency
+      })),
+      
+      // This priceClasses mapping also looks compatible. No changes needed.
+      priceClasses: item.classes.map((cls: any) => ({
+        classType: mapClassName(cls.classId),
+        price: cls.pricing?.adult?.price || 0,
         availableSeats: cls.availableSeats,
-        // Full pricing object (adult, children, infant + commissions)
-        pricing: cls.pricing,
-        currency: cls.currency
-    })),
-    // UPDATED: priceClasses for Card display (using Adult price as base)
-    priceClasses: item.classes.map((cls: any) => ({
-      classType: mapClassName(cls.classId),
-      price: cls.pricing?.adult?.price || 0,
-      availableSeats: cls.availableSeats,
-      totalSeats: cls.totalSeats,
-      baggageAllowance: {
-        checkedBag: `${item.baggageAllowance.checkedBags}x${item.baggageAllowance.weightPerBag}`,
-        handBag: item.baggageAllowance.carryOnWeight,
-        weight: `${item.baggageAllowance.weightPerBag} total`,
+        totalSeats: cls.totalSeats,
+        baggageAllowance: {
+          checkedBag: `${item.baggageAllowance.checkedBags}x${item.baggageAllowance.weightPerBag}`,
+          handBag: item.baggageAllowance.carryOnWeight,
+          weight: `${item.baggageAllowance.weightPerBag} total`,
+        },
+        fareRules: {
+          refundable: item.fareRules.refundable,
+          changeable: true,
+          changeFee: item.fareRules.changeFee,
+          cancellationFee: item.fareRules.cancellationFee,
+        },
+      })),
+      
+      // This pricing mapping also looks compatible. No changes needed.
+      pricing: {
+          economy: item.classes.find((c: any) => c.classId === 1)?.pricing?.adult?.price || 0,
+          business: item.classes.find((c: any) => c.classId === 2)?.pricing?.adult?.price || 0,
+          first: item.classes.find((c: any) => c.classId === 3)?.pricing?.adult?.price || 0,
       },
-      fareRules: {
-        refundable: item.fareRules.refundable,
-        changeable: true,
-        changeFee: item.fareRules.changeFee,
-        cancellationFee: item.fareRules.cancellationFee,
-      },
-    })),
-    // UPDATED: Quick access pricing for filters/sorting (using Adult price)
-    pricing: {
-        economy: item.classes.find((c: any) => c.classId === 1)?.pricing?.adult?.price || 0,
-        business: item.classes.find((c: any) => c.classId === 2)?.pricing?.adult?.price || 0,
-        first: item.classes.find((c: any) => c.classId === 3)?.pricing?.adult?.price || 0,
-    },
-    availability: {
+      
+      // This availability mapping also looks compatible. No changes needed.
+      availability: {
         class1: {
             total: item.classes.find((c: any) => c.classId === 1)?.totalSeats || 0,
             booked: item.classes.find((c: any) => c.classId === 1)?.bookedSeats || 0,
@@ -106,33 +172,47 @@ const mapApiDataToBlockSeat = (apiData: any[]): BlockSeat[] => {
             total: item.classes.find((c: any) => c.classId === 3)?.totalSeats || 0,
             booked: item.classes.find((c: any) => c.classId === 3)?.bookedSeats || 0,
         },
-    },
-    baggage: {
+      },
+      
+      // This baggage mapping also looks compatible. No changes needed.
+      baggage: {
         checkedBags: item.baggageAllowance.checkedBags,
-        weight: parseInt(item.baggageAllowance.weightPerBag),
-        carryOn: parseInt(item.baggageAllowance.carryOnWeight),
-    },
-    fareRules: item.fareRules,
-    supplierCommission: item.commission.supplierCommission,
-    agencyCommission: item.commission.agencyCommission,
-    // UPDATED: Map available dates including new time and deadline fields
-    availableDates: item.availableDates.map((d: any, index: number) => ({
-        id: `${item._id}-${index}`,
-        departureDate: d.departureDate,
-        departureTime: d.departureTime,
-        returnDate: d.returnDate,
-        returnTime: d.returnTime,
-        deadline: d.deadline,
-        // Keep backward compatibility for components using old single string format if needed
-        departure: d.departureDate ? `${d.departureDate}T${d.departureTime || '00:00'}:00.000Z` : '',
-        return: d.returnDate ? `${d.returnDate}T${d.returnTime || '00:00'}:00.000Z` : ''
-    })),
-    status: item.status,
-    createdAt: item.createdAt,
-    validUntil: item.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    lastUpdated: item.updatedAt,
-    name: item.name
-  }));
+        weight: parseInt(item.baggageAllowance.weightPerBag) || 0, // Added fallback
+        carryOn: parseInt(item.baggageAllowance.carryOnWeight) || 0, // Added fallback
+      },
+
+      // This fareRules mapping also looks compatible. No changes needed.
+      fareRules: item.fareRules,
+      
+      // This commission mapping also looks compatible. No changes needed.
+      supplierCommission: item.commission.supplierCommission,
+      agencyCommission: item.commission.agencyCommission,
+      
+      // UPDATED: Map available dates including new time and deadline fields
+      availableDates: item.availableDates.map((d: any, index: number) => {
+        const depTime = d.outboundSegmentTimes?.[0]?.departureTime || '00:00';
+        const retTime = d.returnSegmentTimes?.[0]?.departureTime || '00:00';
+
+        return {
+          id: `${item._id}-${index}`,
+          departureDate: d.departureDate,
+          departureTime: depTime, // Get from first outbound segment time
+          returnDate: d.returnDate,
+          returnTime: retTime, // Get from first return segment time
+          deadline: d.deadline,
+          // Update backward compatibility strings
+          departure: d.departureDate ? `${d.departureDate}T${depTime}:00.000Z` : '',
+          return: d.returnDate ? `${d.returnDate}T${retTime}:00.000Z` : ''
+        };
+      }),
+      
+      status: item.status,
+      createdAt: item.createdAt,
+      validUntil: item.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      lastUpdated: item.updatedAt,
+      name: item.name // This is correct
+    };
+  });
 };
 
 
@@ -365,12 +445,12 @@ const BlockSeatsModule = () => {
                         </div>
                         <div className="mt-4">
                            <input
-                             type="text"
-                             value={deleteConfirmationText}
-                             onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                             placeholder='Type "yes" to confirm'
-                             className="w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 block shadow-sm sm:text-sm rounded-none"
-                           />
+                            type="text"
+                            value={deleteConfirmationText}
+                            onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                            placeholder='Type "yes" to confirm'
+                            className="w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 block shadow-sm sm:text-sm rounded-none"
+                          />
                         </div>
                     </div>
                 </div>

@@ -15,14 +15,15 @@ interface AirlineInformationProps {
     airline: string;
     airlineCode: string;
     airlineCountry: string;
-    // ADDED: Receive stoppage state from parent
     route: {
       stoppageType: 'direct' | 'stoppage' | null;
       stoppageCount: string;
     };
+    // --- ADDED: Receive the full airlines array to sync state ---
+    airlines: Airline[];
   };
-  handleAirlineChange: (airlineName: string) => void;
-  // ADDED: Prop to notify parent of stoppage changes
+  // --- UPDATED: Prop type to accept an array of Airlines ---
+  handleAirlineChange: (airlines: Airline[]) => void;
   onStoppageChange: (stoppageType: 'direct' | 'stoppage' | null, stoppageCount: string) => void;
   errors: { [key: string]: string };
 }
@@ -30,31 +31,26 @@ interface AirlineInformationProps {
 const AirlineInformation: React.FC<AirlineInformationProps> = ({
   formData,
   handleAirlineChange,
-  onStoppageChange, // UPDATED
+  onStoppageChange,
   errors,
 }) => {
   const [airlineSearch, setAirlineSearch] = React.useState('');
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  // --- Stoppage State (Local) ---
-  // REMOVED: Local state for stoppageType and stoppageCount
-  // They are now controlled by parent via formData.route.stoppageType and formData.route.stoppageCount
-
   // --- MODIFIED: State for saved vs. temporary selections ---
-  const [selectedAirlines, setSelectedAirlines] = React.useState<Airline[]>([]);
-  const [tempSelectedAirlines, setTempSelectedAirlines] = React.useState<Airline[]>([]);
+  // --- UPDATED: Initialize from formData.airlines array ---
+  const [selectedAirlines, setSelectedAirlines] = React.useState<Airline[]>(formData.airlines || []);
+  const [tempSelectedAirlines, setTempSelectedAirlines] = React.useState<Airline[]>(formData.airlines || []);
 
-  // --- Sync parent's single airline with local multi-airline state on load ---
+  // --- Sync parent's airline array with local state on load ---
   React.useEffect(() => {
-    if (formData.airline && selectedAirlines.length === 0) {
-      const initialAirline = availableAirlines.find(a => a.name === formData.airline);
-      if (initialAirline) {
-        setSelectedAirlines([initialAirline]);
-        setTempSelectedAirlines([initialAirline]); // Sync temp state as well
-      }
+    // Sync state if the parent's array is different from the local saved state
+    if (JSON.stringify(formData.airlines) !== JSON.stringify(selectedAirlines)) {
+      setSelectedAirlines(formData.airlines || []);
+      setTempSelectedAirlines(formData.airlines || []);
     }
-  }, [formData.airline]); // Only run when parent prop changes
+  }, [formData.airlines]); // Depend on the parent's array
 
   // --- Sync temp state when dropdown opens ---
   React.useEffect(() => {
@@ -110,7 +106,9 @@ const AirlineInformation: React.FC<AirlineInformationProps> = ({
   // --- NEW: Handle Save Selection ---
   const handleSaveSelection = () => {
     setSelectedAirlines(tempSelectedAirlines); // Commit temp state to saved state
-    handleAirlineChange(tempSelectedAirlines[0]?.name || ''); // Update parent
+    
+    // --- UPDATED: Pass the ENTIRE array to the parent ---
+    handleAirlineChange(tempSelectedAirlines);
 
     // Update search bar text
     if (tempSelectedAirlines.length > 1) {
@@ -129,8 +127,9 @@ const AirlineInformation: React.FC<AirlineInformationProps> = ({
     const newSelectedAirlines = selectedAirlines.filter(a => a.code !== code);
     setSelectedAirlines(newSelectedAirlines);
     setTempSelectedAirlines(newSelectedAirlines); // Keep temp in sync
-    // Update parent
-    handleAirlineChange(newSelectedAirlines[0]?.name || '');
+    
+    // --- UPDATED: Pass the ENTIRE new array to the parent ---
+    handleAirlineChange(newSelectedAirlines);
 
     // Update search bar text
     if (newSelectedAirlines.length > 1) {
@@ -147,7 +146,10 @@ const AirlineInformation: React.FC<AirlineInformationProps> = ({
     setAirlineSearch('');
     setSelectedAirlines([]);
     setTempSelectedAirlines([]);
-    handleAirlineChange('');
+    
+    // --- UPDATED: Pass an EMPTY array to the parent ---
+    handleAirlineChange([]);
+    
     setIsDropdownOpen(true); // Re-open dropdown
   };
 
@@ -320,7 +322,9 @@ const AirlineInformation: React.FC<AirlineInformationProps> = ({
                     const newSelected = selectedAirlines.slice(0, 1);
                     setSelectedAirlines(newSelected);
                     setTempSelectedAirlines(newSelected);
-                    handleAirlineChange(newSelected[0]?.name || '');
+                    
+                    // --- UPDATED: Pass array to parent ---
+                    handleAirlineChange(newSelected);
                   }}
                   className="w-5 h-5 bg-gray-100 border-gray-300 "
                 />
@@ -360,7 +364,9 @@ const AirlineInformation: React.FC<AirlineInformationProps> = ({
                   const newSelected = selectedAirlines.slice(0, newMaxAirlines);
                   setSelectedAirlines(newSelected);
                   setTempSelectedAirlines(newSelected);
-                  handleAirlineChange(newSelected[0]?.name || '');
+                  
+                  // --- UPDATED: Pass array to parent ---
+                  handleAirlineChange(newSelected);
                 }}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all text-base border-gray-200 dark:border-gray-600"
               >

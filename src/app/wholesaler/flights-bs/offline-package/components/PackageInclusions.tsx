@@ -183,17 +183,17 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
   // =========================================
 
   const [showDayForm, setShowDayForm] = useState(false);
-  // --- UPDATED: Removed 'meals' from currentDay state ---
+  // --- UPDATED: 'accommodation' removed, 'extraServices' added ---
   const [currentDay, setCurrentDay] = useState<{
     title: string;
     description: string;
     activities: string[];
-    accommodation: string;
+    extraServices: string[];
   }>({
     title: '',
     description: '',
     activities: [],
-    accommodation: ''
+    extraServices: []
   });
 
   // Derived data for Itinerary options based on Inclusions selections
@@ -221,8 +221,8 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
       ]
     }));
     // Reset form
-    // --- UPDATED: Removed 'meals' from reset ---
-    setCurrentDay({ title: '', description: '', activities: [], accommodation: '' });
+    // --- UPDATED: 'accommodation' removed, 'extraServices' added ---
+    setCurrentDay({ title: '', description: '', activities: [], extraServices: [] });
     setShowDayForm(false);
   };
 
@@ -244,6 +244,16 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
         ? prev.activities.filter(a => a !== activity)
         : [...prev.activities, activity];
       return { ...prev, activities };
+    });
+  };
+
+  // --- ADDED: Handler for Extra Services ---
+  const handleDayToggleExtraService = (service: string) => {
+    setCurrentDay(prev => {
+      const extraServices = prev.extraServices.includes(service)
+        ? prev.extraServices.filter(s => s !== service)
+        : [...prev.extraServices, service];
+      return { ...prev, extraServices };
     });
   };
 
@@ -566,7 +576,7 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                   {/* --- REMOVED: Meals Display Block --- */}
 
                   {/* Activities */}
-                  {day.activities.length > 0 && (
+                  {day.activities?.length > 0 && (
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                         Activities:
@@ -581,20 +591,24 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                     </div>
                   )}
 
-                  {/* Accommodation */}
-                  {day.accommodation && (
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <Bed className="w-3.5 h-3.5 text-orange-600" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Accommodation:
-                        </span>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {day.accommodation}
-                        </span>
+                  {/* --- ADDED: Extra Services Display --- */}
+                  {day.extraServices?.length > 0 && (
+                    <div className="mt-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                        Extra Services:
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {day.extraServices.map((service: string, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 rounded text-xs">
+                            {service}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
+
+                  {/* --- REMOVED: Accommodation Display --- */}
+
                 </div>
 
                 <button
@@ -658,8 +672,8 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                           key={activity}
                           onClick={() => handleDayToggleActivity(activity)}
                           className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${currentDay.activities.includes(activity)
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
                             }`}
                         >
                           {activity}
@@ -671,7 +685,7 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                   </div>
                 </div>
 
-                {/* --- EXTRA SERVICES SELECTION --- */}
+                {/* --- EXTRA SERVICES SELECTION (UPDATED) --- */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                     <Star className="w-3 h-3 mr-1 text-gray-500" />
@@ -682,10 +696,10 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                       itineraryExtraServices.map((service: string) => (
                         <button
                           key={service}
-                          onClick={() => handleDayToggleActivity(service)}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${currentDay.activities.includes(service)
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
+                          onClick={() => handleDayToggleExtraService(service)}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${currentDay.extraServices.includes(service)
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
                             }`}
                         >
                           {service}
@@ -697,13 +711,8 @@ const PackageInclusions: React.FC<PackageInclusionsProps> = ({
                   </div>
                 </div>
 
-                <input
-                  type="text"
-                  value={currentDay.accommodation}
-                  onChange={(e) => setCurrentDay(prev => ({ ...prev, accommodation: e.target.value }))}
-                  className="py-2 px-3 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent sm:text-sm transition-colors"
-                  placeholder="Accommodation (optional)"
-                />
+                {/* --- REMOVED: Accommodation Input --- */}
+
                 <button
                   onClick={handleAddDay}
                   className="w-full btn-gradient flex justify-center items-center py-2 px-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-lg hover:from-orange-600 hover:to-pink-600 transition-all"

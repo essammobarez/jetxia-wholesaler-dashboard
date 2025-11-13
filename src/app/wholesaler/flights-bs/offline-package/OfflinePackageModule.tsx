@@ -5,6 +5,26 @@ import PackageCard from './PackageCard';
 import PackageForm from './PackageForm';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal component
 
+// --- TYPE FIX ---
+// Define a reusable interface for flight segments based on API data
+interface FlightSegment {
+  airline: {
+    code: string;
+    name: string;
+  };
+  from: {
+    country: string;
+    iataCode: string;
+  };
+  to: {
+    country: string;
+    iataCode: string;
+  };
+  segmentNumber: number;
+  flightNumber: string;
+  hasLayover: boolean;
+}
+
 // Define the interface based on the API response structure
 export interface ApiPackage {
   _id: string;
@@ -18,13 +38,11 @@ export interface ApiPackage {
   category: string;
   status: string;
   packageImages: any[]; // Use 'any[]' or define a specific image type
+  
+  // --- TYPE FIX 1 ---
+  // Updated flightBlockSeatId to match the JSON structure
   flights: {
     flightBlockSeatId: {
-      airline: {
-        code: string;
-        name: string;
-        country: string;
-      };
       _id: string;
       name: string;
       route: {
@@ -37,10 +55,16 @@ export interface ApiPackage {
           iataCode: string;
         };
         tripType: string;
+        flightType: string;
+        stops: number;
+        outboundSegments: FlightSegment[]; // Use the segment type
+        returnSegments: FlightSegment[];  // Use the segment type
       };
-    };
+    } | null; // <-- Allow null
     selectedSeats: number;
   }[];
+  // --- END OF FIX 1 ---
+
   hotels: {
     hotelBlockRoomId: {
       country: {
@@ -62,13 +86,19 @@ export interface ApiPackage {
       quantity: number;
     }[];
   }[];
+  
+  // --- TYPE FIX 2 ---
+  // Corrected `childPrice` to `childPrice2to6` and `childPrice6to12`
   pricing: {
     adultPrice: number;
-    childPrice: number;
+    childPrice2to6: number; // <-- FIX
+    childPrice6to12: number; // <-- FIX
     infantPrice: number;
     singleSupplement: number;
     currency: string;
   };
+  // --- END OF FIX 2 ---
+
   supplierCommission: {
     type: 'fixed' | 'percentage';
     value: number;
@@ -88,6 +118,49 @@ export interface ApiPackage {
   createdAt: string;
   updatedAt: string;
   __v: number;
+  
+  // Add missing properties from sample data
+  highlights: {
+      text: string;
+      order: number;
+      _id: string;
+  }[];
+  
+  // --- TYPE FIX 3 ---
+  // Corrected itinerary structure based on JSON
+  itinerary: {
+      day: number; // <-- FIX: Was 'dayNumber'
+      title: string;
+      description: string;
+      activities: string[]; // <-- FIX: Was complex object
+      extraServices: string[]; // <-- FIX: Was missing
+      _id: string;
+  }[];
+  // --- END OF FIX 3 ---
+
+  mealPlan: {
+      type: string;
+  };
+
+  // Add optional types for inclusions/exclusions/optionalExtras
+  // as they are handled in the card but missing from your sample JSON
+  inclusions?: {
+      name: string;
+      price: number;
+      _id: string;
+  }[];
+  exclusions?: {
+      name: string;
+      price: number;
+      _id: string;
+  }[];
+  optionalExtras?: {
+      name: string;
+      price: number;
+      _id: string;
+  }[];
+
+  wholesalerId: string;
 }
 
 
