@@ -46,27 +46,63 @@ const formatDateForInput = (isoDate: string | undefined) => {
 
 const cleanString = (str: string) => {
   if (!str) return '';
+  // This regex replacement logic is kept as per original file
   return str.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
 };
 
 const getInitialFormData = (pkg?: ApiPackage) => {
   const flightBlock = pkg?.flights?.[0]?.flightBlockSeatId;
+  
+  // --- UPDATED INITIAL FLIGHT LOGIC ---
   const initialFlight = flightBlock ? {
       id: flightBlock._id,
       name: flightBlock.name,
-      airline: flightBlock.airline,
+      // Use the first airline from the new 'airlines' array
+      airline: flightBlock.airlines?.[0] ? {
+        name: flightBlock.airlines[0].name,
+        logo: `https://ui-avatars.com/api/?name=${flightBlock.airlines[0].name.replace(/\s/g, "+")}&background=random`
+      } : { name: 'Unknown Airline', logo: '' },
       route: flightBlock.route,
-      // Map flight numbers from route if available, otherwise fallback (though your new API seems to have them in route)
-      departureFlightNumber: flightBlock.route?.departureFlightNumber || "N/A",
-      returnFlightNumber: flightBlock.route?.returnFlightNumber || "N/A",
-      departureTime: "N/A",
-      arrivalTime: "N/A",
-      duration: "N/A",
-      departureDate: "N/A",
-      pricing: { economy: 0, business: 0, first: 0 },
-      availability: { class1: {}, class2: {}, class3: {} },
-      availableDates: []
+      // Get flight numbers from 'outboundSegments' and 'returnSegments'
+      departureFlightNumber: flightBlock.route?.outboundSegments?.[0]?.flightNumber || "N/A",
+      returnFlightNumber: flightBlock.route?.returnSegments?.[0]?.flightNumber || "N/A",
+      
+      // --- UPDATED TIME & DURATION MAPPING ---
+      departureTime: flightBlock.availableDates?.[0]?.outboundSegmentTimes?.[0]?.departureTime || "N/A",
+      arrivalTime: flightBlock.availableDates?.[0]?.outboundSegmentTimes?.[0]?.arrivalTime || "N/A",
+      duration: flightBlock.availableDates?.[0]?.outboundSegmentTimes?.[0]?.flightDuration || "N/A",
+      // --- END OF UPDATE ---
+
+      departureDate: flightBlock.availableDates?.[0]?.departureDate || "N/A",
+      // Get pricing from the new structure (classes -> pricing -> adult -> price)
+      pricing: { 
+        economy: flightBlock.classes?.find((c: any) => c.classId === 1)?.pricing.adult.price || 0,
+        business: flightBlock.classes?.find((c: any) => c.classId === 2)?.pricing.adult.price || 0,
+        first: flightBlock.classes?.find((c: any) => c.classId === 3)?.pricing.adult.price || 0,
+      },
+      // Get availability from the new structure
+      availability: {
+        class1: {
+          total: flightBlock.classes?.find((c: any) => c.classId === 1)?.totalSeats || 0,
+          booked: flightBlock.classes?.find((c: any) => c.classId === 1)?.bookedSeats || 0,
+        },
+        class2: {
+          total: flightBlock.classes?.find((c: any) => c.classId === 2)?.totalSeats || 0,
+          booked: flightBlock.classes?.find((c: any) => c.classId === 2)?.bookedSeats || 0,
+        },
+        class3: {
+          total: flightBlock.classes?.find((c: any) => c.classId === 3)?.totalSeats || 0,
+          booked: flightBlock.classes?.find((c: any) => c.classId === 3)?.bookedSeats || 0,
+        }
+      },
+      // Map all available dates
+      availableDates: flightBlock.availableDates?.map((d: any) => ({
+        departure: d.departureDate,
+        return: d.returnDate,
+        deadline: d.deadline,
+      })) || []
   } : null;
+  // --- END OF UPDATED FLIGHT LOGIC ---
 
   const hotelBlock = pkg?.hotels?.[0]?.hotelBlockRoomId;
   const initialHotel = hotelBlock ? {
@@ -78,6 +114,18 @@ const getInitialFormData = (pkg?: ApiPackage) => {
       amenities: [],
       roomTypes: [] 
   } : null;
+
+  // --- UPDATED: Logic for childPrice2to6 ---
+  const child2to6Price = pkg?.pricing?.childPrice2to6;
+  
+  // --- UPDATED: Logic for mealPlan ---
+  const mealType = pkg?.mealPlan?.type;
+  let mealName = [];
+  if (mealType === 'BB') mealName = ['Breakfast'];
+  else if (mealType === 'RO') mealName = ['Room Only'];
+  else if (mealType === 'HB') mealName = ['Half Board'];
+  else if (mealType === 'FB') mealName = ['Full Board'];
+  else if (mealType === 'AI') mealName = ['All Inclusive'];
 
   return {
     title: pkg?.packageTitle || '',
@@ -96,7 +144,7 @@ const getInitialFormData = (pkg?: ApiPackage) => {
     status: (pkg?.status ? (pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)) : 'Active') as 'Active' | 'Sold Out' | 'Cancelled' | 'Draft',
     
     selectedBlockSeat: initialFlight,
-    selectedDateIndex: null,
+    selectedDateIndex: null, // This remains, though logic in FlightSelection is updated
     selectedHotel: initialHotel,
     selectedRoomType: null,
     selectedHotelRooms: pkg?.hotels?.[0]?.selectedRooms || [],
@@ -104,7 +152,11 @@ const getInitialFormData = (pkg?: ApiPackage) => {
     pricing: {
       adult: pkg?.pricing?.adultPrice || 0,
       child6to12: pkg?.pricing?.childPrice6to12 || 0,
-      child2to6: pkg?.pricing?.childPrice2to6 || 0,
+      // --- UPDATED: child2to6 now an object ---
+      child2to6: {
+        price: (typeof child2to6Price === 'number' && child2to6Price > 0) ? child2to6Price : 0,
+        isFree: (typeof child2to6Price !== 'number' || child2to6Price === 0)
+      },
       infant: pkg?.pricing?.infantPrice || 0,
       singleSupplement: pkg?.pricing?.singleSupplement || 0
     },
@@ -120,28 +172,32 @@ const getInitialFormData = (pkg?: ApiPackage) => {
       endDate: formatDateForInput(pkg?.endDate),
       bookingDeadline: formatDateForInput(pkg?.bookingDeadline)
     },
+    // --- UPDATED: Itinerary mapping ---
     itinerary: pkg?.itinerary?.map((day: any) => ({
-      day: day.dayNumber,
+      day: day.day,
       title: day.title,
       description: day.description,
-      activities: day.activities?.map((a: any) => a.activity) || [],
-      meals: [
-        day.meals?.breakfast ? 'Breakfast' : null,
-        day.meals?.lunch ? 'Lunch' : null,
-        day.meals?.dinner ? 'Dinner' : null
-      ].filter(Boolean),
-      accommodation: day.accommodation || ''
+      activities: day.activities || [], // Expects string[]
+      extraServices: day.extraServices || [], // Expects string[]
     })) || [] as any[],
     images: pkg?.packageImages || [] as string[],
     selectedInclusions: {
-      // Load meals from pkg.inclusions (string array)
-      meals: pkg?.inclusions?.map((i: any) => i.name).filter(Boolean) || [],
-      // Load exclusions from pkg.exclusions, map to {name, price} for the UI
+      // --- UPDATED: meals populated from mealPlan ---
+      meals: mealName,
+      // These are populated from GET response which still has these keys
       activities: pkg?.exclusions?.map((e: any) => ({ name: e.name, price: String(e.price || 0) })) || [],
-      // Load optional extras from pkg.optionalExtras, map to {name, price} for the UI
       extras: pkg?.optionalExtras?.map((e: any) => ({ name: e.name, price: String(e.price || 0) })) || []
     }
   };
+};
+
+// --- ADDED: Meal plan mapping ---
+const mealTypeMap = {
+  'Room Only': 'RO',
+  'Breakfast': 'BB',
+  'Half Board': 'HB',
+  'Full Board': 'FB',
+  'All Inclusive': 'AI'
 };
 
 const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave }) => {
@@ -162,28 +218,14 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     inclusions: false,
     images: false
   });
-  const [currentDay, setCurrentDay] = useState({
-    day: 1,
-    title: '',
-    description: '',
-    activities: [] as string[],
-    meals: [] as string[],
-    accommodation: ''
-  });
-  const [showDayForm, setShowDayForm] = useState(false);
+  // --- REMOVED: Itinerary state, now handled in PackageInclusions ---
+  // const [currentDay, setCurrentDay] = useState(...);
+  // const [showDayForm, setShowDayForm] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [selectedCountry, setSelectedCountry] = useState(cleanString(pkg?.country || ''));
 
-  const availableMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
-  const availableActivities = [
-    'City Tour', 'Museum Visit', 'Beach Activities', 'Desert Safari',
-    'Boat Cruise', 'Shopping', 'Cultural Show', 'Adventure Sports',
-    'Wildlife Safari', 'Historical Sites', 'Food Tasting', 'Photography Tour'
-  ];
-  const availableExtras = [
-    'Airport Meet & Greet', 'Tour Guide', 'Photography', 'Travel Insurance',
-    'Visa Assistance', 'SIM Card', 'Laundry Service', 'Room Upgrade', 'Airport Round-trip Transfers', 'UAE Entry Visa'
-  ];
+  // --- REMOVED: availableMeals, availableActivities, availableExtras ---
+  // These are now handled within PackageInclusions
 
   const fetchBlockSeats = async () => {
     setIsLoadingFlights(true);
@@ -194,54 +236,69 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.data && response.data.success) {
-        const transformedData = response.data.data.map((seat: any) => ({
-          id: seat._id,
-          // Explicitly mapping Flight Numbers from route
-          departureFlightNumber: seat.route.departureFlightNumber,
-          returnFlightNumber: seat.route.returnFlightNumber,
-          airline: {
-            name: seat.airline.name,
-            logo: `https://ui-avatars.com/api/?name=${seat.airline.name.replace(/\s/g, "+")}&background=random`,
-          },
-          route: {
-            from: [{ city: seat.route.from.iataCode, code: seat.route.from.iataCode, country: seat.route.from.country }],
-            to: [{ city: seat.route.to.iataCode, code: seat.route.to.iataCode, country: seat.route.to.country }],
-          },
-          departureTime: "N/A",
-          arrivalTime: "N/A",
-          duration: "N/A",
-          departureDate: seat.availableDates[0]?.departureDate || '',
-          pricing: {
-            economy: seat.classes.find((c: any) => c.classId === 1)?.price || 0,
-            business: seat.classes.find((c: any) => c.classId === 2)?.price || 0,
-            first: seat.classes.find((c: any) => c.classId === 3)?.price || 0,
-          },
-          availability: {
-            class1: {
-              total: seat.classes.find((c: any) => c.classId === 1)?.totalSeats || 0,
-              booked: seat.classes.find((c: any) => c.classId === 1)?.bookedSeats || 0,
+        
+        // --- !! CRITICAL FIX HERE !! ---
+        // Added robust checking to prevent 'cannot read name of undefined' error
+        const transformedData = response.data.data.map((seat: any) => {
+          // Safely get airline name
+          const firstAirline = (seat.airlines && seat.airlines.length > 0) ? seat.airlines[0] : null;
+          const airlineName = firstAirline && firstAirline.name ? firstAirline.name : 'Unknown Airline';
+          const logoName = firstAirline && firstAirline.name ? firstAirline.name : 'N/A';
+
+          return {
+            id: seat._id,
+            name: seat.name, // Map the 'name' field
+            departureFlightNumber: seat.route.outboundSegments?.[0]?.flightNumber || 'N/A',
+            returnFlightNumber: seat.route.returnSegments?.[0]?.flightNumber || 'N/A',
+            airline: {
+              name: airlineName,
+              logo: `https://ui-avatars.com/api/?name=${logoName.replace(/\s/g, "+")}&background=random`,
             },
-            class2: {
-              total: seat.classes.find((c: any) => c.classId === 2)?.totalSeats || 0,
-              booked: seat.classes.find((c: any) => c.classId === 2)?.bookedSeats || 0,
+            // Add optional chaining to route properties for safety
+            route: {
+              from: [{ city: seat.route?.from?.iataCode, code: seat.route?.from?.iataCode, country: seat.route?.from?.country }],
+              to: [{ city: seat.route?.to?.iataCode, code: seat.route?.to?.iataCode, country: seat.route?.to?.country }],
             },
-            class3: {
-              total: seat.classes.find((c: any) => c.classId === 3)?.totalSeats || 0,
-              booked: seat.classes.find((c: any) => c.classId === 3)?.bookedSeats || 0,
-            }
-          },
-          availableDates: seat.availableDates.map((d: any) => ({
-            departure: d.departureDate,
-            return: d.returnDate,
-            deadline: d.deadline, // Explicitly mapping deadline
-          })),
-        }));
+            
+            departureTime: seat.availableDates?.[0]?.outboundSegmentTimes?.[0]?.departureTime || "N/A",
+            arrivalTime: seat.availableDates?.[0]?.outboundSegmentTimes?.[0]?.arrivalTime || "N/A",
+            duration: seat.availableDates?.[0]?.outboundSegmentTimes?.[0]?.flightDuration || "N/A",
+            
+            departureDate: seat.availableDates[0]?.departureDate || '',
+            pricing: {
+              economy: seat.classes.find((c: any) => c.classId === 1)?.pricing.adult.price || 0,
+              business: seat.classes.find((c: any) => c.classId === 2)?.pricing.adult.price || 0,
+              first: seat.classes.find((c: any) => c.classId === 3)?.pricing.adult.price || 0,
+            },
+            availability: {
+              class1: {
+                total: seat.classes.find((c: any) => c.classId === 1)?.totalSeats || 0,
+                booked: seat.classes.find((c: any) => c.classId === 1)?.bookedSeats || 0,
+              },
+              class2: {
+                total: seat.classes.find((c: any) => c.classId === 2)?.totalSeats || 0,
+                booked: seat.classes.find((c: any) => c.classId === 2)?.bookedSeats || 0,
+              },
+              class3: {
+                total: seat.classes.find((c: any) => c.classId === 3)?.totalSeats || 0,
+                booked: seat.classes.find((c: any) => c.classId === 3)?.bookedSeats || 0,
+              }
+            },
+            availableDates: seat.availableDates.map((d: any) => ({
+              departure: d.departureDate,
+              return: d.returnDate,
+              deadline: d.deadline,
+            })),
+          };
+        });
+        // --- !! END OF FIX !! ---
+
         setBlockSeatsData(transformedData);
       } else {
         setBlockSeatsData([]);
       }
     } catch (error) {
-      console.error("Error fetching block seats:", error);
+      console.error("Error fetching block seats:", error); // This will log the error you saw
       setBlockSeatsData([]);
     } finally {
       setIsLoadingFlights(false);
@@ -351,63 +408,11 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     return basePrice - supplierComm - agencyComm;
   };
 
-  const handleAddDay = () => {
-    if (!currentDay.title || !currentDay.description) {
-      toast.error('Please fill in day title and description');
-      return;
-    }
-    setFormData(prev => ({
-      ...prev,
-      itinerary: [...prev.itinerary, { ...currentDay, day: prev.itinerary.length + 1 }]
-    }));
-    setCurrentDay({
-      day: formData.itinerary.length + 2,
-      title: '',
-      description: '',
-      activities: [],
-      meals: [],
-      accommodation: ''
-    });
-    setShowDayForm(false);
-  };
+  // --- REMOVED: Itinerary handlers (handleAddDay, handleRemoveDay, etc.) ---
+  // This logic is now fully contained in PackageInclusions.tsx
 
-  const handleRemoveDay = (dayNumber: number) => {
-    setFormData(prev => ({
-      ...prev,
-      itinerary: prev.itinerary.filter(day => day.day !== dayNumber)
-        .map((day, index) => ({ ...day, day: index + 1 }))
-    }));
-  };
-
-  const handleToggleMeal = (meal: string) => {
-    setCurrentDay(prev => ({
-      ...prev,
-      meals: prev.meals.includes(meal as any)
-        ? prev.meals.filter(m => m !== meal)
-        : [...prev.meals, meal as any]
-    }));
-  };
-
-  const handleToggleActivity = (activity: string) => {
-    setCurrentDay(prev => ({
-      ...prev,
-      activities: prev.activities.includes(activity)
-        ? prev.activities.filter(a => a !== activity)
-        : [...prev.activities, activity]
-    }));
-  };
-
-  const handleToggleInclusion = (type: 'meals' | 'activities' | 'extras', item: string) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedInclusions: {
-        ...prev.selectedInclusions,
-        [type]: (prev.selectedInclusions[type] as string[]).includes(item)
-          ? (prev.selectedInclusions[type] as string[]).filter(i => i !== item)
-          : [...(prev.selectedInclusions[type] as string[]), item]
-      }
-    }));
-  };
+  // --- REMOVED: handleToggleInclusion ---
+  // This logic is now fully contained in PackageInclusions.tsx
 
   const handleImageUpload = (base64String: string) => {
     setFormData(prev => ({
@@ -448,75 +453,27 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     return Object.keys(newErrors).length === 0;
   };
   
+  // --- !! KEY FIX IS HERE !! ---
+  // Updated the filter logic to be robust against trailing/leading whitespace
+  // by using trim() on both the data and the selected country.
   const filteredBlockSeatsData = useMemo(() => {
     if (!selectedCountry) return [];
     return blockSeatsData.filter(seat =>
-      seat.route.to[0]?.country?.toLowerCase() === selectedCountry.toLowerCase()
+      seat.route.to[0]?.country?.trim().toLowerCase() === selectedCountry.trim().toLowerCase()
     );
   }, [blockSeatsData, selectedCountry]);
+  // --- !! END OF FIX !! ---
 
-  // --- NEW PAYLOAD FUNCTIONS ---
+  // --- REMOVED: buildInclusionsPayload, buildExclusionsPayload, buildOptionalExtrasPayload ---
 
-  // 1. Build INCLUSIONS (from Meals)
-  const buildInclusionsPayload = () => {
-    return formData.selectedInclusions.meals.map((meal: string) => ({
-      name: meal,
-      description: "", // As requested
-      price: 0, // Meals from this section don't have a price in the UI
-      currency: "USD",
-      type: "included",
-      category: "", // As requested
-      icon: "restaurant" // Matching example
-    }));
-  };
-
-  // 2. Build EXCLUSIONS (from "Activities Excluded" in UI)
-  const buildExclusionsPayload = () => {
-    // Note: The UI saves "Activities Excluded" into formData.selectedInclusions.activities
-    return formData.selectedInclusions.activities.map((item: any) => ({
-      name: item.name,
-      description: "", // As requested
-      price: parseFloat(item.price) || 0,
-      currency: "USD",
-      type: "excluded",
-      category: "", // As requested
-      icon: "do_not_disturb_on" // Generic icon for exclusion
-    }));
-  };
-
-  // 3. Build OPTIONAL EXTRAS (from "Extra Services" in UI)
-  const buildOptionalExtrasPayload = () => {
-    // Note: The UI saves "Extra Services" into formData.selectedInclusions.extras
-    return formData.selectedInclusions.extras.map((item: any) => ({
-      name: item.name,
-      description: "", // As requested
-      price: parseFloat(item.price) || 0,
-      currency: "USD",
-      type: "optional",
-      category: "", // As requested
-      icon: "star" // Matching example
-    }));
-  };
-  
-  // --- END OF NEW PAYLOAD FUNCTIONS ---
-
-
+  // --- UPDATED: buildItineraryPayload ---
   const buildItineraryPayload = () => {
-      return formData.itinerary.map(day => ({
-          dayNumber: day.day,
+      return formData.itinerary.map((day: any) => ({
+          day: day.day,
           title: day.title || "",
           description: day.description || "",
-          activities: day.activities.map((act: string) => ({
-              time: "Variable",
-              activity: act,
-              description: ""
-          })),
-          meals: {
-              breakfast: day.meals.includes('Breakfast'),
-              lunch: day.meals.includes('Lunch'),
-              dinner: day.meals.includes('Dinner')
-          },
-          accommodation: day.accommodation || ""
+          activities: day.activities || [],
+          extraServices: day.extraServices || [],
       }));
   };
 
@@ -530,6 +487,10 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     } else {
       hotelRoomsPayload = formData.selectedHotelRooms;
     }
+
+    // --- ADDED: Meal plan mapping ---
+    const selectedMeal = formData.selectedInclusions.meals[0] || 'Room Only';
+    const mealType = mealTypeMap[selectedMeal as keyof typeof mealTypeMap] || 'RO';
 
     return {
         packageTitle: formData.title,
@@ -547,16 +508,12 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
             order: index + 1
         })),
         itinerary: buildItineraryPayload(),
+        // --- ADDED: mealPlan ---
         mealPlan: {
-            type: "BB", 
-            description: "Bed & Breakfast - Daily breakfast included"
+            type: mealType,
         },
         
-        // --- UPDATED PAYLOAD KEYS ---
-        inclusions: buildInclusionsPayload(),
-        exclusions: buildExclusionsPayload(),
-        optionalExtras: buildOptionalExtrasPayload(),
-        // --- END OF UPDATES ---
+        // --- REMOVED: inclusions, exclusions, optionalExtras ---
 
         flights: [
             {
@@ -570,10 +527,11 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
                 selectedRooms: hotelRoomsPayload 
             }
         ],
+        // --- UPDATED: pricing payload ---
         pricing: {
             adultPrice: formData.pricing.adult,
             childPrice6to12: formData.pricing.child6to12,
-            childPrice2to6: formData.pricing.child2to6,
+            childPrice2to6: formData.pricing.child2to6.isFree ? 0 : formData.pricing.child2to6.price,
             infantPrice: formData.pricing.infant,
             singleSupplement: formData.pricing.singleSupplement,
             currency: "USD"
@@ -608,14 +566,15 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     
     const newItinerary = buildItineraryPayload();
     
-    // --- UPDATED INCLUSIONS/EXCLUSIONS/EXTRAS ---
-    if (JSON.stringify(formData.selectedInclusions) !== JSON.stringify(originalFormData.selectedInclusions)) {
-        changedData.inclusions = buildInclusionsPayload();
-        changedData.exclusions = buildExclusionsPayload();
-        changedData.optionalExtras = buildOptionalExtrasPayload();
-    }
-    // --- END OF UPDATE ---
+    // --- REMOVED: inclusions, exclusions, optionalExtras check ---
 
+    // --- ADDED: mealPlan check ---
+    if (JSON.stringify(formData.selectedInclusions.meals) !== JSON.stringify(originalFormData.selectedInclusions.meals)) {
+      const selectedMeal = formData.selectedInclusions.meals[0] || 'Room Only';
+      changedData.mealPlan = {
+        type: mealTypeMap[selectedMeal as keyof typeof mealTypeMap] || 'RO'
+      };
+    }
 
     if (formData.selectedBlockSeat?.id !== originalFormData.selectedBlockSeat?.id) {
       changedData.flights = [{ flightBlockSeatId: formData.selectedBlockSeat.id, selectedSeats: 1 }];
@@ -628,10 +587,15 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
       }];
     }
     
+    // --- UPDATED: pricing check ---
     const changedPricing: { [key: string]: any } = {};
     if (formData.pricing.adult !== originalFormData.pricing.adult) changedPricing.adultPrice = formData.pricing.adult;
     if (formData.pricing.child6to12 !== originalFormData.pricing.child6to12) changedPricing.childPrice6to12 = formData.pricing.child6to12;
-    if (formData.pricing.child2to6 !== originalFormData.pricing.child2to6) changedPricing.childPrice2to6 = formData.pricing.child2to6;
+    
+    const newChild2to6Price = formData.pricing.child2to6.isFree ? 0 : formData.pricing.child2to6.price;
+    const oldChild2to6Price = originalFormData.pricing.child2to6.isFree ? 0 : originalFormData.pricing.child2to6.price;
+    if (newChild2to6Price !== oldChild2to6Price) changedPricing.childPrice2to6 = newChild2to6Price;
+
     if (formData.pricing.infant !== originalFormData.pricing.infant) changedPricing.infantPrice = formData.pricing.infant;
     if (formData.pricing.singleSupplement !== originalFormData.pricing.singleSupplement) changedPricing.singleSupplement = formData.pricing.singleSupplement;
     if (Object.keys(changedPricing).length > 0) {
@@ -650,22 +614,13 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
     if (formData.dates.endDate !== originalFormData.dates.endDate) changedData.endDate = new Date(formData.dates.endDate).toISOString();
     if (formData.dates.bookingDeadline !== originalFormData.dates.bookingDeadline) changedData.bookingDeadline = formData.dates.bookingDeadline ? new Date(formData.dates.bookingDeadline).toISOString() : undefined;
 
-    // Check if itinerary actually changed
-    const originalItineraryPayload = originalFormData.itinerary.map(day => ({
-      dayNumber: day.day,
+    // --- UPDATED: Itinerary change detection ---
+    const originalItineraryPayload = originalFormData.itinerary.map((day: any) => ({
+      day: day.day,
       title: day.title || "",
       description: day.description || "",
-      activities: day.activities.map((act: string) => ({
-        time: "Variable",
-        activity: act,
-        description: ""
-      })),
-      meals: {
-        breakfast: day.meals.includes('Breakfast'),
-        lunch: day.meals.includes('Lunch'),
-        dinner: day.meals.includes('Dinner')
-      },
-      accommodation: day.accommodation || ""
+      activities: day.activities || [],
+      extraServices: day.extraServices || [],
     }));
 
 
@@ -772,30 +727,18 @@ const PackageForm: React.FC<PackageFormProps> = ({ package: pkg, onClose, onSave
               handleAddHighlight={handleAddHighlight}
             />
             {/* <ItineraryBuilder
-              formData={formData}
-              setFormData={setFormData}
-              toggleSection={toggleSection}
-              expandedSections={expandedSections}
-              currentDay={currentDay}
-              setCurrentDay={setCurrentDay}
-              showDayForm={showDayForm}
-              setShowDayForm={setShowDayForm}
-              handleAddDay={handleAddDay}
-              handleRemoveDay={handleRemoveDay}
-              handleToggleMeal={handleToggleMeal}
-              handleToggleActivity={handleToggleActivity}
-              availableMeals={availableMeals}
-              availableActivities={availableActivities}
+              ...
             /> */}
             <PackageInclusions
               formData={formData}
               setFormData={setFormData} 
               toggleSection={toggleSection}
               expandedSections={expandedSections}
-              handleToggleInclusion={handleToggleInclusion}
-              availableMeals={availableMeals}
-              availableActivities={availableActivities}
-              availableExtras={availableExtras}
+              // --- REMOVED: Unused props ---
+              // handleToggleInclusion={handleToggleInclusion}
+              // availableMeals={availableMeals}
+              // availableActivities={availableActivities}
+              // availableExtras={availableExtras}
             />
             <PackageImages
               formData={formData}

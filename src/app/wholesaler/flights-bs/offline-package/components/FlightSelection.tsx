@@ -27,6 +27,11 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
   setShowHotelSelector,
 }) => {
   
+  // --- USER DEBUG REQUEST ---
+  // This will log the country being used for filtering every time the component renders
+  console.log("FlightSelection: Target Search Country:", formData.destination.country);
+  // --- END DEBUG ---
+
   // Determine if we should show the list: only show if toggled
   const shouldShowList = showBlockSeatSelector;
 
@@ -160,7 +165,7 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
                             Return
                           </p>
                           <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {new Date(dateInfo.return).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                            {dateInfo.return ? new Date(dateInfo.return).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : 'N/A'}
                           </p>
                       </div>
 
@@ -185,15 +190,15 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
       {shouldShowList && (
         <div className={`space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar ${formData.selectedBlockSeat ? 'mt-6 border-t border-gray-200 dark:border-gray-700 pt-6' : 'mt-2'}`}>
           <div className="sticky top-0 bg-white dark:bg-gray-900 py-3 z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800 mb-2">
-              <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center">
-                <Plane className="w-4 h-4 mr-2 text-cyan-500" />
-                Available Flights {formData.destination.country && `to ${formData.destination.country}`}
-              </p>
-              {blockSeatsData.length > 0 && (
-                  <span className="px-2.5 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-md">
-                    {blockSeatsData.length} Found
-                  </span>
-              )}
+            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center">
+              <Plane className="w-4 h-4 mr-2 text-cyan-500" />
+              Available Flights {formData.destination.country && `to ${formData.destination.country}`}
+            </p>
+            {blockSeatsData.length > 0 && (
+                <span className="px-2.5 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 text-xs font-bold rounded-md">
+                  {blockSeatsData.length} Found
+                </span>
+            )}
           </div>
           
           {!formData.destination.country ? (
@@ -250,15 +255,15 @@ const FlightSelection: React.FC<FlightSelectionProps> = ({
                       </div>
                       
                       <div className="flex items-center mt-2 space-x-3">
-                          <div className="flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md">
-                            <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.from[0]?.code}</span>
-                            <ArrowRightLeft className="w-3 h-3 mx-1.5 text-gray-400" />
-                            <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.to[0]?.code}</span>
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                            <Timer className="w-3 h-3 mr-1" />
-                            {seat.duration}
-                          </span>
+                        <div className="flex items-center px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md">
+                          <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.from[0]?.code}</span>
+                          <ArrowRightLeft className="w-3 h-3 mx-1.5 text-gray-400" />
+                          <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{seat.route.to[0]?.code}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                          <Timer className="w-3 h-3 mr-1" />
+                          {seat.duration}
+                        </span>
                       </div>
                     </div>
                   </div>

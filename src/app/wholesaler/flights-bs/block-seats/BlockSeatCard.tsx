@@ -323,13 +323,19 @@ const BlockSeatCard: React.FC<BlockSeatCardProps> = ({
                     <span className="text-gray-500 dark:text-gray-400 text-xs block">
                       Return
                     </span>
-                    {new Date(date.returnDate).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })}{' '}
-                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                      {date.returnTime}
-                    </span>
+                    {date.returnDate ? (
+                      <>
+                        {new Date(date.returnDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}{' '}
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
+                          {date.returnTime}
+                        </span>
+                      </>
+                    ) : (
+                      <span className='font-normal text-gray-400'>One-way</span>
+                    )}
                   </div>
                 </div>
 

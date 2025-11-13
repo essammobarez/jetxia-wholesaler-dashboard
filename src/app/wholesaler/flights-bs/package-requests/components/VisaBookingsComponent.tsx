@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   FaPassport,
   FaSpinner,
@@ -20,8 +20,16 @@ import {
   FaFile,
   FaPlaneDeparture,
   FaArrowRight,
-} from "react-icons/fa"; // Icons remain as needed
-import BookingDetailsModal from "./visa/BookingDetailsModal"; // <-- 1. IMPORT THE NEW MODAL
+  FaCheck,
+  FaTimes,
+  FaCheckCircle,
+} from "react-icons/fa";
+import BookingDetailsModal from "./visa/BookingDetailsModal";
+
+// --- 1. IMPORT THE NEW MODALS ---
+import AcceptAppointmentModal from "./visa/AcceptAppointmentModal";
+import RejectAppointmentModal from "./visa/RejectAppointmentModal";
+import CompleteAppointmentModal from "./visa/CompleteAppointmentModal";
 
 // --- TypeScript Types based on your API response ---
 // (These remain unchanged)
@@ -71,7 +79,7 @@ interface Pricing {
 }
 
 export interface Appointment {
-  // <-- Exported this interface to be used by the modal
+  // <-- Exported this interface
   _id: string;
   visa: VisaInfo;
   wholesaler: Wholesaler;
@@ -101,14 +109,15 @@ interface ApiResponse {
 }
 
 // --- Helper function to get token ---
-// (THIS IS THE UPDATED TOKEN FUNCTION)
+// (Unchanged)
 const getAuthToken = () => {
-  return document.cookie
-          .split('; ')
-          .find(r => r.startsWith('authToken='))
-          ?.split('=')[1] || localStorage.getItem('authToken');
+  return (
+    document.cookie
+      .split("; ")
+      .find((r) => r.startsWith("authToken="))
+      ?.split("=")[1] || localStorage.getItem("authToken")
+  );
 };
-
 
 // --- Main Component ---
 
@@ -117,68 +126,111 @@ const VisaBookings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- 2. ADDED STATE FOR MODAL ---
-  const [selectedAppointment, setSelectedAppointment] =
+  // --- 2. UPDATED STATE FOR ALL MODALS ---
+  const [appointmentForDetails, setAppointmentForDetails] =
+    useState<Appointment | null>(null);
+  const [appointmentForAction, setAppointmentForAction] =
     useState<Appointment | null>(null);
 
+  const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+
+  // --- 3. WRAP FETCH LOGIC IN useCallback ---
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const token = getAuthToken();
+    if (!token) {
+      setError("Authentication token not found. Please log in.");
+      setLoading(false);
+      return;
+    }
+
+    const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!API_URL) {
+      setError(
+        "API base URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL."
+      );
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/visa-appointment/wholesaler`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result: ApiResponse = await response.json();
+
+      if (result.success && result.data) {
+        setAppointments(result.data);
+      } else {
+        throw new Error(result.message || "Failed to fetch data.");
+      }
+      // --- START OF FIX ---
+    } catch (err: any) {
+      setError(err.message || "An unknown error occurred.");
+    } finally {
+      setLoading(false);
+    }
+    // --- END OF FIX ---
+  }, []); // <-- Empty dependency array for useCallback
+
   useEffect(() => {
-    // --- API Fetching Logic ---
-    // (This remains unchanged)
-    const fetchAppointments = async () => {
-      setLoading(true);
-      setError(null);
-
-      // 1. Get token
-      const token = getAuthToken(); // <-- This now uses your new function
-      if (!token) {
-        setError("Authentication token not found. Please log in.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Define API URL (THIS IS THE UPDATED BASE URL)
-      const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL; // <-- CHANGED
-      if (!API_URL) {
-        setError(
-          "API base URL is not configured. Please set NEXT_PUBLIC_BACKEND_URL." // <-- CHANGED
-        );
-        setLoading(false);
-        return;
-      }
-
-      // 3. Fetch data
-      try {
-        const response = await fetch(
-          `${API_URL}visa-appointment/wholesaler`, // <-- This now uses the new base URL
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`, // Pass "bairer token"
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result: ApiResponse = await response.json();
-
-        if (result.success && result.data) {
-          setAppointments(result.data);
-        } else {
-          throw new Error(result.message || "Failed to fetch data.");
-        }
-      } catch (err: any) {
-        setError(err.message || "An unknown error occurred.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchAppointments();
-  }, []); // Empty dependency array means this runs once on component mount
+  }, [fetchAppointments]); // <-- Call the memoized function on mount
+
+  // --- 4. HANDLERS FOR MODALS ---
+
+  // Details Modal
+  const handleOpenDetails = (appointment: Appointment) => {
+    setAppointmentForDetails(appointment);
+  };
+  const handleCloseDetails = () => {
+    setAppointmentForDetails(null);
+  };
+
+  // Action Modals
+  const handleOpenAccept = (appointment: Appointment) => {
+    setAppointmentForAction(appointment);
+    setIsAcceptModalOpen(true);
+  };
+
+  const handleOpenReject = (appointment: Appointment) => {
+    setAppointmentForAction(appointment);
+    setIsRejectModalOpen(true);
+  };
+
+  const handleOpenComplete = (appointment: Appointment) => {
+    setAppointmentForAction(appointment);
+    setIsCompleteModalOpen(true);
+  };
+
+  const handleCloseActions = () => {
+    setAppointmentForAction(null);
+    setIsAcceptModalOpen(false);
+    setIsRejectModalOpen(false);
+    setIsCompleteModalOpen(false);
+  };
+
+  // Success handler
+  const handleUpdateSuccess = () => {
+    handleCloseActions();
+    fetchAppointments(); // <-- Re-fetch data on success
+  };
 
   // --- Helper component to render info items cleanly ---
   // (This remains unchanged)
@@ -230,8 +282,7 @@ const VisaBookings = () => {
   // --- Render Logic ---
 
   const renderContent = () => {
-    // 1. Loading State
-    // (This remains unchanged)
+    // 1. Loading State (Unchanged)
     if (loading) {
       return (
         <div className="flex justify-center items-center py-16">
@@ -243,8 +294,7 @@ const VisaBookings = () => {
       );
     }
 
-    // 2. Error State
-    // (This remains unchanged)
+    // 2. Error State (Unchanged)
     if (error) {
       return (
         <div className="text-center py-16">
@@ -259,8 +309,7 @@ const VisaBookings = () => {
       );
     }
 
-    // 3. Empty State (Uses your original placeholder)
-    // (This remains unchanged)
+    // 3. Empty State (Unchanged)
     if (appointments.length === 0) {
       return (
         <div className="text-center py-16">
@@ -279,8 +328,7 @@ const VisaBookings = () => {
       );
     }
 
-    // 4. Data State (The "histry card" list, one card per row)
-    // (This is the UPDATED part)
+    // 4. Data State
     return (
       <div className="space-y-6">
         {appointments.map((appointment) => (
@@ -288,9 +336,9 @@ const VisaBookings = () => {
             key={appointment._id}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden transition-all hover:shadow-xl flex flex-col"
           >
-            {/* Card Header (UPDATED) */}
+            {/* --- 5. UPDATED CARD HEADER --- */}
             <div className="p-5 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-3">
                 {/* Left Side: Country & Status */}
                 <div className="flex items-center gap-4">
                   <FaGlobe className="w-7 h-7 text-blue-500" />
@@ -298,7 +346,7 @@ const VisaBookings = () => {
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                       {appointment.visa.country}
                     </h4>
-                    {/* Status Badge (Moved here) */}
+                    {/* Status Badge */}
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium capitalize
                         ${
@@ -306,6 +354,8 @@ const VisaBookings = () => {
                             ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                             : appointment.status === "approved"
                             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : appointment.status === "completed"
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                             : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                         }
                       `}
@@ -315,19 +365,54 @@ const VisaBookings = () => {
                   </div>
                 </div>
 
-                {/* --- 3. UPDATED BUTTON --- */}
-                {/* Right Side: View Details Button */}
-                <button
-                  onClick={() => setSelectedAppointment(appointment)} // <-- Set state on click
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/50 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium transition-colors"
-                >
-                  View Details
-                  <FaArrowRight className="w-3 h-3" />
-                </button>
+                {/* --- 6. ACTION BUTTONS WITH UPDATED DISABLED STYLE --- */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Accept Button */}
+                  <button
+                    onClick={() => handleOpenAccept(appointment)}
+                    disabled={appointment.status !== "pending"}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaCheck />
+                    Accept
+                  </button>
+
+                  {/* Reject Button */}
+                  <button
+                    onClick={() => handleOpenReject(appointment)}
+                    disabled={
+                      appointment.status === "rejected" ||
+                      appointment.status === "completed"
+                    }
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaTimes />
+                    Reject
+                  </button>
+
+                  {/* Completed Button */}
+                  <button
+                    onClick={() => handleOpenComplete(appointment)}
+                    disabled={appointment.status !== "approved"}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaCheckCircle />
+                    Completed
+                  </button>
+
+                  {/* Existing View Details Button */}
+                  <button
+                    onClick={() => handleOpenDetails(appointment)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md text-xs font-medium transition-colors"
+                  >
+                    View Details
+                    <FaArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Card Body - (UPDATED: Application section removed, grid changed) */}
+            {/* Card Body (Unchanged) */}
             <div className="p-5 flex-grow">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                 {/* --- Column 1: Personal Info --- */}
@@ -344,7 +429,7 @@ const VisaBookings = () => {
                     icon={<FaEnvelope className="w-4 h-4" />}
                     label="Email"
                     value={appointment.personalInfo.email}
-                  />
+                  D/>
                   <InfoItem
                     icon={<FaPhone className="w-4 h-4" />}
                     label="Phone"
@@ -399,12 +484,9 @@ const VisaBookings = () => {
                     value={appointment.travelDetails.durationOfStay}
                   />
                 </div>
-
-                {/* --- Column 3: Application (REMOVED) --- */}
               </div>
 
-              {/* --- Documents Section --- */}
-              {/* (This remains unchanged) */}
+              {/* --- Documents Section --- (Unchanged) */}
               <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <h5 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                   Documents
@@ -446,7 +528,7 @@ const VisaBookings = () => {
               </div>
             </div>
 
-            {/* Card Footer (This is the section you asked to update previously) */}
+            {/* Card Footer (Unchanged) */}
             <div className="bg-blue-100 dark:bg-blue-900/50 px-5 py-3 flex justify-between items-center text-xl">
               <div className="text-gray-600 dark:text-gray-400">
                 <span>
@@ -470,8 +552,6 @@ const VisaBookings = () => {
   };
 
   return (
-    // This is the original wrapper div
-    // (This remains unchanged)
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       {/* Title */}
       <h3 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-6">
@@ -481,11 +561,31 @@ const VisaBookings = () => {
       {/* Render content based on state */}
       {renderContent()}
 
-      {/* --- 4. RENDER THE MODAL --- */}
-      {/* It will only appear when selectedAppointment is not null */}
+      {/* --- RENDER ALL MODALS --- (Unchanged) */}
+      {/* Details Modal */}
       <BookingDetailsModal
-        appointment={selectedAppointment}
-        onClose={() => setSelectedAppointment(null)}
+        appointment={appointmentForDetails}
+        onClose={handleCloseDetails}
+      />
+
+      {/* Action Modals */}
+      <AcceptAppointmentModal
+        isOpen={isAcceptModalOpen}
+        appointment={appointmentForAction}
+        onClose={handleCloseActions}
+        onUpdateSuccess={handleUpdateSuccess}
+      />
+      <RejectAppointmentModal
+        isOpen={isRejectModalOpen}
+        appointment={appointmentForAction}
+        onClose={handleCloseActions}
+        onUpdateSuccess={handleUpdateSuccess}
+      />
+      <CompleteAppointmentModal
+        isOpen={isCompleteModalOpen}
+        appointment={appointmentForAction}
+        onClose={handleCloseActions}
+        onUpdateSuccess={handleUpdateSuccess}
       />
     </div>
   );
